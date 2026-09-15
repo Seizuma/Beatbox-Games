@@ -11,7 +11,7 @@ import BuzzerGameView from './components/buzzer/BuzzerGameView';
 import BuzzerResultsView from './components/buzzer/BuzzerResultsView';
 
 // Import des composants UI
-import { AnimatedBackground, LanguageSwitch } from './components/UI';
+import { LanguageSwitch } from './components/UI';
 
 const VIEWS = {
     CREATE: 'create',
@@ -696,112 +696,77 @@ function BuzzerBattle() {
 
     // ==================== RENDER ====================
 
+    const languageSwitch = <LanguageSwitch switchLanguage={switchLanguage} isEnglish={isEnglish} />;
+
     return (
-        <div className="min-h-screen bg-gradient-to-br from-zinc-900 via-purple-900 to-zinc-900 text-white relative overflow-hidden">
+        <>
             <SEO
                 title="Buzzer Battle - BeatBox Games"
                 description="Devinez les beatboxers avant vos adversaires dans ce jeu de rapidité !"
             />
 
-            <AnimatedBackground />
+            {currentView === VIEWS.CREATE && (
+                <BuzzerCreateView
+                    language={language}
+                    languageSwitch={languageSwitch}
+                    onQuit={handleBackToHome}
+                    onCreateRoom={handleCreateRoom}
+                    onJoinRoom={handleJoinRoom}
+                    username={username}
+                    setUsername={setUsername}
+                    avatar={avatar}
+                    discordUser={discordUser}
+                />
+            )}
 
-            {/* Header */}
-            <div className="relative z-10 p-4">
-                <div className="flex justify-between items-center max-w-7xl mx-auto">
-                    <button
-                        onClick={handleBackToHome}
-                        className="group px-6 py-3 bg-gradient-to-r from-cyan-500 to-purple-500 hover:from-cyan-400 hover:to-purple-400 rounded-full transition-all duration-300 transform hover:scale-105 flex items-center gap-2 text-white font-bold shadow-lg"
-                    >
-                        <span>{t('backToHome')}</span>
-                    </button>
+            {currentView === VIEWS.LOBBY && (
+                <BuzzerLobbyView
+                    key={language}
+                    language={language}
+                    languageSwitch={languageSwitch}
+                    onQuit={handleBackToHome}
+                    roomCode={roomCode}
+                    players={players}
+                    isCreator={isCreator}
+                    gameState={gameState}
+                    onStartGame={handleStartGame}
+                />
+            )}
 
-                    <h1 className="text-3xl md:text-4xl font-bold bg-gradient-to-r from-cyan-400 to-purple-400 bg-clip-text text-transparent">
-                        🔔 Buzzer Battle
-                    </h1>
+            {currentView === VIEWS.GAME && (
+                <BuzzerGameView
+                    key={language}
+                    language={language}
+                    languageSwitch={languageSwitch}
+                    currentRound={currentRound}
+                    totalRounds={totalRounds}
+                    pixelLevel={pixelLevel}
+                    buzzedPlayer={buzzedPlayer}
+                    canBuzz={canBuzz}
+                    currentBeatboxer={currentBeatboxer}
+                    beatboxerImage={beatboxerImage}
+                    players={players}
+                    scores={scores}
+                    onBuzz={handleBuzz}
+                    onGuess={handleGuess}
+                    myPlayerId={mySocketId}
+                    wrongGuessFeedback={wrongGuessFeedback}
+                    justReconnected={justReconnected}
+                />
+            )}
 
-                    {/* Switch de langue inline */}
-                    <div className="flex items-center gap-2 bg-zinc-800/90 backdrop-blur-sm border border-zinc-700/50 rounded-full p-1">
-                        <button
-                            onClick={() => switchLanguage('fr')}
-                            className={`px-3 py-1 rounded-full text-sm font-medium transition-all duration-200 ${!isEnglish
-                                ? 'bg-cyan-500 text-white shadow-lg'
-                                : 'text-zinc-300 hover:text-white hover:bg-zinc-700/50'
-                                }`}
-                        >
-                            🇫🇷 FR
-                        </button>
-                        <button
-                            onClick={() => switchLanguage('en')}
-                            className={`px-3 py-1 rounded-full text-sm font-medium transition-all duration-200 ${isEnglish
-                                ? 'bg-cyan-500 text-white shadow-lg'
-                                : 'text-zinc-300 hover:text-white hover:bg-zinc-700/50'
-                                }`}
-                        >
-                            🇺🇸 EN
-                        </button>
-                    </div>
-                </div>
-            </div>
-
-            {/* Contenu principal */}
-            <div className="relative z-10 max-w-7xl mx-auto px-4 py-8">
-                {currentView === VIEWS.CREATE && (
-                    <BuzzerCreateView
-                        t={t}
-                        onCreateRoom={handleCreateRoom}
-                        onJoinRoom={handleJoinRoom}
-                        username={username}
-                        setUsername={setUsername}
-                        avatar={avatar}
-                        setAvatar={setAvatar}
-                        discordUser={discordUser}
-                    />
-                )}
-
-                {currentView === VIEWS.LOBBY && (
-                    <BuzzerLobbyView
-                        key={language}
-                        t={t}
-                        roomCode={roomCode}
-                        players={players}
-                        isCreator={isCreator}
-                        gameState={gameState}
-                        onStartGame={handleStartGame}
-                    />
-                )}
-
-                {currentView === VIEWS.GAME && (
-                    <BuzzerGameView
-                        key={language}
-                        t={t}
-                        currentRound={currentRound}
-                        totalRounds={totalRounds}
-                        pixelLevel={pixelLevel}
-                        buzzedPlayer={buzzedPlayer}
-                        canBuzz={canBuzz}
-                        currentBeatboxer={currentBeatboxer}
-                        beatboxerImage={beatboxerImage}
-                        players={players}
-                        scores={scores}
-                        onBuzz={handleBuzz}
-                        onGuess={handleGuess}
-                        myPlayerId={mySocketId}
-                        wrongGuessFeedback={wrongGuessFeedback}
-                        justReconnected={justReconnected}
-                    />
-                )}
-
-                {currentView === VIEWS.RESULTS && (
-                    <BuzzerResultsView
-                        key={language}
-                        t={t}
-                        scores={scores}
-                        onPlayAgain={handlePlayAgain}
-                        onBackToHome={handleBackToHome}
-                    />
-                )}
-            </div>
-        </div>
+            {currentView === VIEWS.RESULTS && (
+                <BuzzerResultsView
+                    key={language}
+                    language={language}
+                    languageSwitch={languageSwitch}
+                    scores={scores}
+                    myPlayerId={mySocketId}
+                    onPlayAgain={handlePlayAgain}
+                    onBackToHome={handleBackToHome}
+                />
+            )}
+        </>
     );
 }
 

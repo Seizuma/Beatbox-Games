@@ -1,295 +1,159 @@
-import React, { useState, useEffect } from 'react';
-import socketBuzzer from '../../buzzer-socket';
+import React, { useEffect, useId, useState } from 'react';
+import GameShell from '../show/GameShell';
+import ShowButton from '../show/ShowButton';
+import BuzzerRulesModal from './BuzzerRulesModal';
 import { getRandomPseudo } from '../../utils/randomPseudo';
+import { createShowT } from '../../utils/showI18n';
 
-const AVATARS = ['🎤', '🎵', '🎧', '🎼', '🎹', '🎸', '🥁', '🎺', '🎷'];
+const CODE_MAX_LENGTH = 6;
 
 const MODES = {
     COUNTRY: 'buzzer_country',
     EVENT: 'buzzer_event'
 };
 
+// Configuration par défaut à la création, modifiable ensuite dans la salle d'attente
+const DEFAULT_CONFIG = {
+    mode: MODES.EVENT,
+    filter: 'Grand Beatbox Battle',
+    totalRounds: 10
+};
+
+// Entrée sur le plateau du Buzzer Battle : nom du joueur, création de salle ou code d'invitation
 function BuzzerCreateView({
-    t,
     onCreateRoom,
     onJoinRoom,
     username,
     setUsername,
     avatar,
-    setAvatar,
-    discordUser = null
+    discordUser = null,
+    language,
+    languageSwitch,
+    onQuit
 }) {
-    const [activeTab, setActiveTab] = useState('create');
-    const [joinRoomCode, setJoinRoomCode] = useState('');
-    const [showInstructions, setShowInstructions] = useState(false);
+    const st = createShowT(language);
+    const nameId = useId();
+    const codeId = useId();
+    const codeHelpId = useId();
 
-    const defaultConfig = {
-        mode: MODES.EVENT,
-        filter: 'Grand Beatbox Battle',
-        totalRounds: 10
-    };
+    const [joinRoomCode, setJoinRoomCode] = useState('');
+    const [showRules, setShowRules] = useState(false);
 
     useEffect(() => {
         if (discordUser?.username) {
             setUsername(discordUser.username);
         } else if (!username || username.trim() === '') {
-            const randomPseudo = getRandomPseudo();
-            setUsername(randomPseudo);
+            setUsername(getRandomPseudo());
         }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [discordUser]);
 
-    const handleCreate = () => {
-        if (!username.trim()) {
-            alert(t('buzzerPleaseEnterUsername'));
-            return;
-        }
+    const cleanName = (username || '').trim();
+    const cleanCode = joinRoomCode.trim().toUpperCase();
+    const canCreate = cleanName.length > 0;
+    const canJoin = canCreate && cleanCode.length > 0;
 
-        const config = {
-            mode: defaultConfig.mode,
-            filter: defaultConfig.filter,
-            totalRounds: defaultConfig.totalRounds,
-            username: username.trim(),
-            avatar: avatar
-        };
-
-        onCreateRoom(config);
+    const submitCreate = (event) => {
+        event.preventDefault();
+        if (!canCreate) return;
+        onCreateRoom({ ...DEFAULT_CONFIG, username: cleanName, avatar });
     };
 
-    const handleJoin = () => {
-        if (!username.trim()) {
-            alert(t('buzzerPleaseEnterUsername'));
-            return;
-        }
-
-        if (!joinRoomCode.trim()) {
-            alert(t('buzzerPleaseEnterRoomCode'));
-            return;
-        }
-
-        onJoinRoom({
-            roomCode: joinRoomCode.trim().toUpperCase(),
-            username: username.trim(),
-            avatar
-        });
+    const submitJoin = (event) => {
+        event.preventDefault();
+        if (!canJoin) return;
+        onJoinRoom({ roomCode: cleanCode, username: cleanName, avatar });
     };
 
-    const getDiscordAvatarUrl = () => {
-        if (discordUser?.discordId && discordUser?.avatar) {
-            return `https://cdn.discordapp.com/avatars/${discordUser.discordId}/${discordUser.avatar}.png?size=64`;
-        }
-        return null;
-    };
+    const discordAvatarUrl = discordUser?.discordId && discordUser?.avatar
+        ? `https://cdn.discordapp.com/avatars/${discordUser.discordId}/${discordUser.avatar}.png?size=64`
+        : null;
 
     return (
-        <div className="max-w-2xl mx-auto">
-            {/* Header */}
-            <div className="text-center mb-6">
-                <div className="flex items-center justify-center gap-3 mb-4">
-                    <span className="text-4xl md:text-5xl animate-bounce">🥊</span>
-                    <h2 className="text-3xl md:text-4xl font-bold bg-gradient-to-r from-cyan-400 via-purple-400 to-pink-400 bg-clip-text text-transparent">
-                        {t('buzzerWelcome')}
-                    </h2>
-                    <span className="text-4xl md:text-5xl animate-bounce delay-300">🎤</span>
+        <GameShell title={st('buzzer.name')} onQuit={onQuit} quitLabel={st('common.quit')} tools={languageSwitch}>
+            <div className="mx-auto flex max-w-md flex-col gap-6">
+                <div className="text-center">
+                    <h1 className="font-brand text-4xl leading-none sm:text-5xl">{st('buzzer.name')}</h1>
+                    <p className="mt-3 text-show-muted">{st('buzzer.tagline')}</p>
                 </div>
-                <p className="text-sm md:text-base text-zinc-400 mb-3">
-                    {t('buzzerWelcomeSubtitle')}
-                </p>
-                <button
-                    onClick={() => setShowInstructions(true)}
-                    className="px-4 py-2 bg-cyan-500/20 hover:bg-cyan-500/30 border border-cyan-500/50 text-cyan-400 rounded-lg transition-all duration-300 text-sm font-semibold inline-flex items-center gap-2"
-                >
-                    📖 {t('buzzerHowToPlay')}
-                </button>
-            </div>
 
-            {/* Onglets Créer / Rejoindre */}
-            <div className="flex gap-3 mb-6">
-                <button
-                    onClick={() => setActiveTab('create')}
-                    className={`flex-1 py-3 rounded-lg font-bold transition-all duration-300 ${activeTab === 'create'
-                            ? 'bg-gradient-to-r from-cyan-500 to-purple-500 text-white shadow-lg'
-                            : 'bg-zinc-800/50 text-zinc-400 hover:bg-zinc-700/50'
-                        }`}
-                >
-                    {t('buzzerCreateGame')}
-                </button>
-                <button
-                    onClick={() => setActiveTab('join')}
-                    className={`flex-1 py-3 rounded-lg font-bold transition-all duration-300 ${activeTab === 'join'
-                            ? 'bg-gradient-to-r from-cyan-500 to-purple-500 text-white shadow-lg'
-                            : 'bg-zinc-800/50 text-zinc-400 hover:bg-zinc-700/50'
-                        }`}
-                >
-                    {t('buzzerJoinGame')}
-                </button>
-            </div>
-
-            {/* Profil utilisateur (commun) */}
-            <div className="bg-zinc-800/50 backdrop-blur-sm rounded-xl p-4 mb-4 border border-zinc-700/50">
-                <h3 className="text-lg font-bold text-cyan-400 mb-3">
-                    {t('buzzerYourProfile')}
-                </h3>
-
-                {/* Pseudo */}
-                <div className="mb-3">
-                    <label className="block text-sm font-semibold text-zinc-300 mb-2">
-                        {t('buzzerPseudo')} {discordUser && <span className="text-xs text-cyan-400">{t('buzzerDiscordLabel')}</span>}
-                    </label>
-                    <div className="flex gap-2 items-center">
-                        {discordUser && getDiscordAvatarUrl() && (
-                            <img
-                                src={getDiscordAvatarUrl()}
-                                alt={discordUser.username}
-                                className="w-10 h-10 rounded-full border-2 border-cyan-400 flex-shrink-0"
+                <form onSubmit={submitCreate} className="flex flex-col gap-3">
+                    <div className="rounded-xl bg-show-yellow px-4 pb-3 pt-2.5 text-show-night focus-within:ring-4 focus-within:ring-show-white/70">
+                        <div className="flex items-center justify-between gap-3">
+                            <label htmlFor={nameId} className="text-xs font-extrabold">{st('create.nameLabel')}</label>
+                            {!discordUser && (
+                                <button
+                                    type="button"
+                                    onClick={() => setUsername(getRandomPseudo())}
+                                    className="text-xs font-extrabold underline decoration-2 underline-offset-2 hover:no-underline"
+                                >
+                                    {st('buzzerCreate.random')}
+                                </button>
+                            )}
+                        </div>
+                        <div className="mt-0.5 flex items-center gap-3">
+                            {discordAvatarUrl && (
+                                <img src={discordAvatarUrl} alt="" className="h-9 w-9 shrink-0 rounded-full bg-show-night/10" />
+                            )}
+                            <input
+                                id={nameId}
+                                type="text"
+                                value={username}
+                                onChange={(event) => setUsername(event.target.value)}
+                                maxLength={20}
+                                disabled={Boolean(discordUser)}
+                                autoComplete="nickname"
+                                placeholder={st('create.namePlaceholder')}
+                                className="block w-full min-w-0 bg-transparent font-brand text-2xl leading-tight placeholder:text-show-night/40 focus:outline-none disabled:cursor-not-allowed"
                             />
-                        )}
-                        <input
-                            type="text"
-                            value={username}
-                            onChange={(e) => setUsername(e.target.value)}
-                            placeholder={t('buzzerUsernamePlaceholder')}
-                            maxLength={20}
-                            disabled={!!discordUser}
-                            className={`flex-1 px-3 py-2 bg-zinc-900/50 border border-zinc-600 rounded-lg text-white placeholder-zinc-500 focus:outline-none focus:border-cyan-500 transition-all text-sm ${discordUser ? 'opacity-60 cursor-not-allowed' : ''
-                                }`}
-                        />
-                        {!discordUser && (
-                            <button
-                                type="button"
-                                onClick={() => setUsername(getRandomPseudo())}
-                                className="px-3 py-2 bg-purple-500/20 hover:bg-purple-500/30 border border-purple-500/50 text-purple-400 rounded-lg transition-all duration-300 font-bold text-lg"
-                                title={t('buzzerGenerateRandomPseudo')}
-                            >
-                                🎲
-                            </button>
-                        )}
+                        </div>
+                        {discordUser && <p className="mt-1 text-xs font-semibold">{st('buzzerCreate.discordLocked')}</p>}
                     </div>
-                    {discordUser && (
-                        <p className="text-xs text-cyan-400 mt-1">
-                            {t('buzzerDiscordConnected')}
-                        </p>
-                    )}
+                    <ShowButton type="submit" size="lg" block disabled={!canCreate}>
+                        {st('create.create')}
+                    </ShowButton>
+                </form>
+
+                <div className="flex items-center gap-3 text-sm text-show-muted" aria-hidden="true">
+                    <span className="h-px flex-1 bg-show-desk" />
+                    {st('create.or')}
+                    <span className="h-px flex-1 bg-show-desk" />
                 </div>
 
-                {/* Avatar */}
-                <div>
-                    <label className="block text-sm font-semibold text-zinc-300 mb-2">
-                        {t('buzzerAvatar')}
-                    </label>
-                    <div className="flex gap-2 flex-wrap">
-                        {AVATARS.map((emo) => (
-                            <button
-                                key={emo}
-                                type="button"
-                                onClick={() => setAvatar(emo)}
-                                className={`text-2xl p-2 rounded-lg transition-all duration-300 ${avatar === emo
-                                        ? 'bg-cyan-500/30 border-2 border-cyan-400 scale-110'
-                                        : 'bg-zinc-900/50 border border-zinc-700 hover:scale-105'
-                                    }`}
-                            >
-                                {emo}
-                            </button>
-                        ))}
-                    </div>
-                </div>
-            </div>
-
-            {/* Contenu selon l'onglet */}
-            {activeTab === 'create' ? (
-                <div className="bg-zinc-800/50 backdrop-blur-sm rounded-xl p-4 border border-zinc-700/50">
-                    <h3 className="text-lg font-bold text-purple-400 mb-2">
-                        {t('buzzerCreateGame')}
-                    </h3>
-                    <p className="text-zinc-400 text-sm mb-4">
-                        {t('buzzerConfigInLobby')}
-                    </p>
-                    <button
-                        onClick={handleCreate}
-                        className="w-full py-3 bg-gradient-to-r from-cyan-500 to-purple-500 hover:from-cyan-600 hover:to-purple-600 text-white font-bold rounded-lg transition-all duration-300 transform hover:scale-105"
-                    >
-                        {t('buzzerCreateRoom')}
-                    </button>
-                </div>
-            ) : (
-                <div className="bg-zinc-800/50 backdrop-blur-sm rounded-xl p-4 border border-zinc-700/50">
-                    <h3 className="text-lg font-bold text-purple-400 mb-3">
-                        {t('buzzerJoinGame')}
-                    </h3>
-                    <div className="mb-4">
-                        <label className="block text-sm font-semibold text-zinc-300 mb-2">
-                            {t('buzzerRoomCode')}
-                        </label>
+                <form onSubmit={submitJoin}>
+                    <label htmlFor={codeId} className="mb-2 block text-sm font-extrabold">{st('create.codeLabel')}</label>
+                    <div className="flex gap-2">
                         <input
+                            id={codeId}
                             type="text"
                             value={joinRoomCode}
-                            onChange={(e) => setJoinRoomCode(e.target.value.toUpperCase())}
-                            placeholder={t('buzzerRoomCodePlaceholder')}
-                            maxLength={6}
-                            className="w-full px-4 py-3 bg-zinc-900/50 border border-zinc-600 rounded-lg text-white text-center text-xl font-bold placeholder-zinc-500 focus:outline-none focus:border-cyan-500 transition-all tracking-wider"
+                            onChange={(event) => setJoinRoomCode(event.target.value.toUpperCase().slice(0, CODE_MAX_LENGTH))}
+                            maxLength={CODE_MAX_LENGTH}
+                            autoComplete="off"
+                            autoCapitalize="characters"
+                            spellCheck="false"
+                            placeholder={st('create.codePlaceholder')}
+                            aria-describedby={codeHelpId}
+                            className="min-w-0 flex-1 rounded-full bg-show-white px-5 py-3 text-lg font-extrabold uppercase tracking-[0.2em] text-show-night placeholder:font-semibold placeholder:tracking-[0.12em] placeholder:text-slate-400 focus:outline-none focus-visible:ring-4 focus-visible:ring-show-yellow"
                         />
+                        <ShowButton type="submit" variant="white" size="lg" disabled={!canJoin}>
+                            {st('create.join')}
+                        </ShowButton>
                     </div>
-                    <button
-                        onClick={handleJoin}
-                        className="w-full py-3 bg-gradient-to-r from-green-500 to-emerald-500 hover:from-green-600 hover:to-emerald-600 text-white font-bold rounded-lg transition-all duration-300 transform hover:scale-105"
-                    >
-                        {t('buzzerJoinRoom')}
-                    </button>
-                </div>
-            )}
+                    <p id={codeHelpId} className="mt-2 text-xs text-show-muted">{st('buzzerCreate.codeHelp')}</p>
+                </form>
 
-            {/* Modal Instructions */}
-            {showInstructions && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 animate-fadeIn">
-                    <div
-                        className="absolute inset-0 bg-black/70 backdrop-blur-sm"
-                        onClick={() => setShowInstructions(false)}
-                    ></div>
-                    <div className="relative bg-zinc-900 border-2 border-cyan-500/50 rounded-2xl p-6 max-w-md w-full shadow-2xl shadow-cyan-500/20 animate-scaleIn">
-                        <div className="flex justify-between items-center mb-4">
-                            <h3 className="text-xl font-bold text-cyan-400">📖 {t('buzzerHowToPlay')}</h3>
-                            <button
-                                onClick={() => setShowInstructions(false)}
-                                className="text-zinc-400 hover:text-white text-2xl transition-colors"
-                            >
-                                ✕
-                            </button>
-                        </div>
-                        <div className="space-y-3 text-zinc-300 text-sm">
-                            <div className="flex items-start gap-3">
-                                <span className="text-2xl">🖼️</span>
-                                <div><strong>1.</strong> {t('buzzerInstruction1')}</div>
-                            </div>
-                            <div className="flex items-start gap-3">
-                                <span className="text-2xl">⌨️</span>
-                                <div><strong>2.</strong> {t('buzzerInstruction2')}</div>
-                            </div>
-                            <div className="flex items-start gap-3">
-                                <span className="text-2xl">⏱️</span>
-                                <div><strong>3.</strong> {t('buzzerInstruction3')}</div>
-                            </div>
-                            <div className="flex items-start gap-3">
-                                <span className="text-2xl">🌫️</span>
-                                <div><strong>4.</strong> {t('buzzerInstruction4')}</div>
-                            </div>
-                            <div className="flex items-start gap-3">
-                                <span className="text-2xl">⏳</span>
-                                <div><strong>5.</strong> {t('buzzerInstruction5')}</div>
-                            </div>
-                            <div className="flex items-start gap-3">
-                                <span className="text-2xl">🏆</span>
-                                <div><strong>6.</strong> {t('buzzerInstruction6')}</div>
-                            </div>
-                        </div>
-                        <button
-                            onClick={() => setShowInstructions(false)}
-                            className="w-full mt-6 py-3 bg-gradient-to-r from-cyan-500 to-purple-500 hover:from-cyan-600 hover:to-purple-600 text-white font-bold rounded-lg transition-all"
-                        >
-                            {t('buzzerUnderstood')}
-                        </button>
-                    </div>
-                </div>
-            )}
-        </div>
+                <button
+                    type="button"
+                    onClick={() => setShowRules(true)}
+                    className="self-center text-sm font-semibold text-show-muted underline decoration-show-yellow decoration-2 underline-offset-4 hover:text-show-white"
+                >
+                    {st('common.howToPlay')}
+                </button>
+            </div>
+
+            <BuzzerRulesModal open={showRules} onClose={() => setShowRules(false)} st={st} />
+        </GameShell>
     );
 }
 

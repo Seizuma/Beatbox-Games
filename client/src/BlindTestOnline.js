@@ -24,7 +24,6 @@ import socketOnline from './socketOnline';
 
 // Import des composants UI
 import {
-    AnimatedBackground,
     GameModeBadge,
     LanguageSwitch,
     VolumeControl,
@@ -319,11 +318,6 @@ function BlindTestOnline() {
     );
 
     const commonViewProps = useMemo(() => ({
-        modernBackground: STYLES.modernBackground,
-        modernCard: STYLES.modernCard,
-        modernButton: STYLES.modernButton,
-        modernInput: STYLES.modernInput,
-        AnimatedBackground,
         LanguageSwitch: LanguageSwitchComponent,
         GameModeBadge: GameModeBadgeComponent,
         t,

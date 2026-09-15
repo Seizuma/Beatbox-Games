@@ -11,6 +11,7 @@ export default function GameShell({
     status,
     tools,
     actionBar,
+    actionBarClassName = '',
     children,
     contentClassName = '',
 }) {
@@ -47,7 +48,7 @@ export default function GameShell({
             </main>
 
             {actionBar && (
-                <div className="sticky bottom-0 z-20 bg-show-night">
+                <div className={`sticky bottom-0 z-20 bg-show-night ${actionBarClassName}`}>
                     <div className="mx-auto w-full max-w-xl px-4 pb-[max(1rem,env(safe-area-inset-bottom))] pt-3">
                         {actionBar}
                     </div>

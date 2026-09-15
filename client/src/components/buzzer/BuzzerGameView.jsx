@@ -1,7 +1,18 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useId, useState } from 'react';
+import GameShell, { StatusPill } from '../show/GameShell';
+import ShowButton from '../show/ShowButton';
+import Lectern from '../show/Lectern';
+import Icon from '../icons/Icon';
+import { createShowT } from '../../utils/showI18n';
 
+const API_BASE_URL = process.env.REACT_APP_API_URL || 'https://dev.beatboxgames.com';
+
+const resolveImageUrl = (image) => (image.startsWith('http') ? image : `${API_BASE_URL}${image}`);
+
+const PLACEHOLDER_IMAGE = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="200" height="200"%3E%3Crect fill="%23163A8F" width="200" height="200"/%3E%3C/svg%3E';
+
+// Partie de Buzzer Battle : la photo sur l'écran du plateau, le buzzer sous le pouce, les pupitres des joueurs
 function BuzzerGameView({
-    t,
     currentRound,
     totalRounds,
     pixelLevel,
@@ -15,14 +26,18 @@ function BuzzerGameView({
     onGuess,
     myPlayerId,
     wrongGuessFeedback,
-    justReconnected
+    justReconnected,
+    language,
+    languageSwitch
 }) {
+    const st = createShowT(language);
+    const guessId = useId();
 
     const [guess, setGuess] = useState('');
     const [showGuessInput, setShowGuessInput] = useState(false);
     const [imageLoaded, setImageLoaded] = useState(false);
 
-    const isBuzzedByMe = buzzedPlayer === myPlayerId;
+    const isBuzzedByMe = Boolean(buzzedPlayer) && buzzedPlayer === myPlayerId;
 
     useEffect(() => {
         setGuess('');
@@ -36,8 +51,8 @@ function BuzzerGameView({
         }
     }, [isBuzzedByMe, showGuessInput]);
 
-    const handleSubmitGuess = (e) => {
-        e.preventDefault();
+    const handleSubmitGuess = (event) => {
+        event.preventDefault();
         if (guess.trim()) {
             onGuess(guess.trim());
             setGuess('');
@@ -45,253 +60,192 @@ function BuzzerGameView({
         }
     };
 
-    const getBuzzedPlayerName = () => {
-        const player = players.find(p => p.id === buzzedPlayer);
-        return player ? player.username : 'Quelqu\'un';
+    const playerList = Array.isArray(players) ? players.filter(Boolean) : [];
+    const scoreList = Array.isArray(scores) ? scores : [];
+    const findScore = (player) => scoreList.find((entry) => entry.id === player.id)
+        || scoreList.find((entry) => entry.username === player.username);
+
+    const ranked = playerList
+        .map((player) => ({ player, score: findScore(player)?.score ?? player.score ?? 0 }))
+        .sort((a, b) => b.score - a.score);
+
+    const buzzedName = playerList.find((player) => player.id === buzzedPlayer)?.username;
+    const isMyWrongGuess = Boolean(wrongGuessFeedback) && wrongGuessFeedback.playerId === myPlayerId;
+    const sharpness = Math.max(0, Math.min(100, Math.round(100 - (pixelLevel ?? 100))));
+    const buzzerDisabled = !canBuzz || Boolean(buzzedPlayer) || Boolean(currentBeatboxer);
+
+    const getLamp = (player) => {
+        if (player.connected === false) return 'idle';
+        if (player.id === buzzedPlayer) return 'buzz';
+        if (wrongGuessFeedback && wrongGuessFeedback.playerId === player.id) return 'wrong';
+        return 'idle';
     };
 
-    // ✅ Vérifier si c'est MOI qui ai eu faux
-    const isMyWrongGuess = wrongGuessFeedback && wrongGuessFeedback.playerId === myPlayerId;
+    const status = (
+        <>
+            <StatusPill>{st('game.round', { round: currentRound, max: totalRounds })}</StatusPill>
+            <StatusPill highlight>{st('buzzerGame.sharpness', { value: sharpness })}</StatusPill>
+        </>
+    );
+
+    let buzzerLabel = st('buzzerGame.buzz');
+    if (buzzedPlayer && !isBuzzedByMe) buzzerLabel = st('buzzerGame.playerBuzzed', { name: buzzedName || '…' });
+    else if (buzzerDisabled) buzzerLabel = st('buzzerGame.blocked');
+
+    const isGuessing = isBuzzedByMe && showGuessInput && !currentBeatboxer;
+
+    const actionBar = isGuessing ? (
+        <form onSubmit={handleSubmitGuess} className="flex flex-col gap-2">
+            <p className="text-center text-xs font-extrabold text-show-yellow" aria-live="assertive">{st('buzzerGame.youBuzzed')}</p>
+            <div className="flex gap-2">
+                <label htmlFor={guessId} className="sr-only">{st('game.answerLabel')}</label>
+                <input
+                    id={guessId}
+                    type="text"
+                    value={guess}
+                    onChange={(event) => setGuess(event.target.value)}
+                    placeholder={st('game.answerPlaceholder')}
+                    autoFocus
+                    autoComplete="off"
+                    autoCorrect="off"
+                    autoCapitalize="words"
+                    spellCheck="false"
+                    enterKeyHint="send"
+                    className="min-w-0 flex-1 rounded-full bg-show-white px-5 py-3 text-base font-semibold text-show-night placeholder:text-slate-400 focus:outline-none focus-visible:ring-4 focus-visible:ring-show-yellow"
+                />
+                <ShowButton type="submit" size="lg" disabled={!guess.trim()}>{st('game.submit')}</ShowButton>
+            </div>
+        </form>
+    ) : (
+        <div>
+            <ShowButton variant="buzz" size="lg" block onClick={onBuzz} disabled={buzzerDisabled} className="min-h-[4rem] text-2xl">
+                {buzzerLabel}
+            </ShowButton>
+        </div>
+    );
 
     return (
-        <div className="min-h-screen max-w-7xl mx-auto overflow-hidden pb-4">
-            {/* Header compact - FIXE */}
-            <div className="bg-zinc-800/50 backdrop-blur-sm rounded-xl p-2 mb-2 border border-zinc-700/50">
-                <div className="flex justify-between items-center text-sm">
-                    <span className="text-zinc-400">
-                        {t('buzzerGameRound')} <span className="text-cyan-400 font-bold">{currentRound}/{totalRounds}</span>
-                    </span>
-                    <span className="text-zinc-500">
-                        {t('buzzerGamePixel')}: <span className="text-purple-400 font-bold">{Math.round(pixelLevel)}%</span>
-                    </span>
-                </div>
-            </div>
+        <GameShell
+            title={st('buzzer.name')}
+            status={status}
+            tools={languageSwitch}
+            actionBar={actionBar}
+            actionBarClassName={isGuessing ? '' : 'lg:hidden'}
+            contentClassName="flex flex-col justify-center"
+        >
+            <div className="mx-auto grid w-full max-w-5xl gap-6 lg:grid-cols-[minmax(0,1fr)_14rem] lg:items-center">
+                <div className="flex flex-col gap-3">
+                    <div className="relative aspect-[4/3] w-full select-none overflow-hidden rounded-2xl border-4 border-show-white bg-show-night sm:aspect-video">
+                        {beatboxerImage ? (
+                            <img
+                                key={currentRound}
+                                src={resolveImageUrl(beatboxerImage)}
+                                alt={currentBeatboxer ? currentBeatboxer : st('buzzerGame.imageAlt')}
+                                draggable="false"
+                                className="pointer-events-none absolute inset-0 h-full w-full select-none object-contain"
+                                style={{
+                                    filter: currentBeatboxer
+                                        ? 'none'
+                                        : `blur(${pixelLevel * 0.3}px) brightness(${0.5 + (100 - pixelLevel) / 200})`,
+                                    transform: currentBeatboxer ? 'scale(1)' : `scale(${1 + (pixelLevel / 300)})`,
+                                    transition: 'filter 0.05s linear, transform 0.05s linear',
+                                    imageRendering: pixelLevel > 30 ? 'pixelated' : 'auto',
+                                    opacity: imageLoaded
+                                        ? (currentBeatboxer ? 1 : 0.3 + ((100 - pixelLevel) / 100) * 0.7)
+                                        : 0,
+                                    WebkitTouchCallout: 'none'
+                                }}
+                                onLoad={() => setImageLoaded(true)}
+                                onError={(event) => {
+                                    console.error('Erreur chargement image:', beatboxerImage);
+                                    event.target.src = PLACEHOLDER_IMAGE;
+                                    setImageLoaded(true);
+                                }}
+                            />
+                        ) : (
+                            <div className="absolute inset-0 flex items-center justify-center text-sm text-show-muted">
+                                {st('buzzerGame.loadingImage')}
+                            </div>
+                        )}
 
-            <div className="grid grid-cols-1 lg:grid-cols-4 gap-3">
-                {/* Colonne principale - Image + Buzzer */}
-                <div className="lg:col-span-3 flex flex-col">
-                    <div className="bg-zinc-800/50 backdrop-blur-sm rounded-xl p-3 border border-zinc-700/50 flex flex-col">
-                        {/* Zone d'image - RESPONSIVE HEIGHT */}
-                        <div className="relative w-full aspect-[4/3] md:aspect-video bg-zinc-900 rounded-lg overflow-hidden mb-3 select-none">
-                            {/* ✅ Banner de reconnexion (uniquement si justReconnected) */}
-                            {justReconnected && (
-                                <div className="absolute top-2 left-1/2 transform -translate-x-1/2 z-10 bg-cyan-500/90 border border-cyan-400 rounded-lg px-4 py-2 shadow-lg animate-pulse">
-                                    <p className="text-white text-sm font-bold">
-                                        {t('buzzerGameReconnected', { currentRound, totalRounds })}
-                                    </p>
-                                </div>
-                            )}
-                            {beatboxerImage ? (
-                                <div className="w-full h-full relative">
-                                    <img
-                                        key={currentRound} // âœ… Nouvelle clÃ© Ã  chaque round
-                                        src={beatboxerImage.startsWith('http')
-                                            ? beatboxerImage
-                                            : `${process.env.REACT_APP_API_URL || 'https://dev.beatboxgames.com'}${beatboxerImage}`
-                                        }
-                                        alt="Beatboxer à deviner"
-                                        className="absolute inset-0 w-full h-full object-contain select-none pointer-events-none"
-                                        style={{
-                                            filter: currentBeatboxer
-                                                ? 'none'
-                                                : `blur(${pixelLevel * 0.3}px) brightness(${0.5 + (100 - pixelLevel) / 200})`,
-                                            transform: currentBeatboxer
-                                                ? 'scale(1)'
-                                                : `scale(${1 + (pixelLevel / 300)})`,
-                                            transition: 'filter 0.05s linear, transform 0.05s linear',
-                                            imageRendering: pixelLevel > 30 ? 'pixelated' : 'auto',
-                                            opacity: imageLoaded
-                                                ? (currentBeatboxer ? 1 : 0.3 + ((100 - pixelLevel) / 100) * 0.7)
-                                                : 0,
-                                            userSelect: 'none',
-                                            WebkitUserSelect: 'none',
-                                            WebkitTouchCallout: 'none'
-                                        }}
-                                        onLoad={() => {
-                                            setImageLoaded(true); // âœ… Afficher l'image une fois chargÃ©e
-                                        }}
-                                        onError={(e) => {
-                                            console.error('âŒ Erreur chargement image:', beatboxerImage);
-                                            console.error('âŒ URL complÃ¨te:', e.target.src);
-                                            // âœ… Afficher un placeholder au lieu de cacher
-                                            e.target.src = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="200" height="200"%3E%3Crect fill="%23333" width="200" height="200"/%3E%3Ctext x="50%25" y="50%25" text-anchor="middle" fill="%23999" font-size="30"%3EðŸŽ¤%3C/text%3E%3C/svg%3E';
-                                            setImageLoaded(true); // âœ… Afficher le placeholder
-                                        }}
-                                    />
-                                </div>
-                            ) : (
-                                <div className="w-full h-full flex items-center justify-center">
-                                    <div className="text-center text-zinc-600">
-                                        <div className="text-4xl mb-2">🎤</div>
-                                        <p className="text-sm">{t('loading')}</p>
-                                    </div>
-                                </div>
-                            )}
+                        {justReconnected && (
+                            <div className="absolute left-1/2 top-3 z-10 -translate-x-1/2">
+                                <StatusPill highlight>{st('buzzerGame.reconnected', { round: currentRound, max: totalRounds })}</StatusPill>
+                            </div>
+                        )}
 
-                            {/* Overlay si quelqu'un a buzzé */}
-                            {buzzedPlayer && !currentBeatboxer && (
-                                <div className="absolute inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center">
-                                    <div className="text-center">
-                                        <div className="text-5xl mb-3 animate-bounce">🔔</div>
-                                        <p className="text-xl font-bold text-cyan-400">
-                                            {isBuzzedByMe ? t('buzzerGameYouBuzzed') : t('buzzerGamePlayerBuzzed', { player: getBuzzedPlayerName() })}
-                                        </p>
-                                        <p className="text-zinc-400 text-sm mt-1">
-                                            {isBuzzedByMe ? t('buzzerGameGuessNow') : t('buzzerGameWaiting')}
-                                        </p>
-                                    </div>
+                        {buzzedPlayer && !currentBeatboxer && (
+                            <div className="absolute inset-0 flex items-center justify-center bg-show-night/60">
+                                <p className="show-pop rounded-full bg-show-buzz px-5 py-2 text-center font-brand text-xl text-show-white sm:text-2xl" aria-live="assertive">
+                                    {isBuzzedByMe ? st('buzzerGame.youBuzzedShort') : st('buzzerGame.playerBuzzed', { name: buzzedName || '…' })}
+                                </p>
+                            </div>
+                        )}
+
+                        {currentBeatboxer && (
+                            <div className="absolute inset-x-0 bottom-0 flex justify-center p-4">
+                                <div className="show-pop rounded-2xl bg-show-white px-5 py-3 text-center text-show-night shadow-xl" role="status">
+                                    <p className="text-xs font-extrabold text-show-desk">{st('buzzerGame.revealed')}</p>
+                                    <p className="break-words font-brand text-2xl leading-tight sm:text-3xl">{currentBeatboxer}</p>
                                 </div>
-                            )}
+                            </div>
+                        )}
 
-                            {/* Overlay révélation */}
-                            {currentBeatboxer && (
-                                <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-transparent to-transparent flex items-end justify-center pb-6">
-                                    <div className="text-center">
-                                        <p className="text-2xl font-bold text-white mb-1">
-                                            {currentBeatboxer}
-                                        </p>
-                                        <p className="text-cyan-400 text-sm">{t('buzzerGameAnswerRevealed')}</p>
-                                    </div>
-                                </div>
-                            )}
+                        {isMyWrongGuess && (
+                            <div className="absolute left-1/2 top-3 z-20 -translate-x-1/2" role="alert">
+                                <p className="show-pop flex items-center gap-2 rounded-full bg-show-buzz px-4 py-2 text-sm font-extrabold text-show-white">
+                                    <Icon name="close" size={16} />
+                                    {st('buzzerGame.wrong')}
+                                </p>
+                            </div>
+                        )}
 
-                            {/* ✅ FEEDBACK de mauvaise réponse - UNIQUEMENT POUR MOI */}
-                            {isMyWrongGuess && (
-                                <div className="absolute top-4 left-1/2 transform -translate-x-1/2 z-20">
-                                    <div className="bg-red-500 text-white px-4 py-2 rounded-lg shadow-xl animate-bounce">
-                                        <p className="font-bold flex items-center gap-2">
-                                            <span className="text-2xl">❌</span>
-                                            <span>{t('buzzerGameWrongAnswer')}</span>
-                                        </p>
-                                    </div>
-                                </div>
-                            )}
-                        </div>
-
-                        {/* Section Buzzer + Input - COMPACT */}
-                        <div className="space-y-2">
-                            {/* Bouton Buzzer COMPACT */}
-                            {!currentBeatboxer && !isBuzzedByMe && (
-                                <button
-                                    onClick={onBuzz}
-                                    disabled={!canBuzz || buzzedPlayer}
-                                    className={`relative w-full group ${!canBuzz || buzzedPlayer ? 'opacity-50 cursor-not-allowed' : ''}`}
-                                >
-                                    <div className={`relative rounded-xl p-3 shadow-xl transition-all duration-200 ${!canBuzz || buzzedPlayer
-                                        ? 'bg-gradient-to-r from-zinc-700 to-zinc-800'
-                                        : 'bg-gradient-to-r from-red-500 to-red-700 group-hover:scale-105 group-active:scale-95'
-                                        }`}>
-                                        <div className="flex items-center justify-center gap-3">
-                                            <span className="text-3xl">{buzzedPlayer ? '⏸️' : '🔔'}</span>
-                                            <div className="text-left">
-                                                <p className={`text-lg font-black ${!canBuzz || buzzedPlayer ? 'text-zinc-400' : 'text-white'}`}>
-                                                    {buzzedPlayer ? t('buzzerGameBuzzerBlocked') : t('buzzerGameBuzzer')}
-                                                </p>
-                                                {!buzzedPlayer && canBuzz && (
-                                                    <p className="text-xs text-red-200">{t('buzzerGamePressSpace')}</p>
-                                                )}
-                                            </div>
-                                        </div>
-                                    </div>
-                                </button>
-                            )}
-
-                            {/* Input de réponse - INLINE */}
-                            {isBuzzedByMe && showGuessInput && !currentBeatboxer && (
-                                <form onSubmit={handleSubmitGuess} className="flex gap-2">
-                                    <input
-                                        type="text"
-                                        value={guess}
-                                        onChange={(e) => setGuess(e.target.value)}
-                                        placeholder={t('buzzerGameEnterName')}
-                                        autoFocus
-                                        className="flex-1 px-4 py-2 bg-zinc-900/50 border border-cyan-500 rounded-lg text-white placeholder-zinc-500 focus:outline-none focus:border-cyan-400 text-sm"
-                                    />
-                                    <button
-                                        type="submit"
-                                        className="px-4 py-2 bg-gradient-to-r from-green-500 to-emerald-500 hover:from-green-600 hover:to-emerald-600 text-white font-bold rounded-lg transition-all text-sm"
-                                    >
-                                        {t('buzzerGameValidate')}
-                                    </button>
-                                </form>
-                            )}
-
-                            {/* Indicateur d'attente - COMPACT */}
-                            {buzzedPlayer && !isBuzzedByMe && !currentBeatboxer && (
-                                <div className="text-center py-2 text-zinc-400 text-sm">
-                                    <div className="animate-pulse">⏳ En attente...</div>
-                                </div>
-                            )}
-                        </div>
+                        {!currentBeatboxer && (
+                            <div className="absolute inset-x-3 bottom-3 h-2 overflow-hidden rounded-full bg-show-night/70" aria-hidden="true">
+                                <div className="h-full rounded-full bg-show-yellow" style={{ width: `${sharpness}%` }} />
+                            </div>
+                        )}
                     </div>
+
+                    {wrongGuessFeedback && !isMyWrongGuess && (
+                        <p className="text-center text-sm font-semibold text-show-muted" role="status">
+                            {st('buzzerGame.playerWrong', { name: wrongGuessFeedback.playerName })}
+                        </p>
+                    )}
                 </div>
 
-                {/* Colonne Scores - SCROLLABLE */}
-                <div className="lg:col-span-1 h-full overflow-hidden">
-                    <div className="bg-zinc-800/50 backdrop-blur-sm rounded-xl p-3 border border-zinc-700/50 h-full overflow-hidden flex flex-col">
-                        <h3 className="text-sm font-bold text-purple-400 mb-2 flex-shrink-0">{t('buzzerGameScores')}</h3>
-
-                        <div className="space-y-2 overflow-y-auto flex-1 pr-1">
-                            {scores && scores.length > 0 ? (
-                                scores.map((player, index) => (
-                                    <div
-                                        key={player.id}
-                                        className={`p-2 rounded-lg border transition-all ${index === 0
-                                            ? 'bg-gradient-to-r from-yellow-500/20 to-amber-500/20 border-yellow-500/50'
-                                            : player.id === myPlayerId
-                                                ? 'bg-cyan-500/10 border-cyan-500/50'
-                                                : 'bg-zinc-900/50 border-zinc-700/50'
-                                            }`}
-                                    >
-                                        <div className="flex items-center justify-between">
-                                            <div className="flex items-center gap-2 flex-1 min-w-0">
-                                                {/* ✅ Avatar Discord ou emoji */}
-                                                {player.isDiscordUser && player.discordAvatar ? (
-                                                    <img
-                                                        src={`https://cdn.discordapp.com/avatars/${player.discordId}/${player.discordAvatar}.png?size=64`}
-                                                        alt={player.username}
-                                                        className="w-8 h-8 rounded-full border border-cyan-400 flex-shrink-0"
-                                                    />
-                                                ) : (
-                                                    <span className="text-2xl flex-shrink-0">{player.avatar}</span>
-                                                )}
-
-                                                <div className="flex-1 min-w-0">
-                                                    <p className="font-bold text-white text-xs truncate">
-                                                        {index === 0 && '👑 '}
-                                                        {player.username}
-                                                        {player.id === myPlayerId && ' (Vous)'}
-                                                    </p>
-                                                    <p className={`text-xs font-bold ${index === 0 ? 'text-yellow-400' : 'text-cyan-400'}`}>
-                                                        {player.score} pts
-                                                    </p>
-                                                </div>
-                                            </div>
-                                            <span className="text-zinc-500 text-sm font-bold flex-shrink-0">
-                                                #{index + 1}
-                                            </span>
-                                        </div>
-
-                                        {/* Stats - ULTRA COMPACT */}
-                                        {(player.buzzes > 0 || player.correctGuesses > 0 || player.wrongGuesses > 0) && (
-                                            <div className="flex gap-2 text-xs text-zinc-400 mt-1 pt-1 border-t border-zinc-700/30">
-                                                {player.buzzes > 0 && <span>🔔{player.buzzes}</span>}
-                                                {player.correctGuesses > 0 && <span className="text-green-400">✓{player.correctGuesses}</span>}
-                                                {player.wrongGuesses > 0 && <span className="text-red-400">✗{player.wrongGuesses}</span>}
-                                            </div>
-                                        )}
-                                    </div>
-                                ))
-                            ) : (
-                                <div className="text-center text-zinc-500 py-4 text-sm">
-                                    <p>{t('buzzerGameNoScore')}</p>
-                                </div>
-                            )}
-                        </div>
-                    </div>
+                <div className="hidden flex-col items-center gap-3 lg:flex">
+                    <button
+                        type="button"
+                        onClick={onBuzz}
+                        disabled={buzzerDisabled}
+                        className="flex h-44 w-44 flex-col items-center justify-center rounded-full border-[6px] border-show-white bg-show-buzz text-show-white shadow-show-buzz transition active:translate-y-[5px] active:shadow-none disabled:cursor-not-allowed disabled:bg-show-dim disabled:shadow-none"
+                    >
+                        <span className="px-3 text-center font-brand text-2xl leading-tight">{buzzerLabel}</span>
+                        {!buzzerDisabled && <span className="mt-1 text-xs font-extrabold opacity-90">{st('buzzerGame.spaceHint')}</span>}
+                    </button>
                 </div>
+
+                <section aria-labelledby="buzzer-scores-title" className="lg:col-span-2">
+                    <h2 id="buzzer-scores-title" className="sr-only">{st('game.scores')}</h2>
+                    <ol className="grid grid-cols-3 gap-x-2.5 gap-y-4 sm:grid-cols-5 lg:grid-cols-6">
+                        {ranked.map(({ player, score }) => (
+                            <li key={player.id || player.username}>
+                                <Lectern
+                                    name={player.username}
+                                    value={score}
+                                    caption={player.connected === false ? st('common.offline') : undefined}
+                                    lamp={getLamp(player)}
+                                    highlight={player.id === myPlayerId}
+                                    dimmed={player.connected === false}
+                                />
+                            </li>
+                        ))}
+                    </ol>
+                    <p className="mt-4 text-center text-xs text-show-muted">{st('buzzerGame.legend')}</p>
+                </section>
             </div>
-        </div>
+        </GameShell>
     );
 }
 
