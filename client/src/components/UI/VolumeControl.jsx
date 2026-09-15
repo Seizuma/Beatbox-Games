@@ -1,8 +1,11 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useRef, useId } from 'react';
+import Icon from '../icons/Icon';
+import { stripEmoji } from '../../utils/showI18n';
 
 /**
- * Composant de contrôle du volume avec slider
- * ✅ FINAL : Complètement isolé des re-renders externes
+ * Contrôle du volume du plateau
+ * La logique (état local, anti-rebond, mémoïsation) est reprise telle quelle ; seul l'affichage change.
+ * La classe "relative" du conteneur est utilisée par useAudio pour fermer le panneau au clic extérieur.
  */
 const VolumeControl = ({
     audioVolume,
@@ -11,15 +14,16 @@ const VolumeControl = ({
     setShowVolumeControl,
     t
 }) => {
-    // ✅ État local pour le slider (complètement indépendant)
+    const panelId = useId();
+
+    // État local du slider, indépendant des re-renders externes
     const [localVolume, setLocalVolume] = useState(audioVolume);
     const [isDragging, setIsDragging] = useState(false);
 
-    // ✅ Ref pour éviter les re-synchronisations pendant le drag
     const isInitializedRef = useRef(false);
     const dragTimeoutRef = useRef(null);
 
-    // ✅ Initialisation unique au premier render
+    // Initialisation unique
     useEffect(() => {
         if (!isInitializedRef.current) {
             setLocalVolume(audioVolume);
@@ -27,14 +31,13 @@ const VolumeControl = ({
         }
     }, [audioVolume]);
 
-    // ✅ Synchronisation seulement si vraiment nécessaire
+    // Synchronisation seulement si nécessaire
     useEffect(() => {
         if (!isDragging && isInitializedRef.current && Math.abs(localVolume - audioVolume) > 0.01) {
             setLocalVolume(audioVolume);
         }
     }, [audioVolume, isDragging, localVolume]);
 
-    // ✅ Gestion du changement avec debounce pour éviter le spam
     const handleSliderChange = useCallback((e) => {
         const newVolume = parseFloat(e.target.value);
         setLocalVolume(newVolume);
@@ -43,21 +46,17 @@ const VolumeControl = ({
             setIsDragging(true);
         }
 
-        // Débounce pour éviter trop d'appels
         if (dragTimeoutRef.current) {
             clearTimeout(dragTimeoutRef.current);
         }
 
-        // Appliquer le changement immédiatement
         handleVolumeChange(newVolume);
 
-        // Reset du dragging après un délai
         dragTimeoutRef.current = setTimeout(() => {
             setIsDragging(false);
         }, 100);
     }, [handleVolumeChange, isDragging]);
 
-    // ✅ Gestion des événements de souris/touch
     const handleSliderMouseDown = useCallback(() => {
         setIsDragging(true);
         if (dragTimeoutRef.current) {
@@ -66,13 +65,11 @@ const VolumeControl = ({
     }, []);
 
     const handleSliderMouseUp = useCallback(() => {
-        // Délai pour permettre la fin du changement
         dragTimeoutRef.current = setTimeout(() => {
             setIsDragging(false);
         }, 50);
     }, []);
 
-    // ✅ Nettoyage
     useEffect(() => {
         return () => {
             if (dragTimeoutRef.current) {
@@ -81,60 +78,52 @@ const VolumeControl = ({
         };
     }, []);
 
-    // ✅ Icône du volume mémorisée
-    const volumeIcon = localVolume === 0 ? '🔇' :
-        localVolume < 0.3 ? '🔈' :
-            localVolume < 0.7 ? '🔉' : '🔊';
+    const label = stripEmoji(t('controlVolume'));
+    const percent = Math.round(localVolume * 100);
 
     return (
         <div className="relative">
             <button
+                type="button"
                 onClick={() => setShowVolumeControl(!showVolumeControl)}
-                className="p-2 bg-zinc-700/50 hover:bg-zinc-600/50 rounded-xl transition-all duration-300 group"
-                title={t('controlVolume')}
+                aria-expanded={showVolumeControl}
+                aria-controls={panelId}
+                className={`flex h-8 w-8 items-center justify-center rounded-full transition-colors ${showVolumeControl ? 'bg-show-yellow text-show-night' : 'bg-show-stage-2 text-show-white hover:text-show-yellow'} ${localVolume === 0 ? 'opacity-60' : ''}`}
             >
-                <span className="text-xl group-hover:scale-110 transition-transform duration-200">
-                    {volumeIcon}
-                </span>
+                <Icon name="volume" size={18} title={label} />
             </button>
 
             {showVolumeControl && (
                 <div
-                    className="absolute top-full right-0 mt-2 p-3 bg-zinc-800/90 backdrop-blur-sm border border-zinc-600/50 rounded-xl shadow-xl z-50 volume-control-enter"
-                    style={{ minWidth: '140px' }}
+                    id={panelId}
+                    className="absolute right-0 top-full z-50 mt-2 w-48 rounded-xl bg-show-night p-3 font-show text-show-white shadow-xl"
                 >
-                    <div className="flex items-center gap-3">
-                        <span className="text-sm flex-shrink-0">🔈</span>
-                        <input
-                            type="range"
-                            min="0"
-                            max="1"
-                            step="0.01"
-                            value={localVolume}
-                            onChange={handleSliderChange}
-                            onMouseDown={handleSliderMouseDown}
-                            onMouseUp={handleSliderMouseUp}
-                            onTouchStart={handleSliderMouseDown}
-                            onTouchEnd={handleSliderMouseUp}
-                            className="volume-slider flex-1"
-                            style={{
-                                background: `linear-gradient(to right, #06b6d4 0%, #06b6d4 ${localVolume * 100}%, #4b5563 ${localVolume * 100}%, #4b5563 100%)`
-                            }}
-                        />
-                        <span className="text-sm flex-shrink-0">🔊</span>
+                    <div className="flex items-center justify-between text-xs font-extrabold">
+                        <span>{label}</span>
+                        <span className="text-show-yellow">{percent} %</span>
                     </div>
-                    <div className="text-center mt-2">
-                        <span className="text-xs text-zinc-400">
-                            {Math.round(localVolume * 100)}%
-                        </span>
-                    </div>
+                    <input
+                        type="range"
+                        min="0"
+                        max="1"
+                        step="0.01"
+                        value={localVolume}
+                        aria-label={label}
+                        aria-valuetext={`${percent} %`}
+                        onChange={handleSliderChange}
+                        onMouseDown={handleSliderMouseDown}
+                        onMouseUp={handleSliderMouseUp}
+                        onTouchStart={handleSliderMouseDown}
+                        onTouchEnd={handleSliderMouseUp}
+                        className="mt-2 w-full accent-show-yellow"
+                    />
                 </div>
             )}
         </div>
     );
 };
 
-// ✅ Comparaison personnalisée pour éviter les re-renders inutiles
+// Comparaison personnalisée pour éviter les re-renders inutiles
 const arePropsEqual = (prevProps, nextProps) => {
     return (
         Math.abs(prevProps.audioVolume - nextProps.audioVolume) < 0.01 &&

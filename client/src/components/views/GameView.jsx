@@ -1,6 +1,44 @@
-import React from 'react';
+import React, { useEffect, useId, useRef } from 'react';
+import GameShell, { StatusPill } from '../show/GameShell';
+import ShowButton from '../show/ShowButton';
+import BulbRing from '../show/BulbRing';
+import Lectern from '../show/Lectern';
+import Icon from '../icons/Icon';
 import { VolumeControl } from '../UI';
+import { createShowT, LEVEL_POINTS } from '../../utils/showI18n';
 
+// État de la barre d'action, dans le même ordre de priorité que l'ancienne vue
+const getPhase = ({ answerFeedback, me, hasAnswered, canAnswer, timerStarted }) => {
+    if (answerFeedback?.show) return answerFeedback.isCorrect ? 'correct' : 'wrong';
+    if (me?.hasFoundThisRound) return 'found';
+    if (!hasAnswered && canAnswer && timerStarted) return 'answer';
+    if (!timerStarted && !hasAnswered && canAnswer) return 'listen';
+    if (hasAnswered) return 'sent';
+    if (!canAnswer) return 'locked';
+    return 'syncing';
+};
+
+const getLamp = (player, level) => {
+    if (!player.connected) return 'idle';
+    if (player.hasFoundThisRound) return 'ready';
+    const current = player.currentAnswer;
+    if (current && level && current.level === level) {
+        return current.isCorrect ? 'ready' : 'wrong';
+    }
+    return 'idle';
+};
+
+const PHASE_STYLE = {
+    correct: { icon: 'check', className: 'bg-show-ready text-show-night', key: 'game.correct' },
+    wrong: { icon: 'close', className: 'bg-show-buzz text-show-white', key: 'game.wrong' },
+    found: { icon: 'check', className: 'bg-show-stage-2 text-show-white', key: 'game.found' },
+    listen: { icon: 'headphones', className: 'text-show-muted', key: 'game.listenHint' },
+    sent: { icon: 'check', className: 'text-show-muted', key: 'game.sent' },
+    locked: { icon: 'headphones', className: 'text-show-muted', key: 'game.locked' },
+    syncing: { icon: 'headphones', className: 'text-show-muted', key: 'game.syncing' },
+};
+
+// Partie de Blind Test : couronne d'ampoules pour le temps, pupitres des joueurs, réponse ancrée en bas
 const GameView = ({
     gameState,
     timeLeft,
@@ -12,326 +50,139 @@ const GameView = ({
     scores,
     pseudo,
     answerFeedback,
-    isFirefox,
-    // Handlers
     setAnswer,
     handleSubmitAnswer,
-    getPlayerAnswerIcon,
-    // Props du VolumeControl
     volumeControlProps,
-    // UI Components
-    modernBackground,
-    modernCard,
-    modernButton,
-    modernInput,
-    AnimatedBackground,
     LanguageSwitch,
-    t,
-    // Props pour l'audio
-    userInteracted,
-    forceEnableAudio
+    language
 }) => {
-    // ✅ CORRIGÉ : Fonction pour obtenir l'avatar Discord avec optional chaining
-    const getPlayerAvatar = (player) => {
-        if (player?.isDiscordUser && player?.avatarUrl) {
-            return player.avatarUrl;
-        }
-        return null;
+    const st = createShowT(language);
+    const answerId = useId();
+
+    // Durée totale de l'extrait : la plus grande valeur reçue depuis le début du niveau
+    const maxTimeRef = useRef(null);
+    const round = gameState?.round;
+    const level = gameState?.level;
+
+    useEffect(() => {
+        maxTimeRef.current = null;
+    }, [round, level]);
+
+    if (typeof timeLeft === 'number' && (maxTimeRef.current === null || timeLeft > maxTimeRef.current)) {
+        maxTimeRef.current = timeLeft;
+    }
+
+    const hasTimer = typeof timeLeft === 'number';
+    const progress = hasTimer && maxTimeRef.current ? timeLeft / maxTimeRef.current : 1;
+
+    const playerList = Array.isArray(players) ? players.filter(Boolean) : [];
+    const me = playerList.find((player) => player.pseudo === pseudo);
+    const sortedPlayers = playerList
+        .slice()
+        .sort((a, b) => (scores?.[b.pseudo] || 0) - (scores?.[a.pseudo] || 0));
+
+    const phase = getPhase({ answerFeedback, me, hasAnswered, canAnswer, timerStarted });
+    const phaseStyle = PHASE_STYLE[phase];
+    const levelPoints = LEVEL_POINTS[level];
+
+    const submit = (event) => {
+        event.preventDefault();
+        if (answer && answer.trim()) handleSubmitAnswer();
     };
 
-    // ✅ CORRIGÉ : Vérifier si un joueur est un utilisateur Discord avec optional chaining
-    const isDiscordPlayer = (player) => {
-        return player?.isDiscordUser && player?.discordId;
-    };
-
-    // Fonction de test audio pour debug
-    const handleTestAudio = () => {
-        console.log('🧪 TEST AUDIO DÉCLENCHÉ par utilisateur');
-        if (forceEnableAudio) {
-            forceEnableAudio();
-        }
-
-        if (window.debugAudio) {
-            console.log('🧪 Tests directs disponibles:', Object.keys(window.debugAudio));
-            window.debugAudio.testCountdownReady();
-            setTimeout(() => window.debugAudio.testTension(), 1000);
-        }
-    };
+    const status = gameState ? (
+        <>
+            <StatusPill>{st('game.round', { round: gameState.round, max: gameState.maxRounds })}</StatusPill>
+            {levelPoints && <StatusPill highlight>{st('game.level', { level, points: levelPoints })}</StatusPill>}
+        </>
+    ) : null;
 
     return (
-        <div className={modernBackground}>
-            <AnimatedBackground />
-            <LanguageSwitch />
-
-            {/* Bouton de test audio si pas d'interaction */}
-            {!userInteracted && process.env.NODE_ENV === 'development' && (
-                <div className="fixed top-20 left-4 z-40">
-                    <button
-                        onClick={handleTestAudio}
-                        className="bg-yellow-500 hover:bg-yellow-600 text-black px-4 py-2 rounded-lg font-bold text-sm shadow-lg"
+        <GameShell
+            title={st('blindtest.name')}
+            status={status}
+            contentClassName="flex flex-col justify-center"
+            tools={
+                <>
+                    {volumeControlProps && <VolumeControl {...volumeControlProps} />}
+                    {LanguageSwitch && <LanguageSwitch />}
+                </>
+            }
+            actionBar={
+                phase === 'answer' ? (
+                    <form onSubmit={submit} className="flex gap-2">
+                        <label htmlFor={answerId} className="sr-only">{st('game.answerLabel')}</label>
+                        <input
+                            id={answerId}
+                            type="text"
+                            value={answer}
+                            onChange={(event) => setAnswer(event.target.value)}
+                            placeholder={st('game.answerPlaceholder')}
+                            autoFocus
+                            autoComplete="off"
+                            autoCorrect="off"
+                            autoCapitalize="words"
+                            spellCheck="false"
+                            enterKeyHint="send"
+                            className="min-w-0 flex-1 rounded-full bg-show-white px-5 py-3 text-base font-semibold text-show-night placeholder:text-slate-400 focus:outline-none focus-visible:ring-4 focus-visible:ring-show-yellow"
+                        />
+                        <ShowButton type="submit" size="lg" disabled={!answer || !answer.trim()}>
+                            {st('game.submit')}
+                        </ShowButton>
+                    </form>
+                ) : (
+                    <p
+                        role="status"
+                        aria-live="polite"
+                        className={`flex min-h-[3.25rem] items-center justify-center gap-2 rounded-full px-4 text-center text-sm font-extrabold ${phaseStyle.className}`}
                     >
-                        🔊 Test Audio
-                    </button>
-                </div>
-            )}
-
-            <div className="flex flex-col items-center justify-center min-h-screen px-4 relative z-10">
-                <div className={`${modernCard} p-4 md:p-6 max-w-2xl w-full max-h-[95vh] overflow-y-auto`}>
-                    <div className="text-center mb-6">
-                        <div className="flex items-center justify-between mb-4">
-                            <div></div>
-                            <h2 className="text-3xl font-bold bg-gradient-to-r from-cyan-400 via-purple-400 to-pink-400 bg-clip-text text-transparent">
-                                {t('blindTestTitle')}
-                            </h2>
-
-                            {/* Contrôle de volume avec props stables */}
-                            <VolumeControl {...volumeControlProps} />
-                        </div>
-
-                        {gameState && (
-                            <div className="flex justify-center gap-6 mb-4">
-                                <div className="bg-gradient-to-r from-yellow-500/20 to-orange-500/20 border border-yellow-400/30 rounded-xl px-4 py-2">
-                                    <p className="text-yellow-400 font-bold">
-                                        {t('round')} {gameState.round} / {gameState.maxRounds}
-                                    </p>
-                                </div>
-                                <div className="bg-gradient-to-r from-cyan-500/20 to-blue-500/20 border border-cyan-400/30 rounded-xl px-4 py-2">
-                                    <p className="text-cyan-300 font-bold">
-                                        {t('level')} {gameState.level} / {gameState.maxLevel}
-                                    </p>
-                                </div>
-                            </div>
-                        )}
-
-                        {/* Indicateur d'état audio en développement */}
-                        {process.env.NODE_ENV === 'development' && (
-                            <div className="mb-4 p-2 bg-gray-800/50 rounded-lg text-xs">
-                                <div className="flex justify-center gap-4 text-gray-300">
-                                    <span className={userInteracted ? 'text-green-400' : 'text-red-400'}>
-                                        🎵 Audio: {userInteracted ? 'Activé' : 'En attente'}
-                                    </span>
-                                    <span>Vol: {Math.round(volumeControlProps.audioVolume * 100)}%</span>
-                                    <span className={canAnswer ? 'text-green-400' : 'text-red-400'}>
-                                        Réponse: {canAnswer ? 'Possible' : 'Bloquée'}
-                                    </span>
-                                    <span className={timerStarted ? 'text-green-400' : 'text-orange-400'}>
-                                        Timer: {timerStarted ? 'ON' : 'OFF'}
-                                    </span>
-                                </div>
-                            </div>
-                        )}
-                    </div>
-
-                    {timeLeft !== null && (
-                        <div className={`text-center mb-6 ${timeLeft < 10 ? 'animate-pulse' : ''}`}>
-                            <div className={`inline-flex items-center gap-3 px-6 py-3 rounded-2xl font-bold text-2xl ${timeLeft < 10
-                                ? 'bg-gradient-to-r from-red-500/30 to-pink-500/30 border border-red-400/50 text-red-400'
-                                : 'bg-gradient-to-r from-cyan-500/30 to-purple-500/30 border border-cyan-400/50 text-cyan-300'
-                                }`}>
-                                ⏳ {timeLeft}s
-                            </div>
-                        </div>
+                        <Icon name={phaseStyle.icon} size={18} />
+                        {st(phaseStyle.key)}
+                    </p>
+                )
+            }
+        >
+            <div className="mx-auto flex w-full max-w-4xl flex-col items-center gap-8 lg:grid lg:grid-cols-[auto_minmax(0,1fr)] lg:items-center lg:gap-12">
+                <BulbRing
+                    progress={progress}
+                    className="h-44 w-44 sm:h-56 sm:w-56"
+                    label={hasTimer ? `${timeLeft} ${st('game.seconds')}` : st('game.listen')}
+                >
+                    {hasTimer ? (
+                        <>
+                            <span className={`font-brand text-6xl leading-none sm:text-7xl ${timeLeft <= 10 ? 'text-show-yellow' : ''}`} aria-hidden="true">
+                                {timeLeft}
+                            </span>
+                            <span className="mt-1 text-xs text-show-muted" aria-hidden="true">{st('game.seconds')}</span>
+                        </>
+                    ) : (
+                        <>
+                            <Icon name="headphones" size={44} className="text-show-yellow" />
+                            <span className="mt-2 text-xs font-semibold text-show-muted" aria-hidden="true">{st('game.listen')}</span>
+                        </>
                     )}
+                </BulbRing>
 
-                    <div className="mb-4">
-                        {/* Affichage du feedback de réponse (priorité absolue) */}
-                        {answerFeedback?.show ? (
-                            <div className={`text-center p-4 rounded-2xl transition-all duration-300 ${answerFeedback.isCorrect
-                                ? 'bg-gradient-to-r from-green-500/20 to-emerald-500/20 border border-green-400/30 feedback-bounce'
-                                : 'bg-gradient-to-r from-red-500/20 to-pink-500/20 border border-red-400/30'
-                                }`}>
-                                <div className="text-3xl mb-2">
-                                    {answerFeedback.isCorrect ? '✅' : '❌'}
-                                </div>
-                                <p className={`font-bold text-base ${answerFeedback.isCorrect ? 'text-green-400' : 'text-red-400'}`}>
-                                    {answerFeedback.isCorrect ? t('goodAnswer') : t('wrongAnswer')}
-                                </p>
-                            </div>
-                        )
-
-                            : players?.find(p => p?.pseudo === pseudo)?.hasFoundThisRound ? (
-                                <div className="text-center p-4 bg-gradient-to-r from-green-500/20 to-emerald-500/20 border border-green-400/30 rounded-2xl">
-                                    <div className="text-3xl mb-2">✅</div>
-                                    <p className="text-green-400 font-bold text-base">
-                                        {t('youAlreadyFoundThisRound')}
-                                    </p>
-                                </div>
-                            )
-
-                                /* Peut répondre (conditions idéales) */
-                                : !hasAnswered && canAnswer && timerStarted ? (
-                                    <div className="space-y-3">
-                                        <input
-                                            type="text"
-                                            placeholder={t('typeYourAnswer')}
-                                            value={answer}
-                                            onChange={(e) => setAnswer(e.target.value)}
-                                            onKeyDown={(e) => {
-                                                if (e.key === 'Enter' && answer.trim()) handleSubmitAnswer();
-                                            }}
-                                            className={`${modernInput} w-full p-3 text-lg text-center`}
-                                            autoFocus={true}
-                                        />
-                                        <button
-                                            onClick={handleSubmitAnswer}
-                                            disabled={!answer.trim()}
-                                            className={`w-full py-3 rounded-2xl font-bold text-base transition-all duration-300 ${!answer.trim()
-                                                ? 'bg-zinc-600 text-zinc-400 cursor-not-allowed'
-                                                : `${modernButton} transform hover:scale-105`
-                                                }`}
-                                        >
-                                            {t('sendMyAnswer')}
-                                        </button>
-                                    </div>
-                                )
-
-                                    /* Timer pas encore démarré */
-                                    : !timerStarted && !hasAnswered && canAnswer ? (
-                                        <div className="text-center p-4 bg-gradient-to-r from-blue-500/20 to-cyan-500/20 border border-blue-400/30 rounded-2xl">
-                                            <div className="text-3xl mb-2">⏳</div>
-                                            <p className="text-blue-400 font-bold text-base">
-                                                {t('waitForSignal')}
-                                            </p>
-                                        </div>
-                                    )
-
-                                        /* A répondu, en attente du serveur */
-                                        : hasAnswered ? (
-                                            <div className="text-center p-4 bg-gradient-to-r from-blue-500/20 to-cyan-500/20 border border-blue-400/30 rounded-2xl">
-                                                <div className="text-lg mb-1">⏳</div>
-                                                <p className="text-blue-400 font-bold text-sm">
-                                                    {t('waitingForServer')}
-                                                </p>
-                                            </div>
-                                        )
-
-                                            /* Ne peut pas répondre */
-                                            : !canAnswer ? (
-                                                <div className="text-center p-4 bg-gradient-to-r from-orange-500/20 to-yellow-500/20 border border-orange-400/30 rounded-2xl">
-                                                    <div className="text-3xl mb-2">🔒</div>
-                                                    <p className="text-orange-400 font-bold text-base">
-                                                        {t('waitForSignal')}
-                                                    </p>
-                                                </div>
-                                            )
-
-                                                /* État inconnu (fallback) */
-                                                : (
-                                                    <div className="text-center p-4 bg-gradient-to-r from-gray-500/20 to-gray-600/20 border border-gray-500/30 rounded-2xl">
-                                                        <div className="text-lg mb-1">❓</div>
-                                                        <p className="text-gray-400 text-sm">
-                                                            {t('unknownState')}
-                                                        </p>
-                                                    </div>
-                                                )}
-                    </div>
-
-                    {/* ✅ CORRIGÉ : Scoreboard moderne avec avatars Discord et protection */}
-                    <div>
-                        <h3 className="text-2xl font-bold text-center mb-4 bg-gradient-to-r from-cyan-400 to-purple-400 bg-clip-text text-transparent">
-                            {t('liveScoreboard')}
-                        </h3>
-                        <div className="bg-zinc-700/30 backdrop-blur-sm rounded-2xl p-4 space-y-3">
-                            {players?.filter(Boolean)
-                                .sort((a, b) => (scores?.[b?.pseudo] || 0) - (scores?.[a?.pseudo] || 0))
-                                .map((player, index) => {
-                                    if (!player || !player.pseudo) return null;
-
-                                    return (
-                                        <div
-                                            key={player.pseudo}
-                                            className={`flex justify-between items-center p-4 rounded-xl transition-all duration-300 ${player.pseudo === pseudo
-                                                ? 'bg-gradient-to-r from-cyan-500/30 to-purple-500/30 border border-cyan-400/50 transform scale-105'
-                                                : player.connected
-                                                    ? 'bg-zinc-600/50 hover:bg-zinc-600/70'
-                                                    : 'bg-red-900/30 border border-red-500/30'
-                                                }`}
-                                        >
-                                            <div className="flex items-center gap-4">
-                                                {/* ✅ CORRIGÉ : Avatar ou rang avec avatar Discord */}
-                                                <div className="flex items-center gap-3">
-                                                    {/* Avatar Discord ou rang coloré */}
-                                                    {getPlayerAvatar(player) ? (
-                                                        <div className="relative">
-                                                            <img
-                                                                src={getPlayerAvatar(player)}
-                                                                alt={`Avatar de ${player.pseudo}`}
-                                                                className="w-12 h-12 rounded-full border-2 border-zinc-600"
-                                                                onError={(e) => {
-                                                                    e.target.style.display = 'none';
-                                                                    e.target.nextSibling.style.display = 'flex';
-                                                                }}
-                                                            />
-                                                            {/* Badge rang sur l'avatar */}
-                                                            <div className={`absolute -top-1 -right-1 w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold ${index === 0 ? 'bg-gradient-to-r from-yellow-400 to-orange-500 text-black' :
-                                                                index === 1 ? 'bg-gradient-to-r from-gray-300 to-gray-500 text-black' :
-                                                                    index === 2 ? 'bg-gradient-to-r from-orange-400 to-red-500 text-white' :
-                                                                        'bg-gradient-to-r from-zinc-500 to-zinc-600 text-white'
-                                                                }`}>
-                                                                {index + 1}
-                                                            </div>
-                                                        </div>
-                                                    ) : (
-                                                        <div className={`w-12 h-12 rounded-full flex items-center justify-center text-lg font-bold ${index === 0 ? 'bg-gradient-to-r from-yellow-400 to-orange-500 text-black' :
-                                                            index === 1 ? 'bg-gradient-to-r from-gray-300 to-gray-500 text-black' :
-                                                                index === 2 ? 'bg-gradient-to-r from-orange-400 to-red-500 text-white' :
-                                                                    'bg-gradient-to-r from-zinc-500 to-zinc-600 text-white'
-                                                            }`}>
-                                                            {index + 1}
-                                                        </div>
-                                                    )}
-                                                </div>
-
-                                                <div>
-                                                    <div className="flex items-center gap-2">
-                                                        <span className={`font-bold text-lg ${player.connected ? 'text-white' : 'text-red-400'}`}>
-                                                            {player.pseudo}
-                                                        </span>
-
-                                                        {/* ✅ CORRIGÉ : Badges Discord et couronne */}
-                                                        <div className="flex items-center gap-1">
-                                                            {index === 0 && <span className="text-2xl">👑</span>}
-                                                            {isDiscordPlayer(player) && (
-                                                                <span className="text-xs bg-indigo-500 text-white px-1.5 py-0.5 rounded-full" title="Utilisateur Discord">
-                                                                    🔗
-                                                                </span>
-                                                            )}
-                                                        </div>
-
-                                                        {!player.connected && (
-                                                            <div className="flex items-center gap-1">
-                                                                {player.isReconnecting ? (
-                                                                    <span className="text-yellow-400 text-sm animate-pulse">🔄</span>
-                                                                ) : (
-                                                                    <span className="text-red-400 text-sm">🔴</span>
-                                                                )}
-                                                            </div>
-                                                        )}
-                                                    </div>
-                                                    {!player.connected && (
-                                                        <p className={`text-xs ${player.isReconnecting ? 'text-yellow-300' : 'text-red-300'}`}>
-                                                            {player.isReconnecting ? t('reconnecting') : t('disconnected')}
-                                                        </p>
-                                                    )}
-                                                </div>
-                                            </div>
-                                            <div className="flex items-center gap-4">
-                                                <span className={`font-bold text-xl ${player.connected ? 'text-white' : 'text-red-400'}`}>
-                                                    {scores?.[player.pseudo] || 0} pts
-                                                </span>
-                                                <div className="text-2xl">
-                                                    {player.connected ? getPlayerAnswerIcon(player) : '🔴'}
-                                                </div>
-                                            </div>
-                                        </div>
-                                    );
-                                })
-                            }
-                        </div>
-                    </div>
-                </div>
+                <section aria-labelledby="game-scores-title" className="w-full">
+                    <h2 id="game-scores-title" className="sr-only">{st('game.scores')}</h2>
+                    <ol className="grid grid-cols-3 gap-x-2.5 gap-y-4 sm:grid-cols-4 lg:grid-cols-5">
+                        {sortedPlayers.map((player) => (
+                            <li key={player.pseudo}>
+                                <Lectern
+                                    name={player.pseudo}
+                                    value={scores?.[player.pseudo] || 0}
+                                    caption={player.connected ? undefined : st('common.offline')}
+                                    lamp={getLamp(player, level)}
+                                    highlight={player.pseudo === pseudo}
+                                    dimmed={!player.connected}
+                                />
+                            </li>
+                        ))}
+                    </ol>
+                    <p className="mt-4 text-center text-xs text-show-muted lg:text-left">{st('game.legend')}</p>
+                </section>
             </div>
-        </div>
+        </GameShell>
     );
 };
 

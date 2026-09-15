@@ -1,22 +1,21 @@
 import React from 'react';
+import { stripEmoji } from '../../utils/showI18n';
 
 /**
- * Badge indiquant le mode de jeu (Quick/Normal)
+ * Pastille indiquant le mode de jeu (rapide ou normal)
  * @param {string} gameMode - 'quick' ou 'normal'
  * @param {function} t - Fonction de traduction
  */
 const GameModeBadge = ({ gameMode, t }) => {
-    if (gameMode === 'quick') {
-        return (
-            <div className="inline-flex items-center gap-2 px-3 py-1 bg-gradient-to-r from-yellow-500/20 to-orange-500/20 border border-yellow-400/30 rounded-full text-yellow-400 text-sm font-bold">
-                {t('quickMode')}
-            </div>
-        );
-    }
+    const isQuick = gameMode === 'quick';
+    const label = stripEmoji(t(isQuick ? 'quickMode' : 'normalMode'));
+
     return (
-        <div className="inline-flex items-center gap-2 px-3 py-1 bg-gradient-to-r from-cyan-500/20 to-purple-500/20 border border-cyan-400/30 rounded-full text-cyan-400 text-sm font-bold">
-            {t('normalMode')}
-        </div>
+        <span
+            className={`inline-flex items-center whitespace-nowrap rounded-full px-3 py-1 font-show text-xs font-extrabold ${isQuick ? 'bg-show-yellow text-show-night' : 'bg-show-stage-2 text-show-white'}`}
+        >
+            {label}
+        </span>
     );
 };
 

@@ -31,6 +31,8 @@ import {
     CountdownOverlay,
     ArtistRevealOverlay
 } from './components/UI';
+import { AudioUnlockBanner, GameToast } from './components/show/GameNotices';
+import { createShowT } from './utils/showI18n';
 
 // Import des styles
 import { STYLES } from './utils/styleConstants';
@@ -324,8 +326,9 @@ function BlindTestOnline() {
         AnimatedBackground,
         LanguageSwitch: LanguageSwitchComponent,
         GameModeBadge: GameModeBadgeComponent,
-        t
-    }), [LanguageSwitchComponent, GameModeBadgeComponent, t]);
+        t,
+        language
+    }), [LanguageSwitchComponent, GameModeBadgeComponent, t, language]);
     // ✅ AFFICHAGES CONDITIONNELS
     const showSafariAudioInfo = isSafari && !userInteracted && (view === VIEWS.LOBBY || view === VIEWS.GAME);
     const showError = error && !showSafariAudioInfo;
@@ -334,35 +337,17 @@ function BlindTestOnline() {
     // ✅ RENDU
     return (
         <>
-            {/* Alerte Safari */}
+            {/* Alerte audio (Safari / iOS) */}
             {showSafariAudioInfo && (
-                <div className="fixed top-0 left-0 right-0 z-50 bg-orange-500/90 text-white p-3 text-center text-sm">
-                    <div className="flex items-center justify-center gap-2">
-                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 14.142M8.464 15.536a5 5 0 010-7.072m-2.828 9.9a9 9 0 010-14.142" />
-                        </svg>
-                        <span>{t('safariAudioInfo') || 'Cliquez n\'importe où pour activer l\'audio sur Safari'}</span>
-                    </div>
-                </div>
+                <AudioUnlockBanner message={createShowT(language)('notices.audioUnlock')} />
             )}
 
             {/* Notification d'erreur/succès */}
             {showError && (
-                <div className={`fixed top-4 left-1/2 transform -translate-x-1/2 z-50 px-6 py-3 rounded-lg shadow-lg text-sm max-w-md text-center ${error.startsWith('✅')
-                    ? 'bg-green-500/90 text-white'
-                    : isSharedLinkError
-                        ? 'bg-yellow-500/90 text-black border-2 border-yellow-300'
-                        : 'bg-red-500/90 text-white'
-                    }`}>
-                    <div className="flex flex-col gap-2">
-                        <span>{error}</span>
-                        {isSharedLinkError && (
-                            <div className="text-xs opacity-90">
-                                💡 Le serveur peut suggérer un pseudo alternatif automatiquement
-                            </div>
-                        )}
-                    </div>
-                </div>
+                <GameToast
+                    message={error}
+                    hint={isSharedLinkError ? createShowT(language)('notices.sharedLinkHint') : null}
+                />
             )}
 
             {/* Debug overlay en développement */}

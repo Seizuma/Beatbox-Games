@@ -1,44 +1,30 @@
 import React from 'react';
+import GameShell from '../show/GameShell';
+import BulbRing from '../show/BulbRing';
+import Icon from '../icons/Icon';
+import { createShowT } from '../../utils/showI18n';
 
-const LoadingView = ({
-    room,
-    t,
-    modernBackground,
-    modernCard,
-    AnimatedBackground,
-    LanguageSwitch,
-    GameModeBadge
-}) => {
+// Connexion au serveur ou entrée dans une salle
+const LoadingView = ({ room, LanguageSwitch, GameModeBadge, language }) => {
+    const st = createShowT(language);
+
     return (
-        <div className={modernBackground}>
-            <AnimatedBackground />
-            <LanguageSwitch />
-            <div className="flex flex-col items-center justify-center min-h-screen px-4 relative z-10">
-                <div className={`${modernCard} p-8 max-w-md w-full`}>
-                    <div className="flex flex-col items-center gap-6">
-                        <div className="relative">
-                            <div className="animate-spin rounded-full h-16 w-16 border-4 border-transparent bg-gradient-to-r from-cyan-400 to-purple-500 rounded-full"></div>
-                            <div className="absolute inset-2 bg-zinc-800 rounded-full"></div>
-                        </div>
-                        <div className="text-center">
-                            <p className="text-2xl font-bold bg-gradient-to-r from-cyan-400 to-purple-400 bg-clip-text text-transparent mb-2">
-                                {t('connecting')}
-                            </p>
+        <GameShell title={st('blindtest.name')} tools={LanguageSwitch ? <LanguageSwitch /> : null}>
+            <div role="status" aria-live="polite" className="flex min-h-[60dvh] flex-col items-center justify-center gap-6 text-center">
+                <BulbRing size={140} ringClassName="motion-safe:animate-[spin_8s_linear_infinite]">
+                    <Icon name="headphones" size={40} className="text-show-yellow" />
+                </BulbRing>
+                <div>
+                    <p className="font-brand text-2xl leading-tight">{st('loading.connecting')}</p>
+                    {room && <p className="mt-2 text-show-muted">{st('loading.joining', { room })}</p>}
+                    {GameModeBadge && (
+                        <div className="mt-4 flex justify-center">
                             <GameModeBadge />
-                            <p className="text-green-400 text-sm flex items-center gap-2 justify-center mt-2">
-                                <span className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></span>
-                                {t('socketStable')}
-                            </p>
-                            {room && (
-                                <p className="text-yellow-400 text-sm mt-2">
-                                    {t('joiningRoom', { room })}
-                                </p>
-                            )}
                         </div>
-                    </div>
+                    )}
                 </div>
             </div>
-        </div>
+        </GameShell>
     );
 };
 
