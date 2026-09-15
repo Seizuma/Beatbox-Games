@@ -1,6 +1,5 @@
 import React from 'react';
-import { Routes, Route } from 'react-router-dom';
-import BlindTest from './BlindTest';
+import { Routes, Route, Navigate } from 'react-router-dom';
 import BlindTestOnline from './BlindTestOnline';
 import BuzzerBattle from './BuzzerBattle';
 import Hub from './components/Hub';
@@ -15,7 +14,7 @@ function App() {
   return (
     <Routes>
       <Route path="/" element={<Hub />} />
-      <Route path="/blindtest" element={<BlindTest />} />
+      <Route path="/blindtest" element={<Navigate to="/blindtest-online" replace />} />
       <Route path="/blindtest-online" element={<BlindTestOnline />} />
       <Route path="/buzzer-battle" element={<BuzzerBattle />} />
       <Route path="/credits" element={<CreditsPage />} />
