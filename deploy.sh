@@ -81,6 +81,7 @@ show_help() {
     echo ""
     echo "OPTIONS:"
     echo "  --no-build      - Ne pas rebuild les images"
+    echo "  --fresh         - Rebuild complet sans cache Docker"
     echo "  --force         - Forcer le nettoyage même avec espace suffisant"
     echo "  --yes           - Pas de confirmation (auto pour CI/CD)"
     echo "  --follow        - Suivre les logs (avec logs)"
@@ -97,9 +98,9 @@ show_help() {
     echo "  🎵 Production: https://beatboxgames.com"
     echo ""
     echo "ARCHITECTURE:"
-    echo "  develop → dev (testing)"
-    echo "  preprod → preprod (hotfix testing)"
-    echo "  main → production (stable)"
+    echo "  master → dev / preprod / production"
+    echo "  (branches develop et preprod supprimees)"
+}
 }
 
 # ✅ ANALYSE DE L'ESPACE DISQUE
@@ -192,7 +193,7 @@ setup_environment() {
             ENVIRONMENT="dev"
             COMPOSE_FILE="docker-compose.dev.yml"
             PROJECT_NAME="beatbox-games-dev"
-            BRANCH="develop"
+            BRANCH="master"
             log_dev "=== CONFIGURATION DEV ==="
             log_dev "🔧 Environnement: dev.beatboxgames.com"
             log_dev "🏷️ Projet Docker: $PROJECT_NAME"
@@ -203,7 +204,7 @@ setup_environment() {
             ENVIRONMENT="preprod"
             COMPOSE_FILE="docker-compose.preprod.yml"
             PROJECT_NAME="beatbox-games-preprod"
-            BRANCH="preprod"
+            BRANCH="master"
             log_preprod "=== CONFIGURATION PREPROD ==="
             log_preprod "🧪 Environnement: preprod.beatboxgames.com"
             log_preprod "🏷️ Projet Docker: $PROJECT_NAME"
