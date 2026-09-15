@@ -101,7 +101,6 @@ show_help() {
     echo "  master → dev / preprod / production"
     echo "  (branches develop et preprod supprimees)"
 }
-}
 
 # ✅ ANALYSE DE L'ESPACE DISQUE
 get_free_space_gb() {
