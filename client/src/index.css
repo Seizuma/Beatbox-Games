@@ -1,3 +1,66 @@
-@import "tailwindcss/base";
-@import "tailwindcss/components";
-@import "tailwindcss/utilities";
+@import url('https://fonts.googleapis.com/css2?family=Albert+Sans:wght@400;600;800&family=Bowlby+One&family=Hanken+Grotesk:wght@400;500;600;700;800&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+    html {
+        -webkit-text-size-adjust: 100%;
+    }
+
+    body {
+        -webkit-font-smoothing: antialiased;
+        -moz-osx-font-smoothing: grayscale;
+    }
+
+    :focus-visible {
+        outline: 2px solid theme('colors.brand.ink');
+        outline-offset: 2px;
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+
+        *,
+        *::before,
+        *::after {
+            animation-duration: 0.01ms !important;
+            animation-iteration-count: 1 !important;
+            transition-duration: 0.01ms !important;
+            scroll-behavior: auto !important;
+        }
+    }
+}
+
+@layer components {
+
+    /* Couronne d'ampoules du plateau : --progress règle la part allumée */
+    .bulb-ring {
+        --progress: 100%;
+        border-radius: 9999px;
+        background: conic-gradient(theme('colors.show.yellow') 0 var(--progress),
+                theme('colors.show.dim') var(--progress) 100%);
+        -webkit-mask:
+            repeating-conic-gradient(#000 0 7deg, transparent 7deg 12deg),
+            radial-gradient(circle, transparent 58%, #000 59% 74%, transparent 75%);
+        -webkit-mask-composite: source-in;
+        mask:
+            repeating-conic-gradient(#000 0 7deg, transparent 7deg 12deg),
+            radial-gradient(circle, transparent 58%, #000 59% 74%, transparent 75%);
+        mask-composite: intersect;
+    }
+
+    /* Socle trapézoïdal d'un pupitre */
+    .lectern-base {
+        clip-path: polygon(0 0, 100% 0, 88% 100%, 12% 100%);
+    }
+
+    /* Portrait flou générique (vignettes, chargement) */
+    .blurred-portrait {
+        background:
+            radial-gradient(circle at 45% 38%, #8f6a55 0 18%, transparent 19%),
+            radial-gradient(circle at 45% 72%, #3d4a66 0 34%, transparent 35%),
+            linear-gradient(#5e6570, #2b2f38);
+        filter: blur(6px);
+    }
+}

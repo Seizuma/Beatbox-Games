@@ -1,5 +1,8 @@
 import { useEffect } from 'react';
 
+// Couleur de la barre du navigateur sur mobile : encre de la marque, commune au site et aux jeux
+const THEME_COLOR = '#0F1B3D';
+
 const SEO = ({
     title = "BeatBox Games - Blind Test Musical & Univers Beatbox | Jeu Multijoueur Gratuit",
     description = "Plongez dans l'univers du beatbox avec BeatBox Games ! Blind Test musical multijoueur, découvrez les plus grands beatboxers, créez votre room privée et défiez vos amis. Jeu gratuit sans inscription.",
@@ -31,9 +34,9 @@ const SEO = ({
         // Mise à jour de l'URL canonique
         updateCanonicalLink(url);
 
-        // ✅ NOUVEAU : Mise à jour du theme-color pour les favicons
-        updateMetaTag('name', 'theme-color', '#06b6d4');
-        updateMetaTag('name', 'msapplication-TileColor', '#06b6d4');
+        // Couleur de thème du navigateur
+        updateMetaTag('name', 'theme-color', THEME_COLOR);
+        updateMetaTag('name', 'msapplication-TileColor', THEME_COLOR);
 
     }, [title, description, keywords, ogImage, url, type]);
 
