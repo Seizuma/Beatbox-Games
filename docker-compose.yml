@@ -1,0 +1,84 @@
+# docker-compose.yml (Production)
+services:
+  server-prod:
+    build:
+      context: ./server
+      dockerfile: Dockerfile
+    container_name: beatbox-games-prod-server
+    ports:
+      - "4000:4000"
+    volumes:
+      - ./server/public:/app/public
+      - beatbox-data-prod:/app/data
+      - ./server/beatbox_artists:/app/beatbox_artists
+    env_file:
+      - /etc/beatbox-games/.env.production
+    environment:
+      - NODE_ENV=production
+      - DISABLE_CONSOLE=true
+      - BASE_URL=https://beatboxgames.com
+      - CLIENT_URL=https://beatboxgames.com
+      - LOG_LEVEL=INFO
+    restart: unless-stopped
+    mem_limit: 512m
+    memswap_limit: 512m
+    networks:
+      - shared-network
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "50m"
+        max-file: "3"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:4000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  client-prod:
+    build:
+      context: ./client
+      dockerfile: Dockerfile
+      args:
+        - NODE_ENV=production
+        - REACT_APP_ENV=production
+        - REACT_APP_API_URL=https://beatboxgames.com
+        - GENERATE_SOURCEMAP=false
+    container_name: beatbox-games-prod-client
+    ports:
+      - "8080:80"
+    restart: unless-stopped
+    mem_limit: 256m
+    memswap_limit: 256m
+    depends_on:
+      - server-prod
+    networks:
+      - shared-network
+    logging:
+      driver: "none"
+
+  autoheal-prod:
+    image: willfarrell/autoheal:latest
+    container_name: beatbox-games-prod-autoheal
+    environment:
+      - AUTOHEAL_CONTAINER_LABEL=all
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    restart: unless-stopped
+    networks:
+      - shared-network
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "5m"
+        max-file: "1"
+
+networks:
+  shared-network:
+    name: shared-network
+    driver: bridge
+
+volumes:
+  beatbox-data-prod:
+    name: beatbox-data-prod
+    external: true

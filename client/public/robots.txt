@@ -1,0 +1,26 @@
+User-agent: *
+Allow: /
+
+# Pages importantes à indexer
+Allow: /blindtest-online
+Allow: /blindtest
+
+# Sitemap
+Sitemap: https://beatboxgames.com/sitemap.xml
+
+# Crawl-delay pour éviter la surcharge
+Crawl-delay: 1
+
+# Bloquer les fichiers inutiles pour le SEO
+Disallow: /static/js/
+Disallow: /static/css/
+Disallow: /*.json
+Disallow: /api/
+Disallow: /socket.io/
+
+# Autoriser les images pour Google Images
+Allow: /static/images/
+Allow: /*.jpg
+Allow: /*.png
+Allow: /*.gif
+Allow: /*.webp

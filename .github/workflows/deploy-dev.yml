@@ -1,0 +1,36 @@
+name: Deploy Dev
+
+on:
+  push:
+    branches: [develop]
+  workflow_dispatch:
+
+jobs:
+  deploy-dev:
+    runs-on: ubuntu-latest
+    environment: development
+
+    steps:
+      - name: 🔧 Deploy to Dev Server
+        uses: appleboy/ssh-action@v1.0.0
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          script: |
+            cd ${{ secrets.APP_PATH }}
+            git fetch origin
+            git checkout develop
+            git pull origin develop
+            ./deploy.sh dev --yes
+
+      - name: ✅ Deployment Success
+        if: success()
+        run: |
+          echo "✅ Dev deployed successfully to https://dev.beatboxgames.com"
+
+      - name: ❌ Deployment Failed
+        if: failure()
+        run: |
+          echo "❌ Dev deployment failed"
+          exit 1

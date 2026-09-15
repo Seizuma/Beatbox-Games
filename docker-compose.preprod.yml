@@ -1,0 +1,93 @@
+# docker-compose.preprod.yml
+services:
+  server-preprod:
+    build:
+      context: ./server
+      dockerfile: Dockerfile
+    container_name: beatbox-games-preprod-server
+    ports:
+      - "4002:4000"
+    volumes:
+      - ./server/public:/app/public
+      - beatbox-data-preprod:/app/data
+      - ./server/beatbox_artists:/app/beatbox_artists
+    env_file:
+      - .env.preprod
+    environment:
+      - NODE_ENV=preprod
+      - PREPROD=true
+      - BASE_URL=https://preprod.beatboxgames.com
+      - CLIENT_URL=https://preprod.beatboxgames.com
+      - DISABLE_CONSOLE=false
+      - LOG_LEVEL=INFO
+    restart: unless-stopped
+    mem_limit: 512m
+    memswap_limit: 512m
+    networks:
+      - preprod-network
+      - proxy-network
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "50m"
+        max-file: "3"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:4000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  client-preprod:
+    build:
+      context: ./client
+      dockerfile: Dockerfile
+      args:
+        - NODE_ENV=preprod
+        - REACT_APP_ENV=preprod
+        - REACT_APP_API_URL=https://preprod.beatboxgames.com
+        - GENERATE_SOURCEMAP=true
+    container_name: beatbox-games-preprod-client
+    ports:
+      - "8082:80"
+    restart: unless-stopped
+    mem_limit: 256m
+    memswap_limit: 256m
+    depends_on:
+      - server-preprod
+    networks:
+      - preprod-network
+      - proxy-network
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "20m"
+        max-file: "2"
+
+  autoheal-preprod:
+    image: willfarrell/autoheal:latest
+    container_name: beatbox-games-preprod-autoheal
+    environment:
+      - AUTOHEAL_CONTAINER_LABEL=preprod
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    restart: unless-stopped
+    networks:
+      - preprod-network
+      - proxy-network
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "5m"
+        max-file: "1"
+
+networks:
+  preprod-network:
+    name: beatbox-games-preprod-network
+    driver: bridge
+  proxy-network:
+    external: true
+
+volumes:
+  beatbox-data-preprod:
+    name: beatbox-data-preprod
+    external: true

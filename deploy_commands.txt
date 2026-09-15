@@ -1,0 +1,15 @@
+# Staging (développement)
+./deploy.sh staging                    # Déploiement complet staging
+./deploy.sh staging --no-build         # Sans rebuild
+./deploy.sh staging --force            # Avec nettoyage forcé
+
+# Production
+./deploy.sh production                 # Avec confirmation
+./deploy.sh production --yes           # Sans confirmation
+./deploy.sh production --no-build      # Sans rebuild
+
+# Management
+./deploy.sh status                     # Statut des deux environnements
+./deploy.sh logs                       # Logs interactifs
+./deploy.sh stop                       # Arrêt sélectif
+./deploy.sh cleanup --force            # Nettoyage Docker

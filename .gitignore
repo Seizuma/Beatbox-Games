@@ -1,0 +1,44 @@
+# Dependencies
+node_modules/
+client/node_modules/
+server/node_modules/
+
+# Secrets — JAMAIS commités
+.env
+.env.*
+!.env.example
+credentials.json
+*.pem
+*.key
+secrets/
+
+# Builds
+client/build/
+build/
+dist/
+
+# Données
+*.db
+*.sqlite
+*.sqlite3
+server/data/
+
+# Assets binaires (servis par bind mount / rsync)
+server/characters/
+server/environments/
+server/beatbox_artists/
+
+# Logs & OS
+*.log
+npm-debug.log*
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+
+# Python (scripts scraping)
+__pycache__/
+*.pyc
+venv/

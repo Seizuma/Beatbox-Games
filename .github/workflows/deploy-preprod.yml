@@ -1,0 +1,36 @@
+name: Deploy Preprod
+
+on:
+  push:
+    branches: [preprod]
+  workflow_dispatch:
+
+jobs:
+  deploy-preprod:
+    runs-on: ubuntu-latest
+    environment: preproduction
+
+    steps:
+      - name: 🧪 Deploy to Preprod Server
+        uses: appleboy/ssh-action@v1.0.0
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          script: |
+            cd ${{ secrets.APP_PATH }}
+            git fetch origin
+            git checkout preprod
+            git pull origin preprod
+            ./deploy.sh preprod --yes
+
+      - name: ✅ Deployment Success
+        if: success()
+        run: |
+          echo "✅ Preprod deployed successfully to https://preprod.beatboxgames.com"
+
+      - name: ❌ Deployment Failed
+        if: failure()
+        run: |
+          echo "❌ Preprod deployment failed"
+          exit 1
