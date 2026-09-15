@@ -1,9 +1,10 @@
 import React, { useEffect, useId, useState } from 'react';
-import GameShell, { StatusPill } from '../show/GameShell';
+import GameShell from '../show/GameShell';
 import ShowButton from '../show/ShowButton';
 import Lectern from '../show/Lectern';
+import { LecternRow, RoundTrack, ScoreChips, SharpnessGauge } from '../show/GameHud';
 import Icon from '../icons/Icon';
-import { createShowT, getQuitGameConfirm } from '../../utils/showI18n';
+import { BUZZER_ANSWER_SECONDS, createShowT, getQuitGameConfirm } from '../../utils/showI18n';
 
 const API_BASE_URL = process.env.REACT_APP_API_URL || 'https://dev.beatboxgames.com';
 
@@ -11,7 +12,33 @@ const resolveImageUrl = (image) => (image.startsWith('http') ? image : `${API_BA
 
 const PLACEHOLDER_IMAGE = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="200" height="200"%3E%3Crect fill="%23163A8F" width="200" height="200"/%3E%3C/svg%3E';
 
-// Partie de Buzzer Battle : la photo sur l'écran du plateau, le buzzer sous le pouce, les pupitres des joueurs
+const discordAvatar = (player) => (player?.isDiscordUser && player?.discordId && player?.discordAvatar
+    ? `https://cdn.discordapp.com/avatars/${player.discordId}/${player.discordAvatar}.png?size=64`
+    : undefined);
+
+// Compte à rebours local du temps de réponse après un buzz (le serveur fait foi, ceci est indicatif)
+function useAnswerCountdown(buzzedPlayer) {
+    const [secondsLeft, setSecondsLeft] = useState(null);
+
+    useEffect(() => {
+        if (!buzzedPlayer) {
+            setSecondsLeft(null);
+            return undefined;
+        }
+        const startedAt = Date.now();
+        const tick = () => {
+            const remaining = BUZZER_ANSWER_SECONDS - Math.floor((Date.now() - startedAt) / 1000);
+            setSecondsLeft(Math.max(0, remaining));
+        };
+        tick();
+        const interval = setInterval(tick, 250);
+        return () => clearInterval(interval);
+    }, [buzzedPlayer]);
+
+    return secondsLeft;
+}
+
+// Partie de Buzzer Battle : tableau de manche, photo et netteté, buzzer sous le pouce, pupitres
 function BuzzerGameView({
     currentRound,
     totalRounds,
@@ -39,6 +66,7 @@ function BuzzerGameView({
     const [imageLoaded, setImageLoaded] = useState(false);
 
     const isBuzzedByMe = Boolean(buzzedPlayer) && buzzedPlayer === myPlayerId;
+    const answerSeconds = useAnswerCountdown(buzzedPlayer);
 
     useEffect(() => {
         setGuess('');
@@ -74,6 +102,8 @@ function BuzzerGameView({
     const isMyWrongGuess = Boolean(wrongGuessFeedback) && wrongGuessFeedback.playerId === myPlayerId;
     const sharpness = Math.max(0, Math.min(100, Math.round(100 - (pixelLevel ?? 100))));
     const buzzerDisabled = !canBuzz || Boolean(buzzedPlayer) || Boolean(currentBeatboxer);
+    const lockedAfterError = !canBuzz && !buzzedPlayer && !currentBeatboxer;
+    const isGuessing = isBuzzedByMe && showGuessInput && !currentBeatboxer;
 
     const getLamp = (player) => {
         if (player.connected === false) return 'idle';
@@ -82,22 +112,22 @@ function BuzzerGameView({
         return 'idle';
     };
 
-    const status = (
-        <>
-            <StatusPill>{st('game.round', { round: currentRound, max: totalRounds })}</StatusPill>
-            <StatusPill highlight>{st('buzzerGame.sharpness', { value: sharpness })}</StatusPill>
-        </>
-    );
-
     let buzzerLabel = st('buzzerGame.buzz');
-    if (buzzedPlayer && !isBuzzedByMe) buzzerLabel = st('buzzerGame.playerBuzzed', { name: buzzedName || '…' });
+    if (buzzedPlayer && !isBuzzedByMe) buzzerLabel = st('buzzerGame.answering', { name: buzzedName || '…' });
     else if (buzzerDisabled) buzzerLabel = st('buzzerGame.blocked');
 
-    const isGuessing = isBuzzedByMe && showGuessInput && !currentBeatboxer;
+    const countdownPill = answerSeconds !== null && !currentBeatboxer && (
+        <span className="inline-flex min-w-[2.75rem] items-center justify-center rounded-full bg-show-night px-2 py-1 font-brand text-sm text-show-yellow" aria-hidden="true">
+            {st('buzzerGame.secondsLeft', { seconds: answerSeconds })}
+        </span>
+    );
 
     const actionBar = isGuessing ? (
         <form onSubmit={handleSubmitGuess} className="flex flex-col gap-2">
-            <p className="text-center text-xs font-extrabold text-show-yellow" aria-live="assertive">{st('buzzerGame.youBuzzed')}</p>
+            <p className="flex items-center justify-center gap-2 text-center text-xs font-extrabold text-show-yellow" aria-live="assertive">
+                {st('buzzerGame.youBuzzedShort')}
+                {countdownPill}
+            </p>
             <div className="flex gap-2">
                 <label htmlFor={guessId} className="sr-only">{st('game.answerLabel')}</label>
                 <input
@@ -118,10 +148,14 @@ function BuzzerGameView({
             </div>
         </form>
     ) : (
-        <div>
+        <div className="flex flex-col gap-2">
             <ShowButton variant="buzz" size="lg" block onClick={onBuzz} disabled={buzzerDisabled} className="min-h-[4rem] text-2xl">
                 {buzzerLabel}
+                {buzzedPlayer && !isBuzzedByMe && countdownPill}
             </ShowButton>
+            {lockedAfterError && (
+                <p className="text-center text-xs font-semibold text-show-muted" aria-live="polite">{st('buzzerGame.lockedAfterError')}</p>
+            )}
         </div>
     );
 
@@ -131,15 +165,27 @@ function BuzzerGameView({
             onQuit={onQuit}
             quitLabel={st('common.quit')}
             quitConfirm={getQuitGameConfirm(st)}
-            status={status}
             tools={languageSwitch}
             actionBar={actionBar}
             actionBarClassName={isGuessing ? '' : 'lg:hidden'}
-            contentClassName="flex flex-col justify-center"
         >
-            <div className="mx-auto grid w-full max-w-5xl gap-6 lg:grid-cols-[minmax(0,1fr)_14rem] lg:items-center">
-                <div className="flex flex-col gap-3">
-                    <div className="relative aspect-[4/3] w-full select-none overflow-hidden rounded-2xl border-4 border-show-white bg-show-night sm:aspect-video">
+            <div className="mx-auto grid w-full max-w-5xl gap-8 lg:grid-cols-[minmax(0,1fr)_15rem] lg:gap-10">
+                <div className="flex min-w-0 flex-col gap-4">
+                    <div className="grid gap-3 rounded-2xl bg-show-night/45 p-4 ring-1 ring-white/5 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end sm:gap-6">
+                        <RoundTrack
+                            round={currentRound}
+                            total={totalRounds}
+                            label={st('game.round', { round: currentRound, max: totalRounds })}
+                        />
+                        <ScoreChips
+                            items={[
+                                { label: st('buzzerGame.scoreGood'), tone: 'good' },
+                                { label: st('buzzerGame.scoreBad'), tone: 'bad' },
+                            ]}
+                        />
+                    </div>
+
+                    <div className="relative aspect-[4/3] w-full select-none overflow-hidden rounded-2xl bg-show-night shadow-[0_0_0_4px_#FFFFFF,0_18px_40px_rgb(0_0_0/0.35)] sm:aspect-video">
                         {beatboxerImage ? (
                             <img
                                 key={currentRound}
@@ -173,16 +219,19 @@ function BuzzerGameView({
                         )}
 
                         {justReconnected && (
-                            <div className="absolute left-1/2 top-3 z-10 -translate-x-1/2">
-                                <StatusPill highlight>{st('buzzerGame.reconnected', { round: currentRound, max: totalRounds })}</StatusPill>
-                            </div>
+                            <p className="absolute left-1/2 top-3 z-10 -translate-x-1/2 rounded-full bg-show-yellow px-3 py-1 text-xs font-extrabold text-show-night">
+                                {st('buzzerGame.reconnected', { round: currentRound, max: totalRounds })}
+                            </p>
                         )}
 
                         {buzzedPlayer && !currentBeatboxer && (
-                            <div className="absolute inset-0 flex items-center justify-center bg-show-night/60">
+                            <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-show-night/60">
                                 <p className="show-pop rounded-full bg-show-buzz px-5 py-2 text-center font-brand text-xl text-show-white sm:text-2xl" aria-live="assertive">
                                     {isBuzzedByMe ? st('buzzerGame.youBuzzedShort') : st('buzzerGame.playerBuzzed', { name: buzzedName || '…' })}
                                 </p>
+                                {answerSeconds !== null && (
+                                    <span className="font-brand text-5xl leading-none text-show-yellow" aria-hidden="true">{answerSeconds}</span>
+                                )}
                             </div>
                         )}
 
@@ -203,13 +252,13 @@ function BuzzerGameView({
                                 </p>
                             </div>
                         )}
-
-                        {!currentBeatboxer && (
-                            <div className="absolute inset-x-3 bottom-3 h-2 overflow-hidden rounded-full bg-show-night/70" aria-hidden="true">
-                                <div className="h-full rounded-full bg-show-yellow" style={{ width: `${sharpness}%` }} />
-                            </div>
-                        )}
                     </div>
+
+                    <SharpnessGauge
+                        value={currentBeatboxer ? 100 : sharpness}
+                        label={st('buzzerGame.sharpnessLabel')}
+                        valueLabel={`${currentBeatboxer ? 100 : sharpness} %`}
+                    />
 
                     {wrongGuessFeedback && !isMyWrongGuess && (
                         <p className="text-center text-sm font-semibold text-show-muted" role="status">
@@ -218,35 +267,42 @@ function BuzzerGameView({
                     )}
                 </div>
 
-                <div className="hidden flex-col items-center gap-3 lg:flex">
+                <div className="hidden flex-col items-center justify-center gap-4 lg:flex">
                     <button
                         type="button"
                         onClick={onBuzz}
                         disabled={buzzerDisabled}
-                        className="flex h-44 w-44 flex-col items-center justify-center rounded-full border-[6px] border-show-white bg-show-buzz text-show-white shadow-show-buzz transition active:translate-y-[5px] active:shadow-none disabled:cursor-not-allowed disabled:bg-show-dim disabled:shadow-none"
+                        className="flex h-48 w-48 flex-col items-center justify-center rounded-full border-[6px] border-show-white bg-show-buzz text-show-white shadow-show-buzz transition active:translate-y-[5px] active:shadow-none disabled:cursor-not-allowed disabled:bg-show-dim disabled:shadow-none"
                     >
-                        <span className="px-3 text-center font-brand text-2xl leading-tight">{buzzerLabel}</span>
+                        <span className="px-4 text-center font-brand text-2xl leading-tight">{buzzerLabel}</span>
                         {!buzzerDisabled && <span className="mt-1 text-xs font-extrabold opacity-90">{st('buzzerGame.spaceHint')}</span>}
+                        {buzzedPlayer && !isBuzzedByMe && answerSeconds !== null && (
+                            <span className="mt-2 font-brand text-xl text-show-yellow">{st('buzzerGame.secondsLeft', { seconds: answerSeconds })}</span>
+                        )}
                     </button>
+                    {lockedAfterError && (
+                        <p className="text-center text-xs font-semibold text-show-muted" aria-live="polite">{st('buzzerGame.lockedAfterError')}</p>
+                    )}
                 </div>
 
                 <section aria-labelledby="buzzer-scores-title" className="lg:col-span-2">
                     <h2 id="buzzer-scores-title" className="sr-only">{st('game.scores')}</h2>
-                    <ol className="grid grid-cols-3 gap-x-2.5 gap-y-4 sm:grid-cols-5 lg:grid-cols-6">
+                    <LecternRow className="grid-cols-3 sm:grid-cols-5 lg:grid-cols-6" label={st('game.scores')}>
                         {ranked.map(({ player, score }) => (
                             <li key={player.id || player.username}>
                                 <Lectern
+                                    size="sm"
                                     name={player.username}
                                     value={score}
-                                    caption={player.connected === false ? st('common.offline') : undefined}
                                     lamp={getLamp(player)}
                                     highlight={player.id === myPlayerId}
+                                    avatarUrl={discordAvatar(player)}
                                     dimmed={player.connected === false}
                                 />
                             </li>
                         ))}
-                    </ol>
-                    <p className="mt-4 text-center text-xs text-show-muted">{st('buzzerGame.legend')}</p>
+                    </LecternRow>
+                    <p className="mt-6 text-center text-xs text-show-muted">{st('buzzerGame.legend')}</p>
                 </section>
             </div>
         </GameShell>

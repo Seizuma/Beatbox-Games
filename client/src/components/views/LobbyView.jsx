@@ -1,35 +1,18 @@
-import React, { useEffect, useId, useRef, useState } from 'react';
-import GameShell, { StatusPill } from '../show/GameShell';
+import React, { useId, useState } from 'react';
+import GameShell from '../show/GameShell';
 import ShowButton from '../show/ShowButton';
 import ShowModal from '../show/ShowModal';
 import Lectern from '../show/Lectern';
+import { LecternRow } from '../show/GameHud';
+import { RoomPanel, RulesBrief, SettingsSummary, StatusScreen, useRoomSharing } from '../show/LobbyParts';
 import Icon from '../icons/Icon';
 import BlindTestRulesModal from './BlindTestRulesModal';
 import { createShowT, MAX_PLAYERS } from '../../utils/showI18n';
 
-const copyToClipboard = async (text) => {
-    try {
-        await navigator.clipboard.writeText(text);
-        return true;
-    } catch (error) {
-        try {
-            const textArea = document.createElement('textarea');
-            textArea.value = text;
-            textArea.setAttribute('readonly', '');
-            textArea.style.position = 'fixed';
-            textArea.style.opacity = '0';
-            document.body.appendChild(textArea);
-            textArea.select();
-            const copied = document.execCommand('copy');
-            document.body.removeChild(textArea);
-            return copied;
-        } catch (fallbackError) {
-            return false;
-        }
-    }
-};
+// Nombre de pupitres affichés au minimum, les places vides invitent à partager la salle
+const MIN_SEATS = 4;
 
-// Salle d'attente : code à partager, pupitres des joueurs, réglages de l'hôte
+// Salle d'attente du Blind Test : pupitres des joueurs à gauche, panneau de la salle à droite
 const LobbyView = ({
     room,
     pseudo,
@@ -65,50 +48,25 @@ const LobbyView = ({
 }) => {
     const st = createShowT(language);
     const newNameId = useId();
-
-    const [copyState, setCopyState] = useState(null);
     const [showRules, setShowRules] = useState(false);
-    const copyTimeoutRef = useRef(null);
 
-    useEffect(() => () => {
-        if (copyTimeoutRef.current) clearTimeout(copyTimeoutRef.current);
-    }, []);
+    const sharing = useRoomSharing({ roomCode: room, shareLink, shareText: st('lobby.shareText', { room }) });
 
     const playerList = Array.isArray(players) ? players.filter(Boolean) : [];
     const playerCount = playerList.length;
-    const allPlayersReady = playerCount >= 1 && playerList.every((player) => player.ready);
+    const readyCount = playerList.filter((player) => player.ready).length;
+    const allPlayersReady = playerCount >= 1 && readyCount === playerCount;
     const currentPlayer = playerList.find((player) => player.pseudo === pseudo);
     const canEditPseudo = !(currentPlayer?.isDiscordUser && currentPlayer?.discordId);
     const otherPlayers = playerList.filter((player) => player.pseudo !== pseudo);
+    const emptySeats = Math.max(0, Math.min(MAX_PLAYERS, Math.max(MIN_SEATS, playerCount + 1)) - playerCount);
 
     const artistMin = artistCountRange?.min || 10;
     const artistMax = artistCountRange?.max || 50;
     const timeMin = answerTimeSettings?.min || 5;
     const timeMax = answerTimeSettings?.max || 60;
 
-    const flashCopyState = (state) => {
-        setCopyState(state);
-        if (copyTimeoutRef.current) clearTimeout(copyTimeoutRef.current);
-        copyTimeoutRef.current = setTimeout(() => setCopyState(null), 2000);
-    };
-
-    const handleCopyCode = async () => {
-        if (!room) return;
-        flashCopyState((await copyToClipboard(room)) ? 'code' : 'error');
-    };
-
-    const handleShareLink = async () => {
-        if (!shareLink) return;
-        if (navigator.share) {
-            try {
-                await navigator.share({ title: 'BeatBox Games', text: st('lobby.shareText', { room }), url: shareLink });
-                return;
-            } catch (error) {
-                if (error?.name === 'AbortError') return;
-            }
-        }
-        flashCopyState((await copyToClipboard(shareLink)) ? 'link' : 'error');
-    };
+    const canStart = isCreator && allPlayersReady;
 
     const handleStart = () => {
         // Débloque l'audio sur iOS/Safari grâce au geste de l'utilisateur
@@ -122,14 +80,22 @@ const LobbyView = ({
         ? (isCreator ? st('lobby.hostHint') : st('lobby.waitingHost', { host: creatorPseudo }))
         : st('lobby.notAllReady');
 
-    const canStart = isCreator && allPlayersReady;
+    const playerStatus = (player) => {
+        if (!player.connected) return 'offline';
+        return player.ready ? 'ready' : 'waiting';
+    };
+
+    const statusLabel = {
+        ready: st('lobby.statusReady'),
+        waiting: st('lobby.statusWaiting'),
+        offline: st('lobby.statusOffline'),
+    };
 
     return (
         <GameShell
             title={st('blindtest.name')}
             onQuit={onBackToHub}
             quitLabel={st('common.quit')}
-            status={GameModeBadge ? <GameModeBadge /> : null}
             tools={LanguageSwitch ? <LanguageSwitch /> : null}
             actionBar={
                 <div className="flex flex-col gap-2">
@@ -150,87 +116,57 @@ const LobbyView = ({
                 </div>
             }
         >
-            <div className="mx-auto flex max-w-3xl flex-col gap-6">
-                <section className="flex flex-col gap-3 sm:flex-row sm:items-stretch">
-                    <div className="flex-1 rounded-xl bg-show-yellow px-4 py-3 text-center text-show-night">
-                        <div className="text-xs font-extrabold">{st('lobby.roomCode')}</div>
-                        <div className="font-brand text-4xl leading-tight tracking-[0.08em] sm:text-5xl">{room}</div>
-                    </div>
-                    <div className="flex gap-2 sm:w-48 sm:flex-col">
-                        <ShowButton variant="outline" size="sm" block onClick={handleCopyCode}>
-                            <Icon name={copyState === 'code' ? 'check' : 'copy'} size={16} />
-                            {copyState === 'code' ? st('lobby.codeCopied') : st('lobby.copyCode')}
-                        </ShowButton>
-                        <ShowButton variant="outline" size="sm" block onClick={handleShareLink} disabled={!shareLink}>
-                            <Icon name={copyState === 'link' ? 'check' : 'link'} size={16} />
-                            {copyState === 'link' ? st('lobby.linkCopied') : st('lobby.shareLink')}
-                        </ShowButton>
-                    </div>
-                </section>
-                {copyState === 'error' && (
-                    <p role="alert" className="-mt-3 text-center text-sm font-semibold text-show-yellow">{st('lobby.copyFailed')}</p>
-                )}
-
-                <div className="flex flex-wrap items-center justify-center gap-2">
-                    <StatusPill>{st('lobby.artists', { count: localArtistCount })}</StatusPill>
-                    <StatusPill>{st('lobby.answerTime', { seconds: localAnswerTime })}</StatusPill>
-                    {isCreator && (
-                        <button
-                            type="button"
-                            onClick={() => setShowSettings(true)}
-                            className="inline-flex items-center gap-1.5 rounded-full bg-show-white px-3 py-1 text-xs font-extrabold text-show-night hover:brightness-95"
-                        >
-                            <Icon name="settings" size={14} />
-                            {st('lobby.settings')}
-                        </button>
-                    )}
-                </div>
-
-                <section aria-labelledby="lobby-players-title">
-                    <div className="mb-4 flex items-baseline justify-between gap-4">
-                        <h2 id="lobby-players-title" className="font-brand text-lg leading-none">
+            <div className="mx-auto grid max-w-5xl gap-8 lg:grid-cols-[minmax(0,1fr)_20rem] lg:gap-10">
+                <section aria-labelledby="lobby-players-title" className="order-2 lg:order-1">
+                    <div className="mb-6 flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+                        <h2 id="lobby-players-title" className="font-brand text-xl leading-none sm:text-2xl">
                             {st('lobby.players', { count: playerCount, max: MAX_PLAYERS })}
                         </h2>
-                        <button
-                            type="button"
-                            onClick={() => setShowRules(true)}
-                            className="text-sm font-semibold text-show-muted underline decoration-show-yellow decoration-2 underline-offset-4 hover:text-show-white"
-                        >
-                            {st('common.howToPlay')}
-                        </button>
+                        <p className="text-sm font-extrabold text-show-muted">
+                            {st('lobby.readyCount', { ready: readyCount, total: playerCount })}
+                        </p>
                     </div>
 
-                    <ul className="grid grid-cols-2 gap-x-3 gap-y-5 sm:grid-cols-4 lg:grid-cols-5">
+                    <LecternRow className="grid-cols-2 sm:grid-cols-3 xl:grid-cols-4" label={st('lobby.players', { count: playerCount, max: MAX_PLAYERS })}>
                         {playerList.map((player) => {
+                            const status = playerStatus(player);
                             const isMe = player.pseudo === pseudo;
-                            const status = !player.connected
-                                ? st('common.offline')
-                                : player.ready ? st('lobby.ready') : st('lobby.waiting');
                             return (
                                 <li key={player.pseudo}>
                                     <Lectern
                                         name={player.pseudo}
-                                        caption={status}
-                                        lamp={player.connected && player.ready ? 'ready' : 'idle'}
+                                        screen={<StatusScreen state={status} label={statusLabel[status]} />}
+                                        lamp={status === 'ready' ? 'ready' : 'idle'}
                                         highlight={isMe}
+                                        tag={isMe ? st('lobby.you') : undefined}
                                         host={player.pseudo === creatorPseudo}
                                         hostLabel={st('common.host')}
-                                        dimmed={!player.connected}
+                                        avatarUrl={player.isDiscordUser ? player.avatarUrl : undefined}
+                                        dimmed={status === 'offline'}
                                     />
                                 </li>
                             );
                         })}
-                    </ul>
+                        {Array.from({ length: emptySeats }, (_, index) => (
+                            <li key={`seat-${index}`}>
+                                <Lectern
+                                    empty
+                                    emptyLabel={index === 0 ? st('lobby.inviteSeat') : st('lobby.emptySeat')}
+                                    onEmptyClick={sharing.shareRoom}
+                                />
+                            </li>
+                        ))}
+                    </LecternRow>
 
                     {canEditPseudo && (
-                        <div className="mt-6">
+                        <div className="mt-8">
                             {editingPseudo ? (
                                 <form
                                     onSubmit={(event) => {
                                         event.preventDefault();
                                         handleChangePseudo();
                                     }}
-                                    className="flex flex-col gap-2 sm:flex-row sm:items-end"
+                                    className="flex max-w-md flex-col gap-2 sm:flex-row sm:items-end"
                                 >
                                     <div className="flex-1">
                                         <label htmlFor={newNameId} className="mb-1.5 block text-xs font-extrabold">{st('lobby.newNameLabel')}</label>
@@ -271,14 +207,56 @@ const LobbyView = ({
                                         setEditingPseudo(true);
                                         setNewPseudo(pseudo);
                                     }}
-                                    className="text-sm font-semibold text-show-muted underline decoration-show-desk decoration-2 underline-offset-4 hover:text-show-white"
+                                    className="inline-flex items-center gap-1.5 text-sm font-semibold text-show-muted underline decoration-show-desk decoration-2 underline-offset-4 hover:text-show-white"
                                 >
+                                    <Icon name="user" size={15} />
                                     {st('lobby.editName')}
                                 </button>
                             )}
                         </div>
                     )}
                 </section>
+
+                <div className="order-1 lg:order-2">
+                    <RoomPanel
+                        codeLabel={st('lobby.roomCode')}
+                        roomCode={room}
+                        sharing={sharing}
+                        labels={{
+                            copyCode: st('lobby.copyCode'),
+                            codeCopied: st('lobby.codeCopied'),
+                            shareLink: st('lobby.shareLink'),
+                            linkCopied: st('lobby.linkCopied'),
+                            copyFailed: st('lobby.copyFailed'),
+                        }}
+                    >
+                        <SettingsSummary
+                            title={st('lobby.settingsTitle')}
+                            editLabel={st('lobby.edit')}
+                            onEdit={isCreator ? () => setShowSettings(true) : undefined}
+                            rows={[
+                                { label: st('lobby.artistsLabel'), value: localArtistCount },
+                                { label: st('lobby.timeLabel'), value: st('lobby.seconds', { seconds: localAnswerTime }) },
+                                ...(GameModeBadge ? [{ label: st('lobby.modeLabel'), value: <GameModeBadge /> }] : []),
+                            ]}
+                        />
+                        <div className="hidden lg:block">
+                            <RulesBrief
+                                title={st('lobby.rulesTitle')}
+                                rules={[st('lobby.rule1'), st('lobby.rule2'), st('lobby.rule3')]}
+                                moreLabel={st('lobby.allRules')}
+                                onMore={() => setShowRules(true)}
+                            />
+                        </div>
+                        <button
+                            type="button"
+                            onClick={() => setShowRules(true)}
+                            className="text-left text-xs font-extrabold text-show-muted underline decoration-show-yellow decoration-2 underline-offset-4 hover:text-show-white lg:hidden"
+                        >
+                            {st('common.howToPlay')}
+                        </button>
+                    </RoomPanel>
+                </div>
             </div>
 
             {isCreator && (

@@ -1,13 +1,14 @@
-import React, { useEffect, useId, useRef, useState } from 'react';
+import React, { useEffect, useId, useState } from 'react';
 import socketBuzzer from '../../buzzer-socket';
-import GameShell, { StatusPill } from '../show/GameShell';
+import GameShell from '../show/GameShell';
 import ShowButton from '../show/ShowButton';
 import ShowModal from '../show/ShowModal';
 import Lectern from '../show/Lectern';
+import { LecternRow } from '../show/GameHud';
+import { RoomPanel, RulesBrief, SettingsSummary, StatusScreen, useRoomSharing } from '../show/LobbyParts';
 import Icon from '../icons/Icon';
 import { CountdownOverlay } from '../UI';
 import BuzzerRulesModal from './BuzzerRulesModal';
-import { copyToClipboard } from '../../utils/clipboard';
 import { createShowT, MAX_PLAYERS } from '../../utils/showI18n';
 
 const MODES = {
@@ -16,8 +17,13 @@ const MODES = {
 };
 
 const MIN_ROUNDS = 5;
+const MIN_SEATS = 4;
 
-// Salle d'attente du Buzzer Battle : code à partager, pupitres, réglages de l'hôte
+const discordAvatar = (player) => (player?.isDiscordUser && player?.discordId && player?.discordAvatar
+    ? `https://cdn.discordapp.com/avatars/${player.discordId}/${player.discordAvatar}.png?size=64`
+    : undefined);
+
+// Salle d'attente du Buzzer Battle : pupitres à gauche, panneau de la salle à droite
 function BuzzerLobbyView({
     roomCode,
     players,
@@ -37,9 +43,7 @@ function BuzzerLobbyView({
     const [showRules, setShowRules] = useState(false);
     const [showCountdown, setShowCountdown] = useState(false);
     const [countdownValue, setCountdownValue] = useState(3);
-    const [copyState, setCopyState] = useState(null);
     const [kickTarget, setKickTarget] = useState(null);
-    const copyTimeoutRef = useRef(null);
 
     // Configuration
     const [selectedMode, setSelectedMode] = useState(() => gameState?.mode || MODES.EVENT);
@@ -51,6 +55,14 @@ function BuzzerLobbyView({
     const [countries, setCountries] = useState([]);
     const [events, setEvents] = useState([]);
     const [loadingFilters, setLoadingFilters] = useState(true);
+
+    const shareLink = `${window.location.origin}/#/buzzer-battle?room=${roomCode}`;
+    const sharing = useRoomSharing({ roomCode, shareLink, shareText: `Buzzer Battle : ${roomCode}` });
+
+    const reportError = (message) => {
+        if (onError) onError(message);
+        else console.error(message);
+    };
 
     const handleConfigUpdated = (data) => {
         setSelectedMode(data.mode);
@@ -144,15 +156,6 @@ function BuzzerLobbyView({
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [selectedMode, selectedFilter]);
 
-    useEffect(() => () => {
-        if (copyTimeoutRef.current) clearTimeout(copyTimeoutRef.current);
-    }, []);
-
-    const reportError = (message) => {
-        if (onError) onError(message);
-        else console.error(message);
-    };
-
     const handleStartWithCountdown = () => {
         socketBuzzer.emit('buzzer:startGame', { roomCode }, (response) => {
             if (!response.success) {
@@ -191,40 +194,14 @@ function BuzzerLobbyView({
         });
     };
 
-    const flashCopyState = (state) => {
-        setCopyState(state);
-        if (copyTimeoutRef.current) clearTimeout(copyTimeoutRef.current);
-        copyTimeoutRef.current = setTimeout(() => setCopyState(null), 2000);
-    };
-
-    const shareLink = `${window.location.origin}/#/buzzer-battle?room=${roomCode}`;
-
-    const handleCopyCode = async () => {
-        flashCopyState((await copyToClipboard(roomCode)) ? 'code' : 'error');
-    };
-
-    const handleShareLink = async () => {
-        if (navigator.share) {
-            try {
-                await navigator.share({ title: 'BeatBox Games', text: `Buzzer Battle : ${roomCode}`, url: shareLink });
-                return;
-            } catch (error) {
-                if (error?.name === 'AbortError') return;
-            }
-        }
-        flashCopyState((await copyToClipboard(shareLink)) ? 'link' : 'error');
-    };
-
     const playerList = Array.isArray(players) ? players.filter(Boolean) : [];
     const creatorId = gameState?.creatorId;
     const currentFilters = selectedMode === MODES.COUNTRY ? countries : events;
     const configMode = gameState?.mode || selectedMode;
     const configFilter = gameState?.filter || selectedFilter;
-    const configLabel = configFilter
-        ? st(configMode === MODES.COUNTRY ? 'buzzerLobby.byCountry' : 'buzzerLobby.byEvent', { filter: configFilter })
-        : null;
     const kickablePlayers = playerList.filter((player) => player.id !== creatorId);
     const roundsMax = Math.max(MIN_ROUNDS, maxAvailableRounds);
+    const emptySeats = Math.max(0, Math.min(MAX_PLAYERS, Math.max(MIN_SEATS, playerList.length + 1)) - playerList.length);
 
     const hint = isCreator
         ? (playerList.length < 1 ? st('buzzerLobby.needPlayers') : st('buzzerLobby.hostHint'))
@@ -247,75 +224,92 @@ function BuzzerLobbyView({
                 </div>
             }
         >
-            <div className="mx-auto flex max-w-3xl flex-col gap-6">
-                <section className="flex flex-col gap-3 sm:flex-row sm:items-stretch">
-                    <div className="flex-1 rounded-xl bg-show-yellow px-4 py-3 text-center text-show-night">
-                        <div className="text-xs font-extrabold">{st('lobby.roomCode')}</div>
-                        <div className="font-brand text-4xl leading-tight tracking-[0.08em] sm:text-5xl">{roomCode}</div>
-                    </div>
-                    <div className="flex gap-2 sm:w-48 sm:flex-col">
-                        <ShowButton variant="outline" size="sm" block onClick={handleCopyCode}>
-                            <Icon name={copyState === 'code' ? 'check' : 'copy'} size={16} />
-                            {copyState === 'code' ? st('lobby.codeCopied') : st('lobby.copyCode')}
-                        </ShowButton>
-                        <ShowButton variant="outline" size="sm" block onClick={handleShareLink}>
-                            <Icon name={copyState === 'link' ? 'check' : 'link'} size={16} />
-                            {copyState === 'link' ? st('lobby.linkCopied') : st('lobby.shareLink')}
-                        </ShowButton>
-                    </div>
-                </section>
-                {copyState === 'error' && (
-                    <p role="alert" className="-mt-3 text-center text-sm font-semibold text-show-yellow">{st('lobby.copyFailed')}</p>
-                )}
-
-                <div className="flex flex-wrap items-center justify-center gap-2">
-                    {configLabel && <StatusPill>{configLabel}</StatusPill>}
-                    <StatusPill>{st('buzzerLobby.rounds', { count: gameState?.totalRounds || totalRounds })}</StatusPill>
-                    {isCreator && (
-                        <button
-                            type="button"
-                            onClick={() => setShowSettings(true)}
-                            className="inline-flex items-center gap-1.5 rounded-full bg-show-white px-3 py-1 text-xs font-extrabold text-show-night hover:brightness-95"
-                        >
-                            <Icon name="settings" size={14} />
-                            {st('lobby.settings')}
-                        </button>
-                    )}
-                </div>
-
-                <section aria-labelledby="buzzer-lobby-players-title">
-                    <div className="mb-4 flex items-baseline justify-between gap-4">
-                        <h2 id="buzzer-lobby-players-title" className="font-brand text-lg leading-none">
+            <div className="mx-auto grid max-w-5xl gap-8 lg:grid-cols-[minmax(0,1fr)_20rem] lg:gap-10">
+                <section aria-labelledby="buzzer-lobby-players-title" className="order-2 lg:order-1">
+                    <div className="mb-6">
+                        <h2 id="buzzer-lobby-players-title" className="font-brand text-xl leading-none sm:text-2xl">
                             {st('lobby.players', { count: playerList.length, max: MAX_PLAYERS })}
                         </h2>
-                        <button
-                            type="button"
-                            onClick={() => setShowRules(true)}
-                            className="text-sm font-semibold text-show-muted underline decoration-show-yellow decoration-2 underline-offset-4 hover:text-show-white"
-                        >
-                            {st('common.howToPlay')}
-                        </button>
                     </div>
 
-                    <ul className="grid grid-cols-2 gap-x-3 gap-y-5 sm:grid-cols-4 lg:grid-cols-5">
+                    <LecternRow className="grid-cols-2 sm:grid-cols-3 xl:grid-cols-4" label={st('lobby.players', { count: playerList.length, max: MAX_PLAYERS })}>
                         {playerList.map((player, index) => {
                             const offline = player.connected === false;
                             return (
                                 <li key={player.id || index}>
                                     <Lectern
                                         name={player.username}
-                                        caption={offline ? st('common.offline') : undefined}
+                                        screen={
+                                            <StatusScreen
+                                                state={offline ? 'offline' : 'ready'}
+                                                label={offline ? st('lobby.statusOffline') : st('buzzerLobby.statusOnline')}
+                                            />
+                                        }
                                         lamp={offline ? 'idle' : 'ready'}
                                         host={Boolean(creatorId) && player.id === creatorId}
                                         hostLabel={st('common.host')}
+                                        avatarUrl={discordAvatar(player)}
                                         dimmed={offline}
-                                        baseClassName="min-h-[2.25rem]"
                                     />
                                 </li>
                             );
                         })}
-                    </ul>
+                        {Array.from({ length: emptySeats }, (_, index) => (
+                            <li key={`seat-${index}`}>
+                                <Lectern
+                                    empty
+                                    emptyLabel={index === 0 ? st('lobby.inviteSeat') : st('lobby.emptySeat')}
+                                    onEmptyClick={sharing.shareRoom}
+                                />
+                            </li>
+                        ))}
+                    </LecternRow>
                 </section>
+
+                <div className="order-1 lg:order-2">
+                    <RoomPanel
+                        codeLabel={st('lobby.roomCode')}
+                        roomCode={roomCode}
+                        sharing={sharing}
+                        labels={{
+                            copyCode: st('lobby.copyCode'),
+                            codeCopied: st('lobby.codeCopied'),
+                            shareLink: st('lobby.shareLink'),
+                            linkCopied: st('lobby.linkCopied'),
+                            copyFailed: st('lobby.copyFailed'),
+                        }}
+                    >
+                        <SettingsSummary
+                            title={st('lobby.settingsTitle')}
+                            editLabel={st('lobby.edit')}
+                            onEdit={isCreator ? () => setShowSettings(true) : undefined}
+                            rows={[
+                                {
+                                    label: st('buzzerLobby.selectionLabel'),
+                                    value: configFilter
+                                        ? st(configMode === MODES.COUNTRY ? 'buzzerLobby.byCountry' : 'buzzerLobby.byEvent', { filter: configFilter })
+                                        : '—',
+                                },
+                                { label: st('buzzerLobby.roundsLabel'), value: gameState?.totalRounds || totalRounds },
+                            ]}
+                        />
+                        <div className="hidden lg:block">
+                            <RulesBrief
+                                title={st('lobby.rulesTitle')}
+                                rules={[st('buzzerLobby.rule1'), st('buzzerLobby.rule2'), st('buzzerLobby.rule3')]}
+                                moreLabel={st('lobby.allRules')}
+                                onMore={() => setShowRules(true)}
+                            />
+                        </div>
+                        <button
+                            type="button"
+                            onClick={() => setShowRules(true)}
+                            className="text-left text-xs font-extrabold text-show-muted underline decoration-show-yellow decoration-2 underline-offset-4 hover:text-show-white lg:hidden"
+                        >
+                            {st('common.howToPlay')}
+                        </button>
+                    </RoomPanel>
+                </div>
             </div>
 
             {isCreator && (

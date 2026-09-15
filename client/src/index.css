@@ -91,7 +91,7 @@
         mask-composite: intersect;
     }
 
-    /* Socle trapézoïdal d'un pupitre */
+    /* Socle trapézoïdal simplifié (vignettes de jeux sur le hub) */
     .lectern-base {
         clip-path: polygon(0 0, 100% 0, 88% 100%, 12% 100%);
     }
@@ -127,5 +127,233 @@
     to {
         opacity: 1;
         transform: scale(1);
+    }
+}
+
+@layer components {
+
+    /* ---------- Plateau : lumière de scène ---------- */
+    .stage-light {
+        background:
+            radial-gradient(ellipse 70% 45% at 50% -8%, rgb(255 255 255 / 0.10), transparent 70%),
+            radial-gradient(ellipse 90% 60% at 50% 110%, rgb(10 27 69 / 0.55), transparent 70%),
+            theme('colors.show.stage');
+    }
+
+    /* Sol du plateau sous les pupitres */
+    .stage-floor {
+        position: relative;
+    }
+
+    .stage-floor::before {
+        content: '';
+        position: absolute;
+        inset: auto -2rem -0.75rem;
+        height: 55%;
+        border-radius: 50%;
+        background: radial-gradient(ellipse at center, rgb(91 134 240 / 0.22), transparent 70%);
+        pointer-events: none;
+    }
+
+    /* ---------- Pupitre ---------- */
+    .lectern {
+        --lamp: theme('colors.show.dim');
+        --lamp-glow: transparent;
+        position: relative;
+        display: flex;
+        flex-direction: column;
+        align-items: stretch;
+        min-width: 0;
+    }
+
+    /* Plateau du pupitre, vu légèrement du dessus */
+    .lectern-desk {
+        height: 0.7rem;
+        background: linear-gradient(180deg, #6C93F2 0%, #4471DF 100%);
+        clip-path: polygon(3% 0, 97% 0, 100% 100%, 0 100%);
+    }
+
+    /* Bandeau lumineux d'état */
+    .lectern-strip {
+        height: 5px;
+        background: var(--lamp);
+        box-shadow: 0 0 14px 1px var(--lamp-glow);
+        transition: background-color 200ms ease, box-shadow 200ms ease;
+    }
+
+    /* Face avant */
+    .lectern-front {
+        position: relative;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 0.5rem;
+        padding: 0.6rem 12% 0.9rem;
+        background: linear-gradient(180deg, #2E5BD3 0%, #1D3D9B 55%, #17307C 100%);
+        clip-path: polygon(0 0, 100% 0, 93% 100%, 7% 100%);
+    }
+
+    .lectern-front::after {
+        content: '';
+        position: absolute;
+        inset: 0;
+        background: linear-gradient(90deg, rgb(255 255 255 / 0.10) 0 9%, transparent 9% 91%, rgb(0 0 0 / 0.18) 91%);
+        pointer-events: none;
+    }
+
+    /* Écran d'affichage du score */
+    .lectern-screen {
+        position: relative;
+        z-index: 1;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 100%;
+        min-height: 2.4rem;
+        border-radius: 0.45rem;
+        background: #06102E;
+        box-shadow:
+            inset 0 0 0 1px rgb(255 255 255 / 0.07),
+            inset 0 3px 8px rgb(0 0 0 / 0.65),
+            0 1px 0 rgb(255 255 255 / 0.12);
+        color: theme('colors.show.yellow');
+    }
+
+    .lectern-plate {
+        position: relative;
+        z-index: 1;
+        max-width: 100%;
+    }
+
+    .lectern-shadow {
+        height: 0.7rem;
+        margin: -0.2rem 6% 0;
+        border-radius: 50%;
+        background: radial-gradient(ellipse at center, rgb(0 0 0 / 0.5), transparent 70%);
+    }
+
+    .lectern[data-empty='true'] .lectern-front {
+        background: transparent;
+        clip-path: none;
+        border: 2px dashed rgb(169 184 224 / 0.35);
+        border-top: 0;
+        border-radius: 0 0 0.9rem 0.9rem;
+    }
+
+    .lectern[data-empty='true'] .lectern-front::after {
+        display: none;
+    }
+
+    /* Socle de podium sous un pupitre */
+    .podium-block {
+        background: linear-gradient(180deg, #F5F7FF 0%, #C9D4F2 100%);
+        clip-path: polygon(0 0, 100% 0, 100% 100%, 0 100%);
+        border-radius: 0.35rem 0.35rem 0 0;
+        color: theme('colors.show.night');
+    }
+
+    /* ---------- Égaliseur (extrait en cours) ---------- */
+    .equalizer {
+        display: inline-flex;
+        align-items: flex-end;
+        gap: 3px;
+        height: 1.1rem;
+    }
+
+    .equalizer span {
+        width: 4px;
+        height: 30%;
+        border-radius: 2px;
+        background: currentColor;
+        animation: equalizer 900ms ease-in-out infinite;
+    }
+
+    .equalizer span:nth-child(2) {
+        animation-delay: -300ms;
+    }
+
+    .equalizer span:nth-child(3) {
+        animation-delay: -600ms;
+    }
+
+    .equalizer span:nth-child(4) {
+        animation-delay: -150ms;
+    }
+
+    .equalizer span:nth-child(5) {
+        animation-delay: -450ms;
+    }
+
+    .equalizer[data-active='false'] span {
+        animation: none;
+        height: 20%;
+        opacity: 0.5;
+    }
+
+    /* Points gagnés qui montent au-dessus du chronomètre */
+    .points-pop {
+        animation: points-pop 1100ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+    }
+
+    .shake {
+        animation: shake 380ms ease-in-out;
+    }
+}
+
+@keyframes equalizer {
+
+    0%,
+    100% {
+        height: 25%;
+    }
+
+    50% {
+        height: 100%;
+    }
+}
+
+@keyframes points-pop {
+    0% {
+        opacity: 0;
+        transform: translateY(8px) scale(0.7);
+    }
+
+    25% {
+        opacity: 1;
+        transform: translateY(0) scale(1.08);
+    }
+
+    70% {
+        opacity: 1;
+        transform: translateY(-10px) scale(1);
+    }
+
+    100% {
+        opacity: 0;
+        transform: translateY(-26px) scale(1);
+    }
+}
+
+@keyframes shake {
+
+    0%,
+    100% {
+        transform: translateX(0);
+    }
+
+    20% {
+        transform: translateX(-6px);
+    }
+
+    40% {
+        transform: translateX(6px);
+    }
+
+    60% {
+        transform: translateX(-4px);
+    }
+
+    80% {
+        transform: translateX(4px);
     }
 }

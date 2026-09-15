@@ -23,10 +23,13 @@ export default function ShowButton({
     className = '',
     ...props
 }) {
+    // Bowlby One pour les grands boutons d'action, Albert Sans pour les petits boutons utilitaires
+    const font = size === 'lg' ? 'font-brand' : 'font-show font-extrabold';
+
     return (
         <button
             type={type}
-            className={`inline-flex items-center justify-center gap-2 rounded-full font-brand leading-none transition active:translate-y-[3px] active:shadow-none disabled:cursor-not-allowed disabled:opacity-50 disabled:active:translate-y-0 ${VARIANTS[variant] || VARIANTS.yellow} ${SIZES[size] || SIZES.md} ${block ? 'w-full' : ''} ${className}`}
+            className={`inline-flex items-center justify-center gap-2 rounded-full leading-none ${font} transition active:translate-y-[3px] active:shadow-none disabled:cursor-not-allowed disabled:opacity-50 disabled:active:translate-y-0 ${VARIANTS[variant] || VARIANTS.yellow} ${SIZES[size] || SIZES.md} ${block ? 'w-full' : ''} ${className}`}
             {...props}
         />
     );

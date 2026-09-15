@@ -2,17 +2,10 @@ import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import GameShell from '../show/GameShell';
 import ShowButton from '../show/ShowButton';
-import Lectern from '../show/Lectern';
+import Podium from '../show/Podium';
 import { createShowT } from '../../utils/showI18n';
 
-// Hauteur des socles du podium : 2e, 1er, 3e
-const PODIUM = [
-    { position: 1, baseClassName: 'min-h-[4.5rem] sm:min-h-[5.5rem]' },
-    { position: 0, baseClassName: 'min-h-[6.5rem] sm:min-h-[8rem]' },
-    { position: 2, baseClassName: 'min-h-[3.5rem] sm:min-h-[4rem]' },
-];
-
-// Fin de partie : podium de pupitres, classement complet, nouvelle partie ou retour au site
+// Fin de partie : podium, classement complet, nouvelle partie ou retour au site
 const ResultsView = ({
     finalRanking,
     pseudo,
@@ -40,7 +33,6 @@ const ResultsView = ({
     return (
         <GameShell
             title={st('blindtest.name')}
-            status={GameModeBadge ? <GameModeBadge /> : null}
             tools={LanguageSwitch ? <LanguageSwitch /> : null}
             actionBar={
                 <div className="flex flex-col gap-2">
@@ -49,7 +41,7 @@ const ResultsView = ({
                 </div>
             }
         >
-            <div className="mx-auto flex max-w-xl flex-col gap-8">
+            <div className="mx-auto flex max-w-2xl flex-col gap-10">
                 {winner ? (
                     <>
                         <div className="text-center">
@@ -60,42 +52,39 @@ const ResultsView = ({
                                 {st('results.winner', { name: winner.pseudo })}
                             </h1>
                             <p className="mt-2 text-show-muted">{st('results.winnerScore', { score: winner.score ?? 0 })}</p>
+                            {GameModeBadge && <div className="mt-3 flex justify-center"><GameModeBadge /></div>}
                         </div>
 
-                        <ol className="grid grid-cols-[1fr_1.15fr_1fr] items-end gap-2 sm:gap-3" aria-label={st('results.ranking')}>
-                            {PODIUM.map(({ position, baseClassName }) => {
-                                const player = ranking[position];
-                                if (!player) return <li key={position} aria-hidden="true" />;
-                                return (
-                                    <li key={player.pseudo}>
-                                        <Lectern
-                                            name={`${player.rank ?? position + 1}. ${player.pseudo}`}
-                                            value={player.score ?? 0}
-                                            caption={player.pseudo === pseudo ? st('results.you') : undefined}
-                                            lamp={position === 0 ? 'ready' : 'idle'}
-                                            highlight={player.pseudo === pseudo}
-                                            baseClassName={baseClassName}
-                                        />
-                                    </li>
-                                );
-                            })}
-                        </ol>
+                        <Podium
+                            label={st('results.ranking')}
+                            youLabel={st('results.you')}
+                            entries={ranking.map((player) => ({
+                                key: player.pseudo,
+                                name: player.pseudo,
+                                score: player.score ?? 0,
+                                isMe: player.pseudo === pseudo,
+                                avatarUrl: player.isDiscordUser ? player.avatarUrl : undefined,
+                            }))}
+                        />
 
                         {others.length > 0 && (
-                            <ol className="flex flex-col gap-2">
-                                {others.map((player, index) => (
-                                    <li
-                                        key={player.pseudo}
-                                        className={`flex items-center gap-3 rounded-xl px-4 py-3 ${player.pseudo === pseudo ? 'bg-show-yellow text-show-night' : 'border border-show-desk'}`}
-                                    >
-                                        <span className="w-6 font-brand">{player.rank ?? index + 4}</span>
-                                        <span className="min-w-0 flex-1 truncate font-semibold">
-                                            {player.pseudo}
-                                            {player.pseudo === pseudo && <span className="ml-1 text-xs font-bold">({st('results.you')})</span>}
-                                        </span>
-                                        <span className={`font-brand ${player.pseudo === pseudo ? '' : 'text-show-yellow'}`}>{player.score ?? 0}</span>
-                                    </li>
-                                ))}
+                            <ol className="flex flex-col gap-2" start={4}>
+                                {others.map((player, index) => {
+                                    const isMe = player.pseudo === pseudo;
+                                    return (
+                                        <li
+                                            key={player.pseudo}
+                                            className={`flex items-center gap-3 rounded-xl px-4 py-3 ${isMe ? 'bg-show-yellow text-show-night' : 'bg-show-night/45 ring-1 ring-white/5'}`}
+                                        >
+                                            <span className="w-6 font-brand">{player.rank ?? index + 4}</span>
+                                            <span className="min-w-0 flex-1 truncate font-semibold">
+                                                {player.pseudo}
+                                                {isMe && <span className="ml-1 text-xs font-bold">({st('results.you')})</span>}
+                                            </span>
+                                            <span className={`font-brand ${isMe ? '' : 'text-show-yellow'}`}>{player.score ?? 0}</span>
+                                        </li>
+                                    );
+                                })}
                             </ol>
                         )}
 

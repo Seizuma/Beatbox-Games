@@ -7,13 +7,13 @@ import { useWakeLock } from '../../hooks/useWakeLock';
 
 // Coquille du « plateau » : tous les écrans à l'intérieur d'une salle de jeu.
 // Pas de navigation du site ici, seulement une barre de plateau et une barre d'action ancrée en bas.
+// Les informations de jeu (manche, netteté…) vivent dans la zone de jeu, pas dans cette barre.
 // quitConfirm = { title, text, confirmLabel, cancelLabel, closeLabel } demande une confirmation avant de quitter.
 export default function GameShell({
     title,
     onQuit,
     quitLabel,
     quitConfirm,
-    status,
     tools,
     actionBar,
     actionBarClassName = '',
@@ -33,8 +33,8 @@ export default function GameShell({
     };
 
     return (
-        <div className="show-surface flex min-h-[100dvh] flex-col bg-show-stage font-show text-show-white">
-            <header className="sticky top-0 z-30 bg-show-night">
+        <div className="show-surface stage-light flex min-h-[100dvh] flex-col font-show text-show-white">
+            <header className="sticky top-0 z-30 border-b border-white/5 bg-show-night/95 backdrop-blur">
                 <div className="mx-auto flex h-14 max-w-5xl items-center gap-3 px-3 sm:px-5">
                     {onQuit ? (
                         <button
@@ -52,12 +52,9 @@ export default function GameShell({
 
                     {title && <span className="font-brand text-base leading-none sm:text-lg">{title}</span>}
 
-                    {status && <div className="hidden min-w-0 items-center gap-2 md:flex">{status}</div>}
-
                     <div className="ml-auto flex items-center gap-2">{tools}</div>
                 </div>
 
-                {status && <div className="flex gap-2 overflow-x-auto px-3 pb-2 md:hidden">{status}</div>}
             </header>
 
             <main className={`mx-auto w-full max-w-5xl flex-1 px-4 py-6 sm:px-6 sm:py-8 ${contentClassName}`}>

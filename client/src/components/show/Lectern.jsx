@@ -1,46 +1,110 @@
 import React from 'react';
 import Icon from '../icons/Icon';
 
-const LAMP_CLASS = {
-    idle: 'bg-show-dim',
-    ready: 'bg-show-ready',
-    answered: 'bg-show-yellow',
-    wrong: 'bg-show-buzz',
-    buzz: 'bg-show-buzz',
+// Couleur du bandeau lumineux selon l'état du joueur
+const LAMPS = {
+    idle: { lamp: '#233F8A', glow: 'transparent' },
+    ready: { lamp: '#2DBE6C', glow: 'rgb(45 190 108 / 0.55)' },
+    answered: { lamp: '#FFC72C', glow: 'rgb(255 199 44 / 0.5)' },
+    wrong: { lamp: '#E8402F', glow: 'rgb(232 64 47 / 0.55)' },
+    buzz: { lamp: '#E8402F', glow: 'rgb(232 64 47 / 0.75)' },
 };
 
-// Pupitre d'un joueur : lampe d'état, plaque avec le nom, socle avec le score ou le statut
+const SIZES = {
+    sm: { screen: 'text-lg min-h-[2.1rem]', plate: 'text-[11px] px-2 py-0.5', avatar: 22 },
+    md: { screen: 'text-2xl min-h-[2.6rem]', plate: 'text-xs sm:text-sm px-2.5 py-1', avatar: 28 },
+    lg: { screen: 'text-3xl sm:text-4xl min-h-[3.4rem]', plate: 'text-sm sm:text-base px-3 py-1', avatar: 34 },
+};
+
+/**
+ * Pupitre de plateau télé.
+ * - screen : contenu de l'écran (score, état) ; value est un raccourci pour un nombre
+ * - lamp : idle | ready | answered | wrong | buzz
+ * - empty : place libre (contour pointillé), label affiché dans l'écran
+ */
 export default function Lectern({
     name,
     value,
-    caption,
+    screen,
     lamp = 'idle',
     highlight = false,
     host = false,
     hostLabel,
+    tag,
     dimmed = false,
+    avatarUrl,
     size = 'md',
-    baseClassName = '',
+    empty = false,
+    emptyLabel,
+    onEmptyClick,
+    className = '',
 }) {
-    const small = size === 'sm';
+    const sizing = SIZES[size] || SIZES.md;
+    const colors = LAMPS[lamp] || LAMPS.idle;
+
+    if (empty) {
+        const Tag = onEmptyClick ? 'button' : 'div';
+        return (
+            <Tag
+                type={onEmptyClick ? 'button' : undefined}
+                onClick={onEmptyClick}
+                data-empty="true"
+                className={`lectern group w-full text-left ${onEmptyClick ? 'cursor-pointer' : ''} ${className}`}
+            >
+                <span className="lectern-desk opacity-25" aria-hidden="true" />
+                <span className="lectern-front">
+                    <span className={`flex w-full items-center justify-center gap-1.5 rounded-lg text-show-muted transition-colors group-hover:text-show-white ${sizing.screen} !text-xs font-extrabold`}>
+                        <Icon name="user" size={16} />
+                        {emptyLabel}
+                    </span>
+                </span>
+            </Tag>
+        );
+    }
 
     return (
-        <div className={`flex min-w-0 flex-col items-center ${dimmed ? 'opacity-50' : ''}`}>
-            <span aria-hidden="true" className={`${small ? 'h-1.5 w-3' : 'h-2 w-4'} rounded-t ${LAMP_CLASS[lamp] || LAMP_CLASS.idle}`} />
-            <span
-                className={`flex w-full min-w-0 items-center justify-center gap-1 rounded-t-md px-1.5 font-extrabold text-show-night ${small ? 'py-1 text-[11px]' : 'py-1.5 text-xs sm:text-sm'} ${highlight ? 'bg-show-yellow' : 'bg-show-white'}`}
-            >
-                {host && <Icon name="crown" size={small ? 11 : 13} title={hostLabel} />}
-                <span className="truncate">{name}</span>
+        <div
+            className={`lectern ${dimmed ? 'opacity-50' : ''} ${className}`}
+            style={{ '--lamp': colors.lamp, '--lamp-glow': colors.glow }}
+        >
+            {(host || tag) && (
+                <span className="absolute -top-2.5 right-1 z-10 flex items-center gap-1">
+                    {tag && (
+                        <span className="rounded-full bg-show-white px-1.5 py-0.5 text-[10px] font-extrabold text-show-night shadow">{tag}</span>
+                    )}
+                    {host && (
+                        <span className="flex h-5 w-5 items-center justify-center rounded-full bg-show-yellow text-show-night shadow">
+                            <Icon name="crown" size={12} title={hostLabel} />
+                        </span>
+                    )}
+                </span>
+            )}
+
+            <span className="lectern-desk" aria-hidden="true" />
+            <span className="lectern-strip" aria-hidden="true" />
+
+            <span className="lectern-front">
+                <span className={`lectern-screen font-brand leading-none tabular-nums ${sizing.screen}`}>
+                    {screen !== undefined ? screen : value}
+                </span>
+                <span
+                    className={`lectern-plate flex items-center gap-1.5 rounded-md font-extrabold ${sizing.plate} ${highlight ? 'bg-show-yellow text-show-night' : 'bg-show-night/70 text-show-white'}`}
+                >
+                    {avatarUrl && (
+                        <img
+                            src={avatarUrl}
+                            alt=""
+                            width={sizing.avatar}
+                            height={sizing.avatar}
+                            className="-my-1 -ml-1.5 shrink-0 rounded-full"
+                            style={{ width: sizing.avatar * 0.75, height: sizing.avatar * 0.75 }}
+                        />
+                    )}
+                    <span className="truncate">{name}</span>
+                </span>
             </span>
-            <span
-                className={`lectern-base flex w-full flex-col items-center justify-center bg-show-desk ${small ? 'min-h-[2.25rem] pb-2 pt-1' : 'min-h-[3rem] pb-3 pt-1.5'} ${baseClassName}`}
-            >
-                {value !== undefined && value !== null && (
-                    <span className={`font-brand leading-none text-show-yellow ${small ? 'text-sm' : 'text-lg sm:text-xl'}`}>{value}</span>
-                )}
-                {caption && <span className="px-1 text-center text-[10px] font-semibold leading-tight text-show-muted sm:text-[11px]">{caption}</span>}
-            </span>
+
+            <span className="lectern-shadow" aria-hidden="true" />
         </div>
     );
 }

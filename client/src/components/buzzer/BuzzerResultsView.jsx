@@ -1,15 +1,12 @@
 import React from 'react';
 import GameShell from '../show/GameShell';
 import ShowButton from '../show/ShowButton';
-import Lectern from '../show/Lectern';
+import Podium from '../show/Podium';
 import { createShowT } from '../../utils/showI18n';
 
-// Hauteur des socles du podium : 2e, 1er, 3e
-const PODIUM = [
-    { position: 1, baseClassName: 'min-h-[4.5rem] sm:min-h-[5.5rem]' },
-    { position: 0, baseClassName: 'min-h-[6.5rem] sm:min-h-[8rem]' },
-    { position: 2, baseClassName: 'min-h-[3.5rem] sm:min-h-[4rem]' },
-];
+const discordAvatar = (player) => (player?.isDiscordUser && player?.discordId && player?.discordAvatar
+    ? `https://cdn.discordapp.com/avatars/${player.discordId}/${player.discordAvatar}.png?size=64`
+    : undefined);
 
 // Fin de partie du Buzzer Battle : podium, classement avec buzz et erreurs, rejouer dans la même salle
 function BuzzerResultsView({ scores, onPlayAgain, onBackToHome, myPlayerId, language, languageSwitch }) {
@@ -39,7 +36,7 @@ function BuzzerResultsView({ scores, onPlayAgain, onBackToHome, myPlayerId, lang
                 </div>
             }
         >
-            <div className="mx-auto flex max-w-xl flex-col gap-8">
+            <div className="mx-auto flex max-w-2xl flex-col gap-10">
                 {winner ? (
                     <>
                         <div className="text-center">
@@ -51,25 +48,17 @@ function BuzzerResultsView({ scores, onPlayAgain, onBackToHome, myPlayerId, lang
                             <p className="mt-1 text-xs text-show-muted">{statsLine(winner)}</p>
                         </div>
 
-                        <ol className="grid grid-cols-[1fr_1.15fr_1fr] items-end gap-2 sm:gap-3" aria-label={st('results.ranking')}>
-                            {PODIUM.map(({ position, baseClassName }) => {
-                                const player = ranking[position];
-                                if (!player) return <li key={position} aria-hidden="true" />;
-                                const isMe = Boolean(myPlayerId) && player.id === myPlayerId;
-                                return (
-                                    <li key={player.id || player.username}>
-                                        <Lectern
-                                            name={`${position + 1}. ${player.username}`}
-                                            value={player.score ?? 0}
-                                            caption={isMe ? st('results.you') : undefined}
-                                            lamp={position === 0 ? 'ready' : 'idle'}
-                                            highlight={isMe}
-                                            baseClassName={baseClassName}
-                                        />
-                                    </li>
-                                );
-                            })}
-                        </ol>
+                        <Podium
+                            label={st('results.ranking')}
+                            youLabel={st('results.you')}
+                            entries={ranking.map((player) => ({
+                                key: player.id || player.username,
+                                name: player.username,
+                                score: player.score ?? 0,
+                                isMe: Boolean(myPlayerId) && player.id === myPlayerId,
+                                avatarUrl: discordAvatar(player),
+                            }))}
+                        />
 
                         {others.length > 0 && (
                             <ol className="flex flex-col gap-2" start={4}>
@@ -78,7 +67,7 @@ function BuzzerResultsView({ scores, onPlayAgain, onBackToHome, myPlayerId, lang
                                     return (
                                         <li
                                             key={player.id || player.username}
-                                            className={`flex items-center gap-3 rounded-xl px-4 py-3 ${isMe ? 'bg-show-yellow text-show-night' : 'border border-show-desk'}`}
+                                            className={`flex items-center gap-3 rounded-xl px-4 py-3 ${isMe ? 'bg-show-yellow text-show-night' : 'bg-show-night/45 ring-1 ring-white/5'}`}
                                         >
                                             <span className="w-6 font-brand">{index + 4}</span>
                                             <span className="min-w-0 flex-1">
