@@ -5,8 +5,8 @@ services:
       context: ./server
       dockerfile: Dockerfile
     container_name: beatbox-games-prod-server
-    ports:
-      - "4000:4000"
+    expose:
+      - "4000"
     volumes:
       - ./server/public:/app/public
       - beatbox-data-prod:/app/data
@@ -45,8 +45,8 @@ services:
         - REACT_APP_API_URL=https://beatboxgames.com
         - GENERATE_SOURCEMAP=false
     container_name: beatbox-games-prod-client
-    ports:
-      - "8080:80"
+    expose:
+      - "80"
     restart: unless-stopped
     mem_limit: 256m
     memswap_limit: 256m

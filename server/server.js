@@ -295,8 +295,15 @@ app.get('/api/contact/test', async (req, res) => {
     }
 });
 
-// Health check enrichi avec informations d'environnement et Discord
 app.get('/health', (req, res) => {
+    // En production : réponse minimale, suffisante pour le healthcheck Docker
+    if (CONFIG.IS_PRODUCTION) {
+        return res.json({
+            status: 'OK',
+            timestamp: new Date().toISOString()
+        });
+    }
+
     const healthData = {
         status: 'OK',
         environment: ENVIRONMENT,
