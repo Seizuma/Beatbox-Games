@@ -30,7 +30,7 @@ import {
     CountdownOverlay,
     ArtistRevealOverlay
 } from './components/UI';
-import { AudioUnlockBanner, GameToast } from './components/show/GameNotices';
+import { AudioUnlockBanner, ConnectionBanner, GameToast } from './components/show/GameNotices';
 import { createShowT } from './utils/showI18n';
 
 // Import des styles
@@ -317,6 +317,18 @@ function BlindTestOnline() {
         [gameMode, t]
     );
 
+    // Quitter volontairement la salle (salle d'attente ou partie en cours)
+    const handleLeaveRoom = () => {
+        stopAllAudio();
+        if (room) {
+            socketOnline.emit('leaveRoom', { room });
+        }
+        clearUserSession();
+        setRoom('');
+        setView(VIEWS.CREATE);
+        navigate('/');
+    };
+
     const commonViewProps = useMemo(() => ({
         LanguageSwitch: LanguageSwitchComponent,
         GameModeBadge: GameModeBadgeComponent,
@@ -342,6 +354,11 @@ function BlindTestOnline() {
                     message={error}
                     hint={isSharedLinkError ? createShowT(language)('notices.sharedLinkHint') : null}
                 />
+            )}
+
+            {/* Connexion perdue pendant une salle */}
+            {!connected && (view === VIEWS.LOBBY || view === VIEWS.GAME) && (
+                <ConnectionBanner message={createShowT(language)('notices.reconnecting')} />
             )}
 
             {/* Debug overlay en développement */}
@@ -423,17 +440,7 @@ function BlindTestOnline() {
                     socketMethods={socketMethods}
                     forceEnableAudio={forceEnableAudio}
                     needsAudioUnlock={needsAudioUnlock}
-                    onBackToHub={() => {
-                        // ✅ Déconnecter le socket
-                        if (room) {
-                            socketOnline.emit('leaveRoom', { room });
-                        }
-                        // ✅ Nettoyer les états
-                        setRoom('');
-                        setView(VIEWS.CREATE);
-                        // ✅ Naviguer vers le Hub
-                        navigate('/');
-                    }}
+                    onBackToHub={handleLeaveRoom}
                 />
             )}
 
@@ -463,6 +470,7 @@ function BlindTestOnline() {
                     }}
                     userInteracted={userInteracted}
                     forceEnableAudio={forceEnableAudio}
+                    onQuit={handleLeaveRoom}
                 />
             )}
 

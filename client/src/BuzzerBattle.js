@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import SEO from './components/SEO';
 import { useI18n } from './utils/i18n';
@@ -12,6 +12,7 @@ import BuzzerResultsView from './components/buzzer/BuzzerResultsView';
 
 // Import des composants UI
 import { LanguageSwitch } from './components/UI';
+import { GameToast } from './components/show/GameNotices';
 
 const VIEWS = {
     CREATE: 'create',
@@ -50,6 +51,15 @@ function BuzzerBattle() {
     const [gameState, setGameState] = useState(null);
     const [players, setPlayers] = useState([]);
     const [isCreator, setIsCreator] = useState(false);
+
+    // Message d'erreur affiché sur le plateau (remplace les alert())
+    const [notice, setNotice] = useState('');
+    const noticeTimeoutRef = useRef(null);
+    const showError = (message) => {
+        setNotice(message || 'Erreur');
+        if (noticeTimeoutRef.current) clearTimeout(noticeTimeoutRef.current);
+        noticeTimeoutRef.current = setTimeout(() => setNotice(''), 4000);
+    };
 
     // États de jeu
     const [beatboxerImage, setBeatboxerImage] = useState(null);
@@ -599,7 +609,7 @@ function BuzzerBattle() {
                 setPlayers(Object.values(response.game.players));
                 setCurrentView(VIEWS.LOBBY);
             } else {
-                alert('Erreur: ' + response.error);
+                showError(response.error);
             }
         });
     };
@@ -641,7 +651,7 @@ function BuzzerBattle() {
 
                 navigate('/buzzer-battle', { replace: true });
             } else {
-                alert('Erreur: ' + response.error);
+                showError(response.error);
             }
         });
     };
@@ -649,7 +659,7 @@ function BuzzerBattle() {
     const handleStartGame = () => {
         socketBuzzer.emit('buzzer:startGame', { roomCode }, (response) => {
             if (!response.success) {
-                alert('Erreur: ' + response.error);
+                showError(response.error);
             }
         });
     };
@@ -667,7 +677,7 @@ function BuzzerBattle() {
     const handleGuess = (answer) => {
         socketBuzzer.emit('buzzer:guess', { roomCode, answer }, (response) => {
             if (!response.success) {
-                alert('Erreur: ' + response.error);
+                showError(response.error);
             }
         });
     };
@@ -705,6 +715,8 @@ function BuzzerBattle() {
                 description="Devinez les beatboxers avant vos adversaires dans ce jeu de rapidité !"
             />
 
+            <GameToast message={notice} />
+
             {currentView === VIEWS.CREATE && (
                 <BuzzerCreateView
                     language={language}
@@ -730,6 +742,7 @@ function BuzzerBattle() {
                     isCreator={isCreator}
                     gameState={gameState}
                     onStartGame={handleStartGame}
+                    onError={showError}
                 />
             )}
 
@@ -752,6 +765,7 @@ function BuzzerBattle() {
                     myPlayerId={mySocketId}
                     wrongGuessFeedback={wrongGuessFeedback}
                     justReconnected={justReconnected}
+                    onQuit={handleBackToHome}
                 />
             )}
 

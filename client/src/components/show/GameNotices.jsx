@@ -37,3 +37,17 @@ export function GameToast({ message, hint }) {
         </div>
     );
 }
+
+// Bandeau affiché pendant une coupure de connexion au serveur
+export function ConnectionBanner({ message }) {
+    return (
+        <div
+            role="status"
+            aria-live="polite"
+            className="show-surface fixed inset-x-0 top-0 z-50 flex min-h-14 items-center justify-center gap-2 bg-show-buzz px-4 py-2 text-center font-show text-sm font-extrabold text-show-white"
+        >
+            <span className="h-2 w-2 animate-pulse rounded-full bg-show-white" aria-hidden="true" />
+            <span>{message}</span>
+        </div>
+    );
+}

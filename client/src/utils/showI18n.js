@@ -18,6 +18,10 @@ const strings = {
             host: 'Hôte',
             cancel: 'Annuler',
             save: 'Valider',
+            quitGameTitle: 'Quitter la partie ?',
+            quitGameText: 'La partie continue sans toi.',
+            quitConfirm: 'Quitter',
+            keepPlaying: 'Continuer à jouer',
         },
         modes: {
             normal: 'Mode normal',
@@ -181,6 +185,7 @@ const strings = {
         notices: {
             audioUnlock: 'Touche l’écran pour activer le son',
             sharedLinkHint: 'Le serveur peut te proposer un autre pseudo automatiquement.',
+            reconnecting: 'Connexion perdue, reconnexion en cours…',
         },
     },
 
@@ -197,6 +202,10 @@ const strings = {
             host: 'Host',
             cancel: 'Cancel',
             save: 'Save',
+            quitGameTitle: 'Leave the game?',
+            quitGameText: 'The game will go on without you.',
+            quitConfirm: 'Leave',
+            keepPlaying: 'Keep playing',
         },
         modes: {
             normal: 'Normal mode',
@@ -360,6 +369,7 @@ const strings = {
         notices: {
             audioUnlock: 'Tap the screen to turn on sound',
             sharedLinkHint: 'The server may suggest another nickname automatically.',
+            reconnecting: 'Connection lost, reconnecting…',
         },
     },
 };
@@ -379,6 +389,17 @@ export function createShowT(language = 'fr') {
 }
 
 // Retire les emojis des messages encore produits par i18n.js, les hooks ou le serveur
+// Confirmation commune pour quitter une partie en cours
+export function getQuitGameConfirm(st) {
+    return {
+        title: st('common.quitGameTitle'),
+        text: st('common.quitGameText'),
+        confirmLabel: st('common.quitConfirm'),
+        cancelLabel: st('common.keepPlaying'),
+        closeLabel: st('common.close'),
+    };
+}
+
 export function stripEmoji(text) {
     if (typeof text !== 'string') return text;
     return text

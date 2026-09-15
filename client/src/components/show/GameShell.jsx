@@ -1,20 +1,37 @@
-import React from 'react';
+import React, { useState } from 'react';
 import BrandMark from '../brand/BrandMark';
 import Icon from '../icons/Icon';
+import ShowButton from './ShowButton';
+import ShowModal from './ShowModal';
+import { useWakeLock } from '../../hooks/useWakeLock';
 
 // Coquille du « plateau » : tous les écrans à l'intérieur d'une salle de jeu.
 // Pas de navigation du site ici, seulement une barre de plateau et une barre d'action ancrée en bas.
+// quitConfirm = { title, text, confirmLabel, cancelLabel, closeLabel } demande une confirmation avant de quitter.
 export default function GameShell({
     title,
     onQuit,
     quitLabel,
+    quitConfirm,
     status,
     tools,
     actionBar,
     actionBarClassName = '',
+    keepAwake = true,
     children,
     contentClassName = '',
 }) {
+    const [confirmOpen, setConfirmOpen] = useState(false);
+    useWakeLock(keepAwake);
+
+    const handleQuitClick = () => {
+        if (quitConfirm) {
+            setConfirmOpen(true);
+        } else if (onQuit) {
+            onQuit();
+        }
+    };
+
     return (
         <div className="show-surface flex min-h-[100dvh] flex-col bg-show-stage font-show text-show-white">
             <header className="sticky top-0 z-30 bg-show-night">
@@ -22,7 +39,7 @@ export default function GameShell({
                     {onQuit ? (
                         <button
                             type="button"
-                            onClick={onQuit}
+                            onClick={handleQuitClick}
                             className="-ml-1 inline-flex items-center gap-1.5 rounded-full px-2 py-1.5 text-sm font-semibold text-show-muted transition-colors hover:text-show-white"
                         >
                             <Icon name="arrow-left" size={18} />
@@ -53,6 +70,35 @@ export default function GameShell({
                         {actionBar}
                     </div>
                 </div>
+            )}
+
+            {quitConfirm && (
+                <ShowModal
+                    open={confirmOpen}
+                    onClose={() => setConfirmOpen(false)}
+                    title={quitConfirm.title}
+                    closeLabel={quitConfirm.closeLabel}
+                    footer={
+                        <div className="flex flex-col gap-2 sm:flex-row-reverse">
+                            <ShowButton size="md" block onClick={() => setConfirmOpen(false)}>
+                                {quitConfirm.cancelLabel}
+                            </ShowButton>
+                            <ShowButton
+                                variant="outline"
+                                size="md"
+                                block
+                                onClick={() => {
+                                    setConfirmOpen(false);
+                                    onQuit?.();
+                                }}
+                            >
+                                {quitConfirm.confirmLabel}
+                            </ShowButton>
+                        </div>
+                    }
+                >
+                    <p className="text-[0.95rem] text-show-muted">{quitConfirm.text}</p>
+                </ShowModal>
             )}
         </div>
     );

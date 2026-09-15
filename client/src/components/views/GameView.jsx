@@ -5,7 +5,7 @@ import BulbRing from '../show/BulbRing';
 import Lectern from '../show/Lectern';
 import Icon from '../icons/Icon';
 import { VolumeControl } from '../UI';
-import { createShowT, LEVEL_POINTS } from '../../utils/showI18n';
+import { createShowT, getQuitGameConfirm, LEVEL_POINTS } from '../../utils/showI18n';
 
 // État de la barre d'action, dans le même ordre de priorité que l'ancienne vue
 const getPhase = ({ answerFeedback, me, hasAnswered, canAnswer, timerStarted }) => {
@@ -54,7 +54,8 @@ const GameView = ({
     handleSubmitAnswer,
     volumeControlProps,
     LanguageSwitch,
-    language
+    language,
+    onQuit
 }) => {
     const st = createShowT(language);
     const answerId = useId();
@@ -100,6 +101,9 @@ const GameView = ({
     return (
         <GameShell
             title={st('blindtest.name')}
+            onQuit={onQuit}
+            quitLabel={st('common.quit')}
+            quitConfirm={getQuitGameConfirm(st)}
             status={status}
             contentClassName="flex flex-col justify-center"
             tools={

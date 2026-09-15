@@ -3,7 +3,7 @@ import GameShell, { StatusPill } from '../show/GameShell';
 import ShowButton from '../show/ShowButton';
 import Lectern from '../show/Lectern';
 import Icon from '../icons/Icon';
-import { createShowT } from '../../utils/showI18n';
+import { createShowT, getQuitGameConfirm } from '../../utils/showI18n';
 
 const API_BASE_URL = process.env.REACT_APP_API_URL || 'https://dev.beatboxgames.com';
 
@@ -28,7 +28,8 @@ function BuzzerGameView({
     wrongGuessFeedback,
     justReconnected,
     language,
-    languageSwitch
+    languageSwitch,
+    onQuit
 }) {
     const st = createShowT(language);
     const guessId = useId();
@@ -127,6 +128,9 @@ function BuzzerGameView({
     return (
         <GameShell
             title={st('buzzer.name')}
+            onQuit={onQuit}
+            quitLabel={st('common.quit')}
+            quitConfirm={getQuitGameConfirm(st)}
             status={status}
             tools={languageSwitch}
             actionBar={actionBar}

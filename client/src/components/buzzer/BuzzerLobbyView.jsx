@@ -26,7 +26,8 @@ function BuzzerLobbyView({
     onStartGame,
     language,
     languageSwitch,
-    onQuit
+    onQuit,
+    onError
 }) {
     const st = createShowT(language);
     const filterId = useId();
@@ -37,6 +38,7 @@ function BuzzerLobbyView({
     const [showCountdown, setShowCountdown] = useState(false);
     const [countdownValue, setCountdownValue] = useState(3);
     const [copyState, setCopyState] = useState(null);
+    const [kickTarget, setKickTarget] = useState(null);
     const copyTimeoutRef = useRef(null);
 
     // Configuration
@@ -146,25 +148,30 @@ function BuzzerLobbyView({
         if (copyTimeoutRef.current) clearTimeout(copyTimeoutRef.current);
     }, []);
 
+    const reportError = (message) => {
+        if (onError) onError(message);
+        else console.error(message);
+    };
+
     const handleStartWithCountdown = () => {
         socketBuzzer.emit('buzzer:startGame', { roomCode }, (response) => {
             if (!response.success) {
-                alert('Erreur: ' + response.error);
+                reportError(response.error);
             }
         });
     };
 
-    const handleKickPlayer = (player) => {
-        if (!window.confirm(st('buzzerLobby.kickConfirm', { name: player.username }))) {
-            return;
-        }
+    const confirmKickPlayer = () => {
+        const player = kickTarget;
+        setKickTarget(null);
+        if (!player) return;
 
         socketBuzzer.emit('buzzer:kickPlayer', {
             roomCode,
             targetPlayerId: player.id
         }, (response) => {
             if (!response.success) {
-                alert('Erreur: ' + response.error);
+                reportError(response.error);
             }
         });
     };
@@ -179,7 +186,7 @@ function BuzzerLobbyView({
             if (response.success) {
                 setShowSettings(false);
             } else {
-                alert('Erreur: ' + response.error);
+                reportError(response.error);
             }
         });
     };
@@ -413,7 +420,10 @@ function BuzzerLobbyView({
                                                 variant="buzz"
                                                 size="sm"
                                                 aria-label={st('settings.kickLabel', { name: player.username })}
-                                                onClick={() => handleKickPlayer(player)}
+                                                onClick={() => {
+                                                    setShowSettings(false);
+                                                    setKickTarget(player);
+                                                }}
                                             >
                                                 <Icon name="close" size={14} />
                                                 <span className="hidden sm:inline">{st('settings.kick')}</span>
@@ -428,6 +438,23 @@ function BuzzerLobbyView({
             )}
 
             <BuzzerRulesModal open={showRules} onClose={() => setShowRules(false)} st={st} />
+
+            <ShowModal
+                open={Boolean(kickTarget)}
+                onClose={() => setKickTarget(null)}
+                title={kickTarget ? st('buzzerLobby.kickConfirm', { name: kickTarget.username }) : ''}
+                closeLabel={st('common.close')}
+                footer={
+                    <div className="flex gap-2">
+                        <ShowButton variant="outline" size="md" block onClick={() => setKickTarget(null)}>
+                            {st('common.cancel')}
+                        </ShowButton>
+                        <ShowButton variant="buzz" size="md" block onClick={confirmKickPlayer}>
+                            {st('settings.kick')}
+                        </ShowButton>
+                    </div>
+                }
+            />
 
             {showCountdown && <CountdownOverlay countdown={countdownValue > 0 ? String(countdownValue) : 'Go!'} />}
         </GameShell>

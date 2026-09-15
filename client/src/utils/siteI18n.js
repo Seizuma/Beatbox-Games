@@ -204,6 +204,13 @@ const strings = {
             privacy: 'Confidentialité',
             toc: 'Sur cette page',
         },
+        notFound: {
+            seoTitle: 'Page introuvable — BeatBox Games',
+            title: 'Page introuvable',
+            text: 'Cette adresse ne mène nulle part. Le lien est peut-être incomplet, ou la page a changé de place.',
+            home: 'Retour aux jeux',
+            rankings: 'Voir les classements',
+        },
     },
 
     en: {
@@ -404,6 +411,13 @@ const strings = {
             legal: 'Legal notice',
             privacy: 'Privacy',
             toc: 'On this page',
+        },
+        notFound: {
+            seoTitle: 'Page not found — BeatBox Games',
+            title: 'Page not found',
+            text: 'This address doesn’t lead anywhere. The link may be incomplete, or the page has moved.',
+            home: 'Back to the games',
+            rankings: 'See the rankings',
         },
     },
 };
