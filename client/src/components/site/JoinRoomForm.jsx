@@ -48,7 +48,7 @@ export default function JoinRoomForm() {
                                 <label
                                     key={game.id}
                                     className={`flex-1 cursor-pointer whitespace-nowrap rounded-md px-2 py-1.5 text-center transition-colors focus-within:outline focus-within:outline-2 focus-within:outline-site-ink ${checked
-                                        ? 'bg-site-surface text-site-ink shadow-[0_1px_0_theme(colors.site.line)]'
+                                        ? 'bg-site-surface text-site-ink shadow-[0_1px_0_rgb(var(--site-line))]'
                                         : 'text-site-muted hover:text-site-ink'
                                         }`}
                                 >
@@ -69,7 +69,7 @@ export default function JoinRoomForm() {
 
                 <div>
                     <label htmlFor={codeId} className="sr-only">{t('join.code')}</label>
-                    <div className={`flex overflow-hidden rounded-lg border bg-site-surface focus-within:outline focus-within:outline-2 focus-within:outline-site-ink ${error ? 'border-brand-live' : 'border-site-line'}`}>
+                    <div className={`flex overflow-hidden rounded-lg border bg-site-surface focus-within:outline focus-within:outline-2 focus-within:outline-site-ink ${error ? 'border-site-danger' : 'border-site-line'}`}>
                         <input
                             id={codeId}
                             type="text"
@@ -88,11 +88,11 @@ export default function JoinRoomForm() {
                             }}
                             className="min-w-0 flex-1 bg-transparent px-3 py-2.5 text-base font-semibold uppercase tracking-[0.12em] text-site-ink placeholder:font-normal placeholder:text-site-soft focus:outline-none"
                         />
-                        <button type="submit" className="bg-site-ink px-4 text-sm font-bold text-white transition-colors hover:bg-[#1C2C5C]">
+                        <button type="submit" className="bg-site-button px-4 text-sm font-bold text-site-on-button transition-colors hover:bg-site-button-hover">
                             {t('join.submit')}
                         </button>
                     </div>
-                    <p id={helpId} aria-live="polite" className={`mt-1.5 text-xs ${error ? 'font-semibold text-brand-live' : 'text-site-soft'}`}>
+                    <p id={helpId} aria-live="polite" className={`mt-1.5 text-xs ${error ? 'font-semibold text-site-danger' : 'text-site-soft'}`}>
                         {error || t('join.help')}
                     </p>
                 </div>

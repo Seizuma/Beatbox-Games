@@ -1,234 +1,167 @@
 import React from 'react';
-import { useI18n } from '../utils/i18n';
 import SEO from './SEO';
+import SiteShell from './site/SiteShell';
+import { PageContainer } from './site/SiteUI';
+import LegalLayout, { LegalList, LegalSection, MailLink } from './legal/LegalLayout';
+import Icon from './icons/Icon';
+import { useI18n } from '../utils/i18n';
+import { useSiteI18n } from '../utils/siteI18n';
+import { stripEmoji } from '../utils/showI18n';
 
-function PrivacyPage() {
-    const { t, switchLanguage, isEnglish } = useI18n();
+// Le texte juridique reste dans i18n.js ; il est remonté à chaque changement de langue du site
+function PrivacyDocument() {
+    const { t: rawT, isEnglish } = useI18n();
+    const t = (key, variables) => stripEmoji(rawT(key, variables));
 
-    const handleGoBack = () => {
-        window.location.href = '/#/';
-    };
+    const sections = [
+        { id: 'privacy-intro', title: t('privacyIntroTitle') },
+        { id: 'privacy-data', title: t('privacyDataCollectedTitle') },
+        { id: 'privacy-usage', title: t('privacyDataUsageTitle') },
+        { id: 'privacy-storage', title: t('privacyStorageTitle') },
+        { id: 'privacy-cookies', title: t('privacyCookiesTitle') },
+        { id: 'privacy-sharing', title: t('privacySharingTitle') },
+        { id: 'privacy-rights', title: t('privacyRightsTitle') },
+        { id: 'privacy-third-party', title: t('privacyThirdPartyTitle') },
+        { id: 'privacy-updates', title: t('privacyUpdatesTitle') },
+        { id: 'privacy-contact', title: t('privacyContactTitle') },
+    ];
+
+    const updated = t('privacyLastUpdate', {
+        date: new Date().toLocaleDateString(isEnglish ? 'en-US' : 'fr-FR'),
+    });
 
     return (
-        <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 text-white">
-            <SEO title={t('privacyPageTitle')} description={t('privacyIntroText')} />
-
-            {/* Language Switch */}
-            <div className="absolute top-4 right-4 z-20">
-                <div className="flex items-center gap-2 bg-zinc-800/90 backdrop-blur-sm border border-zinc-700/50 rounded-full p-1">
-                    <button
-                        onClick={() => switchLanguage('fr')}
-                        className={`px-3 py-1 rounded-full text-sm font-medium transition-all duration-200 ${!isEnglish
-                            ? 'bg-cyan-500 text-white shadow-lg'
-                            : 'text-zinc-300 hover:text-white hover:bg-zinc-700/50'
-                            }`}
-                    >
-                        🇫🇷 FR
-                    </button>
-                    <button
-                        onClick={() => switchLanguage('en')}
-                        className={`px-3 py-1 rounded-full text-sm font-medium transition-all duration-200 ${isEnglish
-                            ? 'bg-cyan-500 text-white shadow-lg'
-                            : 'text-zinc-300 hover:text-white hover:bg-zinc-700/50'
-                            }`}
-                    >
-                        🇺🇸 EN
-                    </button>
+        <>
+            <SEO title={`${t('privacyPageTitle')} — BeatBox Games`} description={t('privacyIntroText')} url="https://beatboxgames.com/#/privacy" />
+            <LegalLayout title={t('privacyPageTitle')} updated={updated} sections={sections}>
+                <div className="rounded-xl border border-site-line bg-site-surface p-5">
+                    <h2 className="text-base font-bold">{t('privacyBriefTitle')}</h2>
+                    <ul className="mt-3 flex flex-col gap-2 text-sm text-site-muted">
+                        {['privacyBrief1', 'privacyBrief2', 'privacyBrief3', 'privacyBrief4'].map((key) => (
+                            <li key={key} className="flex items-start gap-2">
+                                <Icon name="check" size={16} className="mt-0.5 text-site-success" />
+                                <span>{t(key)}</span>
+                            </li>
+                        ))}
+                    </ul>
                 </div>
-            </div>
 
-            <div className="container mx-auto px-4 py-8 max-w-4xl">
-                <button
-                    onClick={handleGoBack}
-                    className="mb-6 flex items-center gap-2 text-cyan-400 hover:text-cyan-300 transition-colors"
-                >
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
-                    </svg>
-                    {t('backToHome')}
-                </button>
+                <LegalSection id="privacy-intro" title={sections[0].title}>
+                    <p>{t('privacyIntroText')}</p>
+                </LegalSection>
 
-                <div className="bg-zinc-800/50 border border-zinc-700 rounded-2xl p-8">
-                    <h1 className="text-4xl font-bold text-cyan-400 mb-6">🔒 {t('privacyPageTitle')}</h1>
-
-                    <p className="text-zinc-400 mb-8">
-                        {t('privacyLastUpdate', {
-                            date: new Date().toLocaleDateString(isEnglish ? 'en-US' : 'fr-FR'),
-                        })}
-                    </p>
-
-                    <div className="bg-cyan-900/20 border border-cyan-600/30 rounded-lg p-6 mb-8">
-                        <h2 className="text-xl font-bold text-white mb-3">📌 {t('privacyBriefTitle')}</h2>
-                        <ul className="text-zinc-300 space-y-2">
-                            <li>✅ {t('privacyBrief1')}</li>
-                            <li>✅ {t('privacyBrief2')}</li>
-                            <li>✅ {t('privacyBrief3')}</li>
-                            <li>✅ {t('privacyBrief4')}</li>
-                        </ul>
-                    </div>
-
-                    <section className="mb-8">
-                        <h2 className="text-2xl font-bold text-white mb-4">{t('privacyIntroTitle')}</h2>
-                        <p className="text-zinc-300 leading-relaxed">{t('privacyIntroText')}</p>
-                    </section>
-
-                    <section className="mb-8">
-                        <h2 className="text-2xl font-bold text-white mb-4">{t('privacyDataCollectedTitle')}</h2>
-                        <div className="space-y-4">
-                            <div className="bg-zinc-900/50 rounded-lg p-5">
-                                <h3 className="text-lg font-semibold text-green-400 mb-2">
-                                    {t('privacyAnonymousMode')}
-                                </h3>
-                                <p className="text-zinc-300">{t('privacyAnonymousText')}</p>
-                            </div>
-
-                            <div className="bg-zinc-900/50 rounded-lg p-5">
-                                <h3 className="text-lg font-semibold text-cyan-400 mb-2">
-                                    {t('privacyDiscordMode')}
-                                </h3>
-                                <p className="text-zinc-300 mb-3">{t('privacyDiscordIntro')}</p>
-                                <ul className="list-disc list-inside text-zinc-300 space-y-1 ml-4">
-                                    <li>{t('privacyDataDiscordId')}</li>
-                                    <li>{t('privacyDataUsername')}</li>
-                                    <li>{t('privacyDataAvatar')}</li>
-                                    <li>
-                                        {t('privacyDataStats')}
-                                        <ul className="list-disc list-inside ml-6 mt-1 text-sm">
-                                            <li>{t('privacyDataGamesPlayed')}</li>
-                                            <li>{t('privacyDataScores')}</li>
-                                            <li>{t('privacyDataWins')}</li>
-                                            <li>{t('privacyDataDates')}</li>
-                                            <li>{t('privacyDataHistory')}</li>
-                                        </ul>
-                                    </li>
+                <LegalSection id="privacy-data" title={sections[1].title}>
+                    <h3 className="font-bold text-site-ink">{t('privacyAnonymousMode')}</h3>
+                    <p>{t('privacyAnonymousText')}</p>
+                    <h3 className="mt-2 font-bold text-site-ink">{t('privacyDiscordMode')}</h3>
+                    <p>{t('privacyDiscordIntro')}</p>
+                    <LegalList
+                        items={[
+                            t('privacyDataDiscordId'),
+                            t('privacyDataUsername'),
+                            t('privacyDataAvatar'),
+                            <>
+                                {t('privacyDataStats')}
+                                <ul className="mt-1.5 flex list-[circle] flex-col gap-1 pl-5">
+                                    <li>{t('privacyDataGamesPlayed')}</li>
+                                    <li>{t('privacyDataScores')}</li>
+                                    <li>{t('privacyDataWins')}</li>
+                                    <li>{t('privacyDataDates')}</li>
+                                    <li>{t('privacyDataHistory')}</li>
                                 </ul>
-                            </div>
-                        </div>
-                    </section>
+                            </>,
+                        ]}
+                    />
+                </LegalSection>
 
-                    <section className="mb-8">
-                        <h2 className="text-2xl font-bold text-white mb-4">{t('privacyDataUsageTitle')}</h2>
-                        <p className="text-zinc-300 mb-3">{t('privacyDataUsageIntro')}</p>
-                        <ul className="list-disc list-inside text-zinc-300 space-y-1 ml-4">
-                            <li>{t('privacyDataUsageAuth')}</li>
-                            <li>{t('privacyDataUsageScores')}</li>
-                            <li>{t('privacyDataUsageLeaderboard')}</li>
-                            <li>{t('privacyDataUsageComm')}</li>
-                        </ul>
-                        <p className="text-zinc-300 mt-3">
-                            <strong>{t('privacyNoAds')}</strong>
-                        </p>
-                    </section>
+                <LegalSection id="privacy-usage" title={sections[2].title}>
+                    <p>{t('privacyDataUsageIntro')}</p>
+                    <LegalList
+                        items={[
+                            t('privacyDataUsageAuth'),
+                            t('privacyDataUsageScores'),
+                            t('privacyDataUsageLeaderboard'),
+                            t('privacyDataUsageComm'),
+                        ]}
+                    />
+                    <p><strong>{t('privacyNoAds')}</strong></p>
+                </LegalSection>
 
-                    <section className="mb-8">
-                        <h2 className="text-2xl font-bold text-white mb-4">{t('privacyStorageTitle')}</h2>
-                        <div className="text-zinc-300 space-y-3">
-                            <p>
-                                <strong>{t('privacyStorageLocation')}</strong> {t('privacyStorageLocationText')}
-                            </p>
-                            <p>
-                                <strong>{t('privacyStorageSecurity')}</strong> {t('privacySecurityText')}
-                            </p>
-                            <p>
-                                <strong>{t('privacyStorageRetention')}</strong> {t('privacyRetentionText')}
-                            </p>
-                        </div>
-                    </section>
+                <LegalSection id="privacy-storage" title={sections[3].title}>
+                    <p><strong>{t('privacyStorageLocation')}</strong> {t('privacyStorageLocationText')}</p>
+                    <p><strong>{t('privacyStorageSecurity')}</strong> {t('privacySecurityText')}</p>
+                    <p><strong>{t('privacyStorageRetention')}</strong> {t('privacyRetentionText')}</p>
+                </LegalSection>
 
-                    <section className="mb-8">
-                        <h2 className="text-2xl font-bold text-white mb-4">{t('privacyCookiesTitle')}</h2>
-                        <p className="text-zinc-300 mb-3">{t('privacyCookiesIntro')}</p>
-                        <ul className="list-disc list-inside text-zinc-300 space-y-2 ml-4">
-                            <li>{t('privacyCookiesLocalStorage')}</li>
-                            <li>{t('privacyCookiesSessionStorage')}</li>
-                        </ul>
-                        <p className="text-zinc-300 mt-3">
-                            <strong>{t('privacyCookiesNoTracking')}</strong>
-                        </p>
-                    </section>
+                <LegalSection id="privacy-cookies" title={sections[4].title}>
+                    <p>{t('privacyCookiesIntro')}</p>
+                    <LegalList items={[t('privacyCookiesLocalStorage'), t('privacyCookiesSessionStorage')]} />
+                    <p><strong>{t('privacyCookiesNoTracking')}</strong></p>
+                </LegalSection>
 
-                    <section className="mb-8">
-                        <h2 className="text-2xl font-bold text-white mb-4">{t('privacySharingTitle')}</h2>
-                        <div className="bg-green-900/20 border border-green-600/30 rounded-lg p-5">
-                            <p className="text-zinc-300 font-semibold mb-2">{t('privacySharingNoShare')}</p>
-                            <p className="text-zinc-300 text-sm">{t('privacySharingInternal')}</p>
-                        </div>
-                        <p className="text-zinc-400 text-sm mt-3">
-                            <strong>{t('privacySharingPublic')}</strong>
-                        </p>
-                    </section>
+                <LegalSection id="privacy-sharing" title={sections[5].title}>
+                    <p><strong>{t('privacySharingNoShare')}</strong></p>
+                    <p>{t('privacySharingInternal')}</p>
+                    <p>{t('privacySharingPublic')}</p>
+                </LegalSection>
 
-                    <section className="mb-8">
-                        <h2 className="text-2xl font-bold text-white mb-4">{t('privacyRightsTitle')}</h2>
-                        <p className="text-zinc-300 mb-3">{t('privacyRightsIntro')}</p>
-                        <ul className="list-disc list-inside text-zinc-300 space-y-2 ml-4">
-                            <li>{t('privacyRightsAccess')}</li>
-                            <li>{t('privacyRightsRectification')}</li>
-                            <li>{t('privacyRightsErasure')}</li>
-                            <li>{t('privacyRightsObjection')}</li>
-                            <li>{t('privacyRightsPortability')}</li>
-                        </ul>
-                        <p className="text-zinc-300 mt-3 bg-cyan-900/20 border border-cyan-600/30 rounded-lg p-4">
-                            {t('privacyRightsExercise')}
-                        </p>
-                    </section>
+                <LegalSection id="privacy-rights" title={sections[6].title}>
+                    <p>{t('privacyRightsIntro')}</p>
+                    <LegalList
+                        items={[
+                            t('privacyRightsAccess'),
+                            t('privacyRightsRectification'),
+                            t('privacyRightsErasure'),
+                            t('privacyRightsObjection'),
+                            t('privacyRightsPortability'),
+                        ]}
+                    />
+                    <p className="rounded-lg bg-site-tint px-4 py-3 text-site-ink">{t('privacyRightsExercise')}</p>
+                </LegalSection>
 
-                    <section className="mb-8">
-                        <h2 className="text-2xl font-bold text-white mb-4">{t('privacyThirdPartyTitle')}</h2>
-                        <p className="text-zinc-300">
-                            {t('privacyThirdPartyText')}{' '}
-                            {isEnglish ? (
-                                <a
-                                    href="https://discord.com/privacy"
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    className="text-cyan-400 hover:text-cyan-300 underline"
-                                >
-                                    Discord's Privacy Policy
-                                </a>
-                            ) : (
-                                <>
-                                    <a
-                                        href="https://discord.com/privacy"
-                                        target="_blank"
-                                        rel="noopener noreferrer"
-                                        className="text-cyan-400 hover:text-cyan-300 underline"
-                                    >
-                                        {t('privacyThirdPartyLink')}
-                                    </a>
-                                </>
-                            )}
-                            .
-                        </p>
-                    </section>
+                <LegalSection id="privacy-third-party" title={sections[7].title}>
+                    <p>
+                        {t('privacyThirdPartyText')}{' '}
+                        <a
+                            href="https://discord.com/privacy"
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-1 font-semibold text-site-ink underline decoration-brand-yellow decoration-2 underline-offset-4"
+                        >
+                            {isEnglish ? 'Discord’s Privacy Policy' : t('privacyThirdPartyLink')}
+                            <Icon name="external" size={13} />
+                        </a>.
+                    </p>
+                </LegalSection>
 
-                    <section className="mb-8">
-                        <h2 className="text-2xl font-bold text-white mb-4">{t('privacyUpdatesTitle')}</h2>
-                        <p className="text-zinc-300">{t('privacyUpdatesText')}</p>
-                    </section>
+                <LegalSection id="privacy-updates" title={sections[8].title}>
+                    <p>{t('privacyUpdatesText')}</p>
+                </LegalSection>
 
-                    <section>
-                        <h2 className="text-2xl font-bold text-white mb-4">{t('privacyContactTitle')}</h2>
-                        <p className="text-zinc-300 mb-3">{t('privacyContactIntro')}</p>
-                        <div className="bg-zinc-900/50 rounded-lg p-4">
-                            <a
-                                href="mailto:contact@beatboxgames.com"
-                                className="text-cyan-400 hover:text-cyan-300 font-semibold text-lg transition-colors"
-                            >
-                                📮 contact@beatboxgames.com
-                            </a>
-                            <p className="text-zinc-400 text-sm mt-2">{t('privacyContactResponse')}</p>
-                        </div>
-                    </section>
-                </div>
+                <LegalSection id="privacy-contact" title={sections[9].title}>
+                    <p>{t('privacyContactIntro')}</p>
+                    <p><MailLink /></p>
+                    <p className="text-sm">{t('privacyContactResponse')}</p>
+                </LegalSection>
+            </LegalLayout>
+        </>
+    );
+}
 
-                <div className="mt-8 text-center text-zinc-400 text-sm">
-                    <a href="/#/legal" className="hover:text-cyan-400 transition-colors">
-                        {t('privacyFooterLegalLink')}
-                    </a>
-                </div>
-            </div>
-        </div>
+function PrivacyContent() {
+    const { language } = useSiteI18n();
+    return (
+        <PageContainer>
+            <PrivacyDocument key={language} />
+        </PageContainer>
+    );
+}
+
+function PrivacyPage() {
+    return (
+        <SiteShell>
+            <PrivacyContent />
+        </SiteShell>
     );
 }
 

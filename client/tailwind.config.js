@@ -11,15 +11,21 @@ module.exports = {
                     live: '#E8402F',
                 },
                 // La chaîne : hub, classements, profil, artistes, contact, pages légales
+                // Valeurs définies en variables CSS dans index.css (thèmes jour et nuit)
                 site: {
-                    paper: '#F5F6FA',
-                    surface: '#FFFFFF',
-                    ink: '#0F1B3D',
-                    muted: '#4A5573',
-                    soft: '#8A93AB',
-                    line: '#DFE3EE',
-                    tint: '#E9ECF4',
-                    highlight: '#FFF6D9',
+                    paper: 'rgb(var(--site-paper) / <alpha-value>)',
+                    surface: 'rgb(var(--site-surface) / <alpha-value>)',
+                    ink: 'rgb(var(--site-ink) / <alpha-value>)',
+                    muted: 'rgb(var(--site-muted) / <alpha-value>)',
+                    soft: 'rgb(var(--site-soft) / <alpha-value>)',
+                    line: 'rgb(var(--site-line) / <alpha-value>)',
+                    tint: 'rgb(var(--site-tint) / <alpha-value>)',
+                    highlight: 'rgb(var(--site-highlight) / <alpha-value>)',
+                    button: 'rgb(var(--site-button) / <alpha-value>)',
+                    'button-hover': 'rgb(var(--site-button-hover) / <alpha-value>)',
+                    'on-button': 'rgb(var(--site-on-button) / <alpha-value>)',
+                    danger: 'rgb(var(--site-danger) / <alpha-value>)',
+                    success: 'rgb(var(--site-success) / <alpha-value>)',
                 },
                 // Le plateau : Blind Test et Buzzer Battle
                 show: {

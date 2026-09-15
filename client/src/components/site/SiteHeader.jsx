@@ -1,7 +1,9 @@
 import React from 'react';
 import { Link, NavLink } from 'react-router-dom';
 import { useSiteI18n } from '../../utils/siteI18n';
+import { useSiteTheme } from '../../utils/siteTheme';
 import BrandMark from '../brand/BrandMark';
+import Icon from '../icons/Icon';
 import SiteAccountButton from './SiteAccountButton';
 
 const NAV_ITEMS = [
@@ -30,13 +32,29 @@ function LanguageToggle() {
                         lang={id}
                         aria-pressed={active}
                         onClick={() => switchLanguage(id)}
-                        className={`px-2.5 py-1.5 transition-colors ${active ? 'bg-site-ink text-white' : 'bg-site-surface text-site-muted hover:text-site-ink'}`}
+                        className={`px-2.5 py-1.5 transition-colors ${active ? 'bg-site-button text-site-on-button' : 'bg-site-surface text-site-muted hover:text-site-ink'}`}
                     >
                         {label}
                     </button>
                 );
             })}
         </div>
+    );
+}
+
+function ThemeToggle() {
+    const { theme, toggleTheme } = useSiteTheme();
+    const { t } = useSiteI18n();
+    const isNight = theme === 'night';
+
+    return (
+        <button
+            type="button"
+            onClick={toggleTheme}
+            className="flex h-8 w-8 items-center justify-center rounded-lg border border-site-line bg-site-surface text-site-muted transition-colors hover:text-site-ink"
+        >
+            <Icon name={isNight ? 'sun' : 'moon'} size={17} title={isNight ? t('theme.toDay') : t('theme.toNight')} />
+        </button>
     );
 }
 
@@ -51,17 +69,17 @@ export default function SiteHeader() {
 
     const mobileLinkClass = ({ isActive }) =>
         `whitespace-nowrap rounded-full border px-3 py-1.5 text-xs font-bold transition-colors ${isActive
-            ? 'border-site-ink bg-site-ink text-white'
+            ? 'border-site-button bg-site-button text-site-on-button'
             : 'border-site-line bg-site-surface text-site-muted hover:text-site-ink'
         }`;
 
     return (
         <header className="sticky top-0 z-30 border-b border-site-line bg-site-surface">
-            <div className="mx-auto flex h-14 max-w-site items-stretch gap-4 px-4 sm:px-6 md:gap-8">
+            <div className="mx-auto flex h-14 max-w-site items-stretch gap-3 px-4 sm:gap-4 sm:px-6 md:gap-8">
                 <Link to="/" className="flex items-center gap-2 self-center rounded-md">
                     <BrandMark size={26} />
-                    <span className="hidden font-brand text-[15px] leading-none text-brand-ink min-[400px]:inline">BeatBox Games</span>
-                    <span className="sr-only min-[400px]:hidden">BeatBox Games</span>
+                    <span className="hidden font-brand text-[15px] leading-none text-site-ink min-[420px]:inline">BeatBox Games</span>
+                    <span className="sr-only min-[420px]:hidden">BeatBox Games</span>
                 </Link>
 
                 <nav aria-label={t('nav.label')} className="hidden items-stretch gap-6 md:flex">
@@ -72,7 +90,8 @@ export default function SiteHeader() {
                     ))}
                 </nav>
 
-                <div className="ml-auto flex items-center gap-3">
+                <div className="ml-auto flex items-center gap-2 sm:gap-3">
+                    <ThemeToggle />
                     <LanguageToggle />
                     <SiteAccountButton />
                 </div>

@@ -1,117 +1,76 @@
 import React from 'react';
-import { useI18n } from '../utils/i18n';
+import { Link } from 'react-router-dom';
 import SEO from './SEO';
+import SiteShell from './site/SiteShell';
+import { PageContainer } from './site/SiteUI';
+import LegalLayout, { LegalSection, MailLink } from './legal/LegalLayout';
+import { useI18n } from '../utils/i18n';
+import { useSiteI18n } from '../utils/siteI18n';
+import { stripEmoji } from '../utils/showI18n';
 
-function LegalPage() {
-    const { t, switchLanguage, isEnglish } = useI18n();
+// Le texte juridique reste dans i18n.js ; il est remonté à chaque changement de langue du site
+function LegalDocument() {
+    const { t: rawT } = useI18n();
+    const t = (key) => stripEmoji(rawT(key));
 
-    const handleGoBack = () => {
-        window.location.href = '/#/';
-    };
+    const sections = [
+        { id: 'legal-about', title: t('legalIntroTitle') },
+        { id: 'legal-publisher', title: t('legalPublisherTitle') },
+        { id: 'legal-audio', title: t('legalAudioContentTitle') },
+        { id: 'legal-ip', title: t('legalIntellectualPropertyTitle') },
+        { id: 'legal-contact', title: t('legalContactTitle') },
+    ];
 
     return (
-        <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 text-white">
-            <SEO title={t('legalPageTitle')} description={t('legalIntroText')} />
+        <>
+            <SEO title={`${t('legalPageTitle')} — BeatBox Games`} description={t('legalIntroText')} url="https://beatboxgames.com/#/legal" />
+            <LegalLayout title={t('legalPageTitle')} sections={sections}>
+                <LegalSection id="legal-about" title={sections[0].title}>
+                    <p>{t('legalIntroText')}</p>
+                </LegalSection>
 
-            {/* Language Switch */}
-            <div className="absolute top-4 right-4 z-20">
-                <div className="flex items-center gap-2 bg-zinc-800/90 backdrop-blur-sm border border-zinc-700/50 rounded-full p-1">
-                    <button
-                        onClick={() => switchLanguage('fr')}
-                        className={`px-3 py-1 rounded-full text-sm font-medium transition-all duration-200 ${!isEnglish
-                            ? 'bg-cyan-500 text-white shadow-lg'
-                            : 'text-zinc-300 hover:text-white hover:bg-zinc-700/50'
-                            }`}
-                    >
-                        🇫🇷 FR
-                    </button>
-                    <button
-                        onClick={() => switchLanguage('en')}
-                        className={`px-3 py-1 rounded-full text-sm font-medium transition-all duration-200 ${isEnglish
-                            ? 'bg-cyan-500 text-white shadow-lg'
-                            : 'text-zinc-300 hover:text-white hover:bg-zinc-700/50'
-                            }`}
-                    >
-                        🇺🇸 EN
-                    </button>
-                </div>
-            </div>
+                <LegalSection id="legal-publisher" title={sections[1].title}>
+                    <p>{t('legalPublisherInfo')}</p>
+                    <p><MailLink /></p>
+                </LegalSection>
 
-            <div className="container mx-auto px-4 py-8 max-w-4xl">
-                <button
-                    onClick={handleGoBack}
-                    className="mb-6 flex items-center gap-2 text-cyan-400 hover:text-cyan-300 transition-colors"
-                >
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
-                    </svg>
-                    {t('backToHome')}
-                </button>
-
-                <div className="bg-zinc-800/50 border border-zinc-700 rounded-2xl p-8">
-                    <h1 className="text-4xl font-bold text-cyan-400 mb-6">⚖️ {t('legalPageTitle')}</h1>
-
-                    <section className="mb-8">
-                        <h2 className="text-2xl font-bold text-white mb-4">{t('legalIntroTitle')}</h2>
-                        <p className="text-zinc-300 leading-relaxed">{t('legalIntroText')}</p>
-                    </section>
-
-                    <section className="mb-8">
-                        <h2 className="text-2xl font-bold text-white mb-4">{t('legalPublisherTitle')}</h2>
-                        <p className="text-zinc-300 mb-3">{t('legalPublisherInfo')}</p>
-                        <div className="bg-zinc-900/50 rounded-lg p-4">
-                            <a
-                                href="mailto:contact@beatboxgames.com"
-                                className="text-cyan-400 hover:text-cyan-300 font-semibold transition-colors"
-                            >
-                                📮 contact@beatboxgames.com
-                            </a>
-                        </div>
-                    </section>
-
-                    <section className="mb-8">
-                        <h2 className="text-2xl font-bold text-white mb-4">{t('legalAudioContentTitle')}</h2>
-                        <p className="text-zinc-300 mb-3">
-                            {t('legalAudioContentText')}{' '}
-                            <a href="/#/credits" className="text-cyan-400 hover:text-cyan-300 underline">
-                                {t('legalAudioContentCredits')}
-                            </a>.
-                        </p>
-                        <p className="text-zinc-400 text-sm">{t('legalAudioContentNonProfit')}</p>
-                    </section>
-
-                    <section className="mb-8">
-                        <h2 className="text-2xl font-bold text-white mb-4">{t('legalIntellectualPropertyTitle')}</h2>
-                        <p className="text-zinc-300">{t('legalIntellectualPropertyText')}</p>
-                    </section>
-
-                    <section>
-                        <h2 className="text-2xl font-bold text-white mb-4">{t('legalContactTitle')}</h2>
-                        <p className="text-zinc-300 mb-3">{t('legalContactIntro')}</p>
-                        <div className="bg-zinc-900/50 rounded-lg p-4">
-                            <a
-                                href="mailto:contact@beatboxgames.com"
-                                className="text-cyan-400 hover:text-cyan-300 font-semibold text-lg transition-colors"
-                            >
-                                📮 contact@beatboxgames.com
-                            </a>
-                        </div>
-                    </section>
-                </div>
-
-                <div className="mt-8 text-center text-zinc-400 text-sm">
+                <LegalSection id="legal-audio" title={sections[2].title}>
                     <p>
-                        <a href="/#/privacy" className="hover:text-cyan-400 transition-colors">
-                            {t('legalFooterPrivacyLink')}
-                        </a>
-                        {' • '}
-                        <a href="/#/credits" className="hover:text-cyan-400 transition-colors">
-                            {t('legalFooterCreditsLink')}
-                        </a>
+                        {t('legalAudioContentText')}{' '}
+                        <Link to="/credits" className="font-semibold text-site-ink underline decoration-brand-yellow decoration-2 underline-offset-4">
+                            {t('legalAudioContentCredits')}
+                        </Link>.
                     </p>
-                </div>
-            </div>
-        </div>
+                    <p>{t('legalAudioContentNonProfit')}</p>
+                </LegalSection>
+
+                <LegalSection id="legal-ip" title={sections[3].title}>
+                    <p>{t('legalIntellectualPropertyText')}</p>
+                </LegalSection>
+
+                <LegalSection id="legal-contact" title={sections[4].title}>
+                    <p>{t('legalContactIntro')}</p>
+                    <p><MailLink /></p>
+                </LegalSection>
+            </LegalLayout>
+        </>
+    );
+}
+
+function LegalContent() {
+    const { language } = useSiteI18n();
+    return (
+        <PageContainer>
+            <LegalDocument key={language} />
+        </PageContainer>
+    );
+}
+
+function LegalPage() {
+    return (
+        <SiteShell>
+            <LegalContent />
+        </SiteShell>
     );
 }
 

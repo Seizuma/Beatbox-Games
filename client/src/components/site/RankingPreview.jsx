@@ -1,6 +1,6 @@
 import React, { useEffect, useId, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { useSiteI18n } from '../../utils/siteI18n';
+import { useSiteI18n, formatNumber } from '../../utils/siteI18n';
 
 const API_BASE_URL = process.env.REACT_APP_API_URL || '';
 const PREVIEW_LIMIT = 5;
@@ -30,8 +30,6 @@ export default function RankingPreview() {
         return () => controller.abort();
     }, []);
 
-    const formatPoints = (value) =>
-        new Intl.NumberFormat(language === 'fr' ? 'fr-FR' : 'en-GB').format(value || 0);
 
     return (
         <section aria-labelledby={titleId}>
@@ -62,7 +60,7 @@ export default function RankingPreview() {
                     {players.map((player) => (
                         <li key={`${player.rank}-${player.username}`} className="flex items-center gap-3 border-b border-site-line py-2.5 last:border-b-0">
                             <span
-                                className={`flex h-6 w-6 items-center justify-center rounded-md text-xs font-extrabold ${player.rank === 1 ? 'bg-brand-yellow text-site-ink' : 'bg-site-tint text-site-muted'}`}
+                                className={`flex h-6 w-6 items-center justify-center rounded-md text-xs font-extrabold ${player.rank === 1 ? 'bg-brand-yellow text-brand-ink' : 'bg-site-tint text-site-muted'}`}
                             >
                                 {player.rank}
                             </span>
@@ -80,7 +78,7 @@ export default function RankingPreview() {
                             )}
                             <span className="min-w-0 flex-1 truncate text-sm font-semibold">{player.username}</span>
                             <span className="text-sm font-bold tabular-nums">
-                                {t('ranking.points', { value: formatPoints(player.totalPoints) })}
+                                {t('common.points', { value: formatNumber(language, player.totalPoints) })}
                             </span>
                         </li>
                     ))}

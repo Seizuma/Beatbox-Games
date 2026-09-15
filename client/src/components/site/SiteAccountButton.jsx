@@ -27,7 +27,7 @@ export default function SiteAccountButton() {
             type="button"
             onClick={() => login('profile')}
             disabled={loading}
-            className="inline-flex items-center gap-2 rounded-lg bg-site-ink px-2.5 py-2 sm:px-3 text-sm font-bold text-white transition-colors hover:bg-[#1C2C5C] disabled:cursor-wait disabled:opacity-70"
+            className="inline-flex items-center gap-2 rounded-lg bg-site-button px-2.5 py-2 text-sm font-bold text-site-on-button transition-colors hover:bg-site-button-hover disabled:cursor-wait disabled:opacity-70 sm:px-3"
         >
             <Icon name="discord" size={18} />
             <span className="sm:hidden">{loading ? t('account.loading') : t('account.loginShort')}</span>

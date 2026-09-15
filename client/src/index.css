@@ -5,6 +5,43 @@
 @tailwind utilities;
 
 @layer base {
+
+    /* La chaîne : thème nuit par défaut, thème jour en option */
+    :root,
+    [data-site-theme='night'] {
+        --site-paper: 10 14 28;
+        --site-surface: 18 24 43;
+        --site-ink: 232 236 246;
+        --site-muted: 163 173 198;
+        --site-soft: 116 127 155;
+        --site-line: 35 44 69;
+        --site-tint: 27 35 61;
+        --site-highlight: 58 48 16;
+        --site-button: 232 236 246;
+        --site-button-hover: 205 212 230;
+        --site-on-button: 10 14 28;
+        --site-danger: 255 120 104;
+        --site-success: 74 222 128;
+        color-scheme: dark;
+    }
+
+    [data-site-theme='day'] {
+        --site-paper: 245 246 250;
+        --site-surface: 255 255 255;
+        --site-ink: 15 27 61;
+        --site-muted: 74 85 115;
+        --site-soft: 138 147 171;
+        --site-line: 223 227 238;
+        --site-tint: 233 236 244;
+        --site-highlight: 255 246 217;
+        --site-button: 15 27 61;
+        --site-button-hover: 28 44 92;
+        --site-on-button: 255 255 255;
+        --site-danger: 200 48 36;
+        --site-success: 21 128 61;
+        color-scheme: light;
+    }
+
     html {
         -webkit-text-size-adjust: 100%;
     }
@@ -17,6 +54,10 @@
     :focus-visible {
         outline: 2px solid theme('colors.brand.ink');
         outline-offset: 2px;
+    }
+
+    [data-site-theme] :focus-visible {
+        outline-color: rgb(var(--site-ink));
     }
 
     @media (prefers-reduced-motion: reduce) {

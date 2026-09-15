@@ -56,7 +56,7 @@ function HubContent() {
                             <div className="mt-4">
                                 <Link
                                     to={game.path}
-                                    className="inline-flex items-center rounded-lg bg-site-ink px-4 py-2.5 text-sm font-bold text-white transition-colors hover:bg-[#1C2C5C]"
+                                    className="inline-flex items-center rounded-lg bg-site-button px-4 py-2.5 text-sm font-bold text-site-on-button transition-colors hover:bg-site-button-hover"
                                 >
                                     {t('games.create')}
                                 </Link>
