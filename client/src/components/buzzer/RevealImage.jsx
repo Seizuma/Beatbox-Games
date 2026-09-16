@@ -73,6 +73,11 @@ const containRect = (imageWidth, imageHeight, boxWidth, boxHeight) => {
     return { x: (boxWidth - width) / 2, y: (boxHeight - height) / 2, width, height };
 };
 
+// En dessous de ce seuil, la photo est considérée comme nette : on la dessine
+// telle quelle. Sans cette sortie, l'effet plafonnait à 120 blocs de large et
+// la photo restait visiblement pixelisée, même une fois la réponse donnée.
+const PIXEL_SHARP_THRESHOLD = 0.04;
+
 function PixelCanvas({ image, hidden, size }) {
     const canvasRef = useRef(null);
     const bufferRef = useRef(null);
@@ -88,6 +93,15 @@ function PixelCanvas({ image, hidden, size }) {
         const rect = containRect(image.naturalWidth, image.naturalHeight, canvas.width, canvas.height);
         if (!rect) return;
 
+        const context2d = canvas.getContext('2d');
+
+        if (hidden <= PIXEL_SHARP_THRESHOLD) {
+            context2d.imageSmoothingEnabled = true;
+            context2d.clearRect(0, 0, canvas.width, canvas.height);
+            context2d.drawImage(image, rect.x, rect.y, rect.width, rect.height);
+            return;
+        }
+
         // Nombre de blocs en largeur : identique quel que soit l'écran
         const columns = Math.max(4, Math.round(4 + Math.pow(1 - hidden, 2.3) * 116));
         const rows = Math.max(3, Math.round(columns * (image.naturalHeight / image.naturalWidth)));
@@ -102,10 +116,9 @@ function PixelCanvas({ image, hidden, size }) {
         bufferContext.clearRect(0, 0, columns, rows);
         bufferContext.drawImage(image, 0, 0, columns, rows);
 
-        const context = canvas.getContext('2d');
-        context.imageSmoothingEnabled = false;
-        context.clearRect(0, 0, canvas.width, canvas.height);
-        context.drawImage(buffer, 0, 0, columns, rows, rect.x, rect.y, rect.width, rect.height);
+        context2d.imageSmoothingEnabled = false;
+        context2d.clearRect(0, 0, canvas.width, canvas.height);
+        context2d.drawImage(buffer, 0, 0, columns, rows, rect.x, rect.y, rect.width, rect.height);
     }, [image, hidden, size.width, size.height]);
 
     return <canvas ref={canvasRef} className="absolute inset-0 h-full w-full" aria-hidden="true" />;
@@ -113,6 +126,8 @@ function PixelCanvas({ image, hidden, size }) {
 
 // Voile de tuiles : elles tombent une à une, dans un ordre tiré au sort mais identique
 // pour tous les joueurs, et s'estompent au lieu de disparaître d'un coup.
+// Chaque tuile porte un liseré intérieur : le quadrillage se lit dès la première
+// seconde, donc on comprend le principe avant même la première case retirée.
 function TileVeil({ order, hidden }) {
     const revealedCount = Math.round(TILE_COUNT * Math.pow(1 - hidden, TILE_CURVE));
 
@@ -125,17 +140,23 @@ function TileVeil({ order, hidden }) {
             }}
             aria-hidden="true"
         >
-            {order.map((tileIndex, position) => (
-                <span
-                    key={tileIndex}
-                    style={{
-                        gridColumn: (tileIndex % TILE_COLUMNS) + 1,
-                        gridRow: Math.floor(tileIndex / TILE_COLUMNS) + 1,
-                        opacity: position < revealedCount ? 0 : 1,
-                    }}
-                    className="bg-show-night transition-opacity duration-[450ms] ease-out motion-reduce:duration-0"
-                />
-            ))}
+            {order.map((tileIndex, position) => {
+                const gone = position < revealedCount;
+                return (
+                    <span
+                        key={tileIndex}
+                        style={{
+                            gridColumn: (tileIndex % TILE_COLUMNS) + 1,
+                            gridRow: Math.floor(tileIndex / TILE_COLUMNS) + 1,
+                            opacity: gone ? 0 : 1,
+                            // Liseré plus clair que le fond : sépare les tuiles sans
+                            // laisser voir la photo qui est dessous
+                            boxShadow: 'inset 0 0 0 1px rgb(var(--show-stage-2) / 0.75)',
+                        }}
+                        className="bg-show-night transition-opacity duration-[450ms] ease-out motion-reduce:duration-0"
+                    />
+                );
+            })}
         </div>
     );
 }
@@ -206,7 +227,7 @@ export default function RevealImage({ src, round, hidden, revealed, effect, alt,
 
     return (
         <div ref={boxRef} className="absolute inset-0 overflow-hidden bg-show-night">
-            {ready && effect === 'pixels' ? (
+            {ready && effect === 'pixels' && !revealed ? (
                 <PixelCanvas image={loaded.image} hidden={amount} size={size} />
             ) : ready ? (
                 <img

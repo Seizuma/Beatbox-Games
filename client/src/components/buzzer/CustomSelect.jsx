@@ -38,10 +38,10 @@ function CustomSelect({ value, onChange, options, placeholder, icon = '🔽', di
                 onClick={() => !disabled && setIsOpen(!isOpen)}
                 disabled={disabled}
                 className={`w-full px-4 py-3 bg-zinc-900/80 border-2 rounded-lg text-left flex items-center justify-between transition-all ${disabled
-                        ? 'border-zinc-700 text-zinc-600 cursor-not-allowed'
-                        : isOpen
-                            ? 'border-cyan-500 ring-2 ring-cyan-500/20'
-                            : 'border-zinc-600 hover:border-cyan-500 text-white'
+                    ? 'border-zinc-700 text-zinc-600 cursor-not-allowed'
+                    : isOpen
+                        ? 'border-cyan-500 ring-2 ring-cyan-500/20'
+                        : 'border-zinc-600 hover:border-cyan-500 text-white'
                     }`}
             >
                 <span className="font-medium">{selectedLabel}</span>
@@ -80,8 +80,8 @@ function CustomSelect({ value, onChange, options, placeholder, icon = '🔽', di
                                     type="button"
                                     onClick={() => handleSelect(option)}
                                     className={`w-full px-4 py-3 text-left transition-all ${option === value
-                                            ? 'bg-cyan-500/20 text-cyan-400 font-bold'
-                                            : 'text-white hover:bg-zinc-800'
+                                        ? 'bg-cyan-500/20 text-cyan-400 font-bold'
+                                        : 'text-white hover:bg-zinc-800'
                                         }`}
                                 >
                                     {option}
