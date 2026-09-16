@@ -1,0 +1,34 @@
+# Contexte de build du serveur.
+# Tout ce qui est listé ici est soit reconstruit dans l'image, soit monté au
+# runtime par docker compose : l'embarquer ne sert à rien et alourdit chaque image.
+
+# Dépendances : réinstallées proprement à l'étape « deps » du Dockerfile.
+# Sans cette ligne, le COPY . . écrase les node_modules de production par ceux
+# de la machine hôte, avec les dépendances de développement et, pour
+# better-sqlite3, un binaire natif compilé pour un autre environnement.
+node_modules
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Dossiers montés par docker compose (./server/public, ./server/beatbox_artists,
+# volume nommé pour /app/data). Le contenu copié dans l'image est masqué par le
+# montage au démarrage : c'est de l'espace perdu à chaque build.
+public/
+beatbox_artists/
+data/
+*.db
+*.sqlite
+*.sqlite3
+
+# Secrets et fichiers locaux
+.env
+.env.*
+!.env.example
+
+# Divers
+.git
+.gitignore
+.DS_Store
+*.log
+coverage

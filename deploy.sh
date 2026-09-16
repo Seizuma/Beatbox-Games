@@ -54,6 +54,7 @@ BRANCH=""
 FORCE_CLEANUP=false
 NO_BUILD=false
 FRESH_BUILD=false
+NO_CLEANUP=false
 SKIP_CONFIRMATION=false
 CI_MODE=false
 
@@ -82,7 +83,8 @@ show_help() {
     echo "OPTIONS:"
     echo "  --no-build      - Ne pas rebuild les images"
     echo "  --fresh         - Rebuild complet sans cache Docker"
-    echo "  --force         - Forcer le nettoyage même avec espace suffisant"
+    echo "  --force         - Nettoyage agressif (supprime aussi les images des environnements arrêtés)"
+    echo "  --no-cleanup    - Garder les images orphelines et le cache de build"
     echo "  --yes           - Pas de confirmation (auto pour CI/CD)"
     echo "  --follow        - Suivre les logs (avec logs)"
     echo ""
@@ -136,7 +138,11 @@ analyze_disk_space() {
     get_docker_usage
 }
 
-# ✅ NETTOYAGE DOCKER INTELLIGENT
+# ✅ NETTOYAGE DOCKER
+#
+# Aucun niveau ne touche aux volumes : les bases SQLite des trois environnements
+# (beatbox-data-prod, -preprod, -dev) y vivent. Un « docker volume prune » lancé
+# alors que les conteneurs sont arrêtés les supprimerait définitivement.
 perform_docker_cleanup() {
     local cleanup_level=$1
     log_info "🧹 Démarrage du nettoyage Docker (niveau: $cleanup_level)..."
@@ -144,22 +150,36 @@ perform_docker_cleanup() {
     case $cleanup_level in
         "emergency")
             log_error "🚨 NETTOYAGE D'URGENCE"
-            sudo docker stop $(sudo docker ps -q --filter "label!=essential") 2>/dev/null || true
-            sudo docker system prune -a --volumes --force
+            log_warning "Les images des environnements arrêtés seront supprimées (rebuild complet au prochain déploiement)"
+            sudo docker container prune --force
+            sudo docker image prune -a --force
+            sudo docker network prune --force
             sudo docker builder prune --all --force 2>/dev/null || true
             ;;
         "aggressive")
             log_warning "💪 NETTOYAGE AGRESSIF"
             sudo docker container prune --force
             sudo docker image prune -a --force
-            sudo docker volume prune --force
             sudo docker network prune --force
             sudo docker builder prune --force 2>/dev/null || true
             ;;
+        "routine")
+            # Après chaque déploiement : on retire ce que le build vient de rendre
+            # obsolète, sans jamais toucher aux images encore taguées des autres
+            # environnements.
+            log_info "🔧 NETTOYAGE DE ROUTINE (images orphelines et cache de build)"
+            sudo docker image prune --force
+            sudo docker container prune --force
+            sudo docker builder prune --force --keep-storage 4GB 2>/dev/null \
+                || sudo docker builder prune --force --filter until=168h 2>/dev/null \
+                || true
+            ;;
         "standard")
             log_info "🔧 NETTOYAGE STANDARD"
-            sudo docker system prune --force
             sudo docker image prune --force
+            sudo docker container prune --force
+            sudo docker network prune --force
+            sudo docker builder prune --force 2>/dev/null || true
             ;;
     esac
     
@@ -362,6 +382,15 @@ deploy_environment() {
             ;;
     esac
     
+    # ✅ Nettoyage systématique : le build vient de retaguer les images, les
+    # précédentes sont devenues orphelines (<none>) et ne seront jamais reprises.
+    # Sans ce passage, chaque déploiement laisse ~800 Mo derrière lui.
+    if [ "$NO_CLEANUP" = false ] && [ "$NO_BUILD" = false ]; then
+        echo ""
+        INITIAL_FREE_SPACE=$(get_free_space_gb)
+        perform_docker_cleanup "routine"
+    fi
+    
     echo ""
     log_success "🎯 Déploiement $ENVIRONMENT terminé avec succès!"
 }
@@ -518,6 +547,10 @@ while [[ $# -gt 0 ]]; do
             FORCE_CLEANUP=true
             shift
             ;;
+        --no-cleanup)
+            NO_CLEANUP=true
+            shift
+            ;;
         --yes)
             SKIP_CONFIRMATION=true
             shift
@@ -584,7 +617,7 @@ case $COMMAND in
         if [ "$FORCE_CLEANUP" = true ]; then
             perform_docker_cleanup "aggressive"
         else
-            perform_docker_cleanup "standard"
+            perform_docker_cleanup "routine"
         fi
         ;;
     *)
