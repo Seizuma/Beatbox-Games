@@ -94,7 +94,9 @@ function ConnectedProfile() {
 
     const blindtest = useApi('/api/stats/me/blindtest', { auth: true });
     const buzzer = useApi('/api/stats/me/buzzer', { auth: true });
+    const ranking = useApi(`/api/ranking/me?game=${game}`, { auth: true });
     const current = game === 'buzzer' ? buzzer : blindtest;
+    const rankingPlayer = ranking.data?.player;
     const stats = current.data?.stats;
     const recentGames = current.data?.recentGames || [];
 
@@ -138,8 +140,35 @@ function ConnectedProfile() {
             </div>
 
             <div className="mt-10 grid gap-10 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.4fr)] lg:gap-12">
+                <div className="flex flex-col gap-10">
                 <section>
-                    <SectionTitle>{game === 'buzzer' ? t('games.buzzer.name') : t('games.blindtest.name')}</SectionTitle>
+                    <SectionTitle aside={t('profile.rankingHelp')}>{t('profile.rankingTitle')}</SectionTitle>
+                    <DataState status={ranking.status} isEmpty={!rankingPlayer} loadingText={t('common.loading')} errorText={t('common.loadError')} emptyText={t('profile.noGames')}>
+                        {rankingPlayer && (
+                            <>
+                                <Figures
+                                    items={[
+                                        { label: t('profile.rating'), value: formatNumber(language, rankingPlayer.rating) },
+                                        {
+                                            label: t('profile.position'),
+                                            value: rankingPlayer.position ? formatOrdinal(language, rankingPlayer.position) : '—',
+                                        },
+                                        { label: t('profile.rankedGames'), value: formatNumber(language, rankingPlayer.rankedGames) },
+                                        { label: t('profile.peak'), value: formatNumber(language, rankingPlayer.peakRating ?? rankingPlayer.rating) },
+                                    ]}
+                                />
+                                {rankingPlayer.placementRemaining > 0 && (
+                                    <p className="mt-4 rounded-lg bg-site-tint px-4 py-3 text-sm text-site-muted">
+                                        {t('profile.placement', { count: rankingPlayer.placementRemaining })}
+                                    </p>
+                                )}
+                            </>
+                        )}
+                    </DataState>
+                </section>
+
+                <section>
+                    <SectionTitle>{t('profile.personalTitle')}</SectionTitle>
                     <DataState status={current.status} isEmpty={!stats} loadingText={t('common.loading')} errorText={t('common.loadError')} emptyText={t('profile.noGames')}>
                         {stats && (
                             <Figures
@@ -157,6 +186,7 @@ function ConnectedProfile() {
                         )}
                     </DataState>
                 </section>
+                </div>
 
                 <section aria-labelledby="profile-recent">
                     <SectionTitle id="profile-recent">{t('profile.recent')}</SectionTitle>

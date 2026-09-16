@@ -6,8 +6,8 @@ import Icon from '../icons/Icon';
 
 const clampRate = (value) => Math.max(0, Math.min(100, Math.round(Number(value) || 0)));
 
-// Tableau de classement des joueurs
-export function LeaderboardTable({ state, rows, titleId }) {
+// Tableau du classement compétitif (cote Elo, parties classées uniquement)
+export function LeaderboardTable({ state, rows, titleId, placementGames = 5 }) {
     const { t, language } = useSiteI18n();
     const { user } = useDiscordAuth();
 
@@ -17,7 +17,7 @@ export function LeaderboardTable({ state, rows, titleId }) {
             isEmpty={rows.length === 0}
             loadingText={t('common.loading')}
             errorText={t('common.loadError')}
-            emptyText={t('stats.emptyLeaderboard')}
+            emptyText={t('stats.emptyLeaderboard', { placement: placementGames })}
         >
             <div className="overflow-x-auto">
                 <table className="w-full border-collapse text-sm" aria-labelledby={titleId}>
@@ -25,9 +25,9 @@ export function LeaderboardTable({ state, rows, titleId }) {
                         <tr className="border-b border-site-line text-left text-xs text-site-soft">
                             <th scope="col" className="w-14 py-2 pr-2 font-semibold">{t('stats.rank')}</th>
                             <th scope="col" className="py-2 pr-2 font-semibold">{t('stats.player')}</th>
-                            <th scope="col" className="hidden py-2 pr-2 text-right font-semibold sm:table-cell">{t('stats.games')}</th>
+                            <th scope="col" className="hidden py-2 pr-2 text-right font-semibold sm:table-cell">{t('stats.rankedGames')}</th>
                             <th scope="col" className="py-2 pr-2 text-right font-semibold">{t('stats.wins')}</th>
-                            <th scope="col" className="py-2 text-right font-semibold">{t('stats.points')}</th>
+                            <th scope="col" className="py-2 text-right font-semibold">{t('stats.rating')}</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -49,9 +49,9 @@ export function LeaderboardTable({ state, rows, titleId }) {
                                             </span>
                                         </span>
                                     </td>
-                                    <td className="hidden py-2.5 pr-2 text-right tabular-nums sm:table-cell">{formatNumber(language, player.totalGames)}</td>
+                                    <td className="hidden py-2.5 pr-2 text-right tabular-nums sm:table-cell">{formatNumber(language, player.rankedGames)}</td>
                                     <td className="py-2.5 pr-2 text-right tabular-nums">{formatNumber(language, player.wins)}</td>
-                                    <td className="py-2.5 text-right font-bold tabular-nums">{formatNumber(language, player.totalPoints)}</td>
+                                    <td className="py-2.5 text-right font-bold tabular-nums">{formatNumber(language, player.rating)}</td>
                                 </tr>
                             );
                         })}
@@ -59,6 +59,33 @@ export function LeaderboardTable({ state, rows, titleId }) {
                 </table>
             </div>
         </DataState>
+    );
+}
+
+// Explication du classement, affichée sur la page Classements
+export function RankingExplainer({ config }) {
+    const { t } = useSiteI18n();
+    const values = {
+        players: config?.minDiscordPlayers ?? 2,
+        rounds: config?.minRounds ?? 5,
+        start: config?.startRating ?? 1000,
+        placement: config?.placementGames ?? 5,
+    };
+
+    return (
+        <section className="rounded-xl border border-site-line bg-site-surface p-5" aria-labelledby="ranking-how">
+            <h2 id="ranking-how" className="text-base font-bold">{t('stats.howTitle')}</h2>
+            <ol className="mt-3 flex flex-col gap-2.5 text-sm text-site-muted">
+                {['stats.how1', 'stats.how2', 'stats.how3', 'stats.how4'].map((key, index) => (
+                    <li key={key} className="flex gap-3">
+                        <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-site-tint text-[11px] font-extrabold text-site-ink">
+                            {index + 1}
+                        </span>
+                        <span>{t(key, values)}</span>
+                    </li>
+                ))}
+            </ol>
+        </section>
     );
 }
 

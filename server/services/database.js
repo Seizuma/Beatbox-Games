@@ -5,6 +5,9 @@ const { createLogger } = require('../utils');
 
 const logger = createLogger('DATABASE');
 
+// Échappe une valeur insérée dans une chaîne SQL (les filtres Buzzer viennent de l'URL)
+const sqlString = (value) => String(value ?? '').replace(/'/g, "''");
+
 class DatabaseService {
     constructor() {
         // ✅ Chemin absolu depuis la racine de l'app (/app dans Docker)
@@ -314,9 +317,9 @@ class DatabaseService {
         // ✅ Add filtering condition
         let filterCondition = '';
         if (filter === 'country' && filterValue) {
-            filterCondition = `AND g.game_mode = 'buzzer_country' AND g.game_filter = '${filterValue}'`;
+            filterCondition = `AND g.game_mode = 'buzzer_country' AND g.game_filter = '${sqlString(filterValue)}'`;
         } else if (filter === 'event' && filterValue) {
-            filterCondition = `AND g.game_mode = 'buzzer_event' AND g.game_filter = '${filterValue}'`;
+            filterCondition = `AND g.game_mode = 'buzzer_event' AND g.game_filter = '${sqlString(filterValue)}'`;
         } else if (filter === 'country') {
             filterCondition = `AND g.game_mode = 'buzzer_country'`;
         } else if (filter === 'event') {

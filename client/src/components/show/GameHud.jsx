@@ -103,7 +103,7 @@ export function ScoreChips({ items }) {
 // Égaliseur animé : l'extrait est en cours de lecture
 export function Equalizer({ active = true, className = '' }) {
     return (
-        <span className={`equalizer ${className}`} data-active={active ? 'true' : 'false'} aria-hidden="true">
+        <span className={`equalizer ${className}`} data-active={active === 'hover' ? 'hover' : active ? 'true' : 'false'} aria-hidden="true">
             <span />
             <span />
             <span />

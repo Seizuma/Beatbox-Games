@@ -173,6 +173,7 @@ const GameView = ({
                         <BulbRing
                             key={phase === 'wrong' ? `wrong-${feedbackKey}` : 'ring'}
                             progress={progress}
+                            smooth
                             className={`h-44 w-44 sm:h-56 sm:w-56 ${phase === 'wrong' ? 'shake' : ''}`}
                             label={hasTimer ? `${timeLeft} ${st('game.seconds')}` : st('game.listen')}
                         >

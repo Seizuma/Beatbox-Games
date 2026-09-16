@@ -133,6 +133,10 @@ app.use('/auth', authRoutes);
 // ✅ NOUVEAU : Routes de statistiques
 const statsRoutes = require('./routes/stats');
 app.use('/api/stats', statsRoutes);
+
+// Classement compétitif (cote Elo, parties à plusieurs comptes Discord)
+const rankingRoutes = require('./routes/ranking');
+app.use('/api/ranking', rankingRoutes);
 // Middleware pour vérifier l'authentification Discord
 const requireDiscordAuth = (req, res, next) => {
     try {

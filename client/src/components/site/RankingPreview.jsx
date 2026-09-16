@@ -1,35 +1,17 @@
-import React, { useEffect, useId, useState } from 'react';
+import React, { useId } from 'react';
 import { Link } from 'react-router-dom';
 import { useSiteI18n, formatNumber } from '../../utils/siteI18n';
+import { useApi } from '../../utils/useApi';
+import { Avatar } from './SiteUI';
 
-const API_BASE_URL = process.env.REACT_APP_API_URL || '';
 const PREVIEW_LIMIT = 5;
 
+// Aperçu du classement compétitif sur le hub (tous jeux confondus)
 export default function RankingPreview() {
     const { t, language } = useSiteI18n();
     const titleId = useId();
-    const [status, setStatus] = useState('loading');
-    const [players, setPlayers] = useState([]);
-
-    useEffect(() => {
-        const controller = new AbortController();
-
-        fetch(`${API_BASE_URL}/api/stats/leaderboard?limit=${PREVIEW_LIMIT}`, { signal: controller.signal })
-            .then((response) => {
-                if (!response.ok) throw new Error(`HTTP ${response.status}`);
-                return response.json();
-            })
-            .then((data) => {
-                setPlayers(Array.isArray(data.leaderboard) ? data.leaderboard : []);
-                setStatus('ready');
-            })
-            .catch((error) => {
-                if (error.name !== 'AbortError') setStatus('error');
-            });
-
-        return () => controller.abort();
-    }, []);
-
+    const ranking = useApi(`/api/ranking?game=all&limit=${PREVIEW_LIMIT}`);
+    const players = ranking.data?.leaderboard || [];
 
     return (
         <section aria-labelledby={titleId}>
@@ -42,20 +24,21 @@ export default function RankingPreview() {
                     {t('ranking.seeAll')}
                 </Link>
             </div>
+            <p className="mt-0.5 text-xs text-site-soft">{t('ranking.hint')}</p>
 
-            {status === 'loading' && (
+            {(ranking.status === 'loading' || ranking.status === 'idle') && (
                 <p className="mt-3 text-sm text-site-soft" aria-live="polite">{t('ranking.loading')}</p>
             )}
 
-            {status === 'error' && (
+            {ranking.status === 'error' && (
                 <p className="mt-3 text-sm text-site-muted">{t('ranking.error')}</p>
             )}
 
-            {status === 'ready' && players.length === 0 && (
+            {ranking.status === 'ready' && players.length === 0 && (
                 <p className="mt-3 text-sm text-site-muted">{t('ranking.empty')}</p>
             )}
 
-            {status === 'ready' && players.length > 0 && (
+            {ranking.status === 'ready' && players.length > 0 && (
                 <ol className="mt-2">
                     {players.map((player) => (
                         <li key={`${player.rank}-${player.username}`} className="flex items-center gap-3 border-b border-site-line py-2.5 last:border-b-0">
@@ -64,22 +47,9 @@ export default function RankingPreview() {
                             >
                                 {player.rank}
                             </span>
-                            {player.avatar ? (
-                                <img
-                                    src={player.avatar}
-                                    alt={t('ranking.avatarAlt', { name: player.username })}
-                                    loading="lazy"
-                                    className="h-7 w-7 rounded-full bg-site-tint object-cover"
-                                />
-                            ) : (
-                                <span aria-hidden="true" className="flex h-7 w-7 items-center justify-center rounded-full bg-site-tint text-xs font-bold text-site-muted">
-                                    {(player.username || '?').charAt(0).toUpperCase()}
-                                </span>
-                            )}
+                            <Avatar src={player.avatar} name={player.username} size={28} />
                             <span className="min-w-0 flex-1 truncate text-sm font-semibold">{player.username}</span>
-                            <span className="text-sm font-bold tabular-nums">
-                                {t('common.points', { value: formatNumber(language, player.totalPoints) })}
-                            </span>
+                            <span className="text-sm font-bold tabular-nums">{formatNumber(language, player.rating)}</span>
                         </li>
                     ))}
                 </ol>

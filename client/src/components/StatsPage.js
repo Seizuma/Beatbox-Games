@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import SEO from './SEO';
 import SiteShell from './site/SiteShell';
 import { DataState, PageContainer, PageHeader, Segmented, SectionTitle } from './site/SiteUI';
-import { ArtistList, Figures, LeaderboardTable, RateBars } from './stats/StatsBlocks';
+import { ArtistList, Figures, LeaderboardTable, RankingExplainer, RateBars } from './stats/StatsBlocks';
 import { useSiteI18n, formatNumber } from '../utils/siteI18n';
 import { useApi } from '../utils/useApi';
 
@@ -10,11 +10,29 @@ const LEADERBOARD_LIMIT = 15;
 
 const toArtistBars = (list = []) => list.map((item) => ({ key: item.name, label: item.name, rate: item.successRate }));
 
+// Bloc classement compétitif commun aux trois onglets
+function RankingSection({ game, titleId }) {
+    const { t } = useSiteI18n();
+    const ranking = useApi(`/api/ranking?game=${game}&limit=${LEADERBOARD_LIMIT}`);
+
+    return (
+        <section>
+            <SectionTitle id={titleId} aside={t('stats.sortNote')}>{t('stats.leaderboard')}</SectionTitle>
+            <LeaderboardTable
+                state={ranking}
+                rows={ranking.data?.leaderboard || []}
+                titleId={titleId}
+                placementGames={ranking.data?.config?.placementGames}
+            />
+            <div className="mt-6">
+                <RankingExplainer config={ranking.data?.config} />
+            </div>
+        </section>
+    );
+}
+
 function BlindTestStats() {
     const { t, language } = useSiteI18n();
-    const [category, setCategory] = useState('all');
-
-    const leaderboard = useApi(`/api/stats/leaderboard/categories?gameMode=blindtest&category=${category}&limit=${LEADERBOARD_LIMIT}`);
     const general = useApi('/api/stats/general');
     const rounds = useApi('/api/stats/rounds');
     const hardest = useApi('/api/stats/artists?type=hardest&limit=5');
@@ -31,21 +49,7 @@ function BlindTestStats() {
     return (
         <div className="flex flex-col gap-12">
             <div className="grid gap-10 lg:grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)] lg:gap-12">
-                <section>
-                    <SectionTitle id="bt-leaderboard" aside={t('stats.sortNote')}>{t('stats.leaderboard')}</SectionTitle>
-                    <Segmented
-                        label={t('stats.category')}
-                        value={category}
-                        onChange={setCategory}
-                        className="mb-4"
-                        options={[
-                            { id: 'all', label: t('stats.categoryAll') },
-                            { id: 'full_roster', label: t('stats.categoryFull') },
-                            { id: 'selection', label: t('stats.categorySelection') },
-                        ]}
-                    />
-                    <LeaderboardTable state={leaderboard} rows={leaderboard.data?.leaderboard || []} titleId="bt-leaderboard" />
-                </section>
+                <RankingSection game="blindtest" titleId="bt-leaderboard" />
 
                 <div className="flex flex-col gap-10">
                     <section>
@@ -121,7 +125,6 @@ function BuzzerStats() {
         ? `&filter=${filterType}&filterValue=${encodeURIComponent(filterValue)}`
         : '';
 
-    const leaderboard = useApi(`/api/stats/buzzer/leaderboard?limit=${LEADERBOARD_LIMIT}${filterParams}`);
     const general = useApi('/api/stats/buzzer/general');
     const hardest = useApi(`/api/stats/buzzer/beatboxers?type=hardest&limit=5${filterParams}`);
     const easiest = useApi(`/api/stats/buzzer/beatboxers?type=easiest&limit=5${filterParams}`);
@@ -140,6 +143,26 @@ function BuzzerStats() {
 
     return (
         <div className="flex flex-col gap-12">
+            <div className="grid gap-10 lg:grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)] lg:gap-12">
+                <RankingSection game="buzzer" titleId="bz-leaderboard" />
+
+                <section>
+                    <SectionTitle>{t('stats.figures')}</SectionTitle>
+                    <DataState status={general.status} isEmpty={!figures} loadingText={t('common.loading')} errorText={t('common.loadError')} emptyText={t('stats.noData')}>
+                        {figures && (
+                            <Figures
+                                items={[
+                                    { label: t('stats.players'), value: formatNumber(language, figures.uniquePlayers) },
+                                    { label: t('stats.rounds'), value: formatNumber(language, figures.totalRounds) },
+                                    { label: t('stats.successRate'), value: `${successRate} %` },
+                                    { label: t('stats.reaction'), value: `${formatNumber(language, figures.averageReactionTime)} ms` },
+                                ]}
+                            />
+                        )}
+                    </DataState>
+                </section>
+            </div>
+
             <div className="flex flex-wrap items-center gap-3">
                 <Segmented
                     label={t('stats.filter')}
@@ -165,29 +188,7 @@ function BuzzerStats() {
                         ))}
                     </select>
                 )}
-            </div>
-
-            <div className="grid gap-10 lg:grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)] lg:gap-12">
-                <section>
-                    <SectionTitle id="bz-leaderboard" aside={t('stats.sortNote')}>{t('stats.leaderboard')}</SectionTitle>
-                    <LeaderboardTable state={leaderboard} rows={leaderboard.data?.leaderboard || []} titleId="bz-leaderboard" />
-                </section>
-
-                <section>
-                    <SectionTitle>{t('stats.figures')}</SectionTitle>
-                    <DataState status={general.status} isEmpty={!figures} loadingText={t('common.loading')} errorText={t('common.loadError')} emptyText={t('stats.noData')}>
-                        {figures && (
-                            <Figures
-                                items={[
-                                    { label: t('stats.players'), value: formatNumber(language, figures.uniquePlayers) },
-                                    { label: t('stats.rounds'), value: formatNumber(language, figures.totalRounds) },
-                                    { label: t('stats.successRate'), value: `${successRate} %` },
-                                    { label: t('stats.reaction'), value: `${formatNumber(language, figures.averageReactionTime)} ms` },
-                                ]}
-                            />
-                        )}
-                    </DataState>
-                </section>
+                <p className="w-full text-xs text-site-soft sm:w-auto">{t('stats.filterNote')}</p>
             </div>
 
             <div className="grid gap-10 md:grid-cols-2 md:gap-12">
@@ -217,14 +218,10 @@ function BuzzerStats() {
 }
 
 function AllGamesStats() {
-    const { t } = useSiteI18n();
-    const leaderboard = useApi(`/api/stats/leaderboard/categories?gameMode=all&category=all&limit=${LEADERBOARD_LIMIT}`);
-
     return (
-        <section className="max-w-3xl">
-            <SectionTitle id="all-leaderboard" aside={t('stats.sortNote')}>{t('stats.leaderboard')}</SectionTitle>
-            <LeaderboardTable state={leaderboard} rows={leaderboard.data?.leaderboard || []} titleId="all-leaderboard" />
-        </section>
+        <div className="max-w-3xl">
+            <RankingSection game="all" titleId="all-leaderboard" />
+        </div>
     );
 }
 

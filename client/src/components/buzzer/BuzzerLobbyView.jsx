@@ -450,7 +450,7 @@ function BuzzerLobbyView({
                 }
             />
 
-            {showCountdown && <CountdownOverlay countdown={countdownValue > 0 ? String(countdownValue) : 'Go!'} />}
+            <CountdownOverlay countdown={showCountdown ? (countdownValue > 0 ? String(countdownValue) : 'Go!') : null} />
         </GameShell>
     );
 }

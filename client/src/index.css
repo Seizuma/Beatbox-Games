@@ -4,8 +4,14 @@
 @tailwind components;
 @tailwind utilities;
 
-@layer base {
+/* Permet d'animer proprement la part allumée des couronnes d'ampoules */
+@property --progress {
+    syntax: '<percentage>';
+    inherits: false;
+    initial-value: 100%;
+}
 
+@layer base {
     /* La chaîne : thème nuit par défaut, thème jour en option */
     :root,
     [data-site-theme='night'] {
@@ -61,7 +67,6 @@
     }
 
     @media (prefers-reduced-motion: reduce) {
-
         *,
         *::before,
         *::after {
@@ -74,13 +79,14 @@
 }
 
 @layer components {
-
     /* Couronne d'ampoules du plateau : --progress règle la part allumée */
     .bulb-ring {
         --progress: 100%;
         border-radius: 9999px;
-        background: conic-gradient(theme('colors.show.yellow') 0 var(--progress),
-                theme('colors.show.dim') var(--progress) 100%);
+        background: conic-gradient(
+            theme('colors.show.yellow') 0 var(--progress),
+            theme('colors.show.dim') var(--progress) 100%
+        );
         -webkit-mask:
             repeating-conic-gradient(#000 0 7deg, transparent 7deg 12deg),
             radial-gradient(circle, transparent 58%, #000 59% 74%, transparent 75%);
@@ -91,9 +97,9 @@
         mask-composite: intersect;
     }
 
-    /* Socle trapézoïdal simplifié (vignettes de jeux sur le hub) */
-    .lectern-base {
-        clip-path: polygon(0 0, 100% 0, 88% 100%, 12% 100%);
+    /* Décompte fluide de la couronne (chronomètre, survol des cartes du hub) */
+    .bulb-ring-smooth {
+        transition: --progress 1s linear;
     }
 
     /* Portrait flou générique (vignettes, chargement) */
@@ -131,7 +137,6 @@
 }
 
 @layer components {
-
     /* ---------- Plateau : lumière de scène ---------- */
     .stage-light {
         background:
@@ -232,6 +237,13 @@
         background: radial-gradient(ellipse at center, rgb(0 0 0 / 0.5), transparent 70%);
     }
 
+    /* Pupitre miniature (cartes du hub) */
+    .lectern[data-size='xs'] .lectern-desk { height: 0.4rem; }
+    .lectern[data-size='xs'] .lectern-strip { height: 3px; }
+    .lectern[data-size='xs'] .lectern-front { gap: 0.25rem; padding: 0.3rem 11% 0.45rem; }
+    .lectern[data-size='xs'] .lectern-screen { min-height: 1.35rem; border-radius: 0.3rem; }
+    .lectern[data-size='xs'] .lectern-shadow { height: 0.45rem; }
+
     .lectern[data-empty='true'] .lectern-front {
         background: transparent;
         clip-path: none;
@@ -268,21 +280,10 @@
         animation: equalizer 900ms ease-in-out infinite;
     }
 
-    .equalizer span:nth-child(2) {
-        animation-delay: -300ms;
-    }
-
-    .equalizer span:nth-child(3) {
-        animation-delay: -600ms;
-    }
-
-    .equalizer span:nth-child(4) {
-        animation-delay: -150ms;
-    }
-
-    .equalizer span:nth-child(5) {
-        animation-delay: -450ms;
-    }
+    .equalizer span:nth-child(2) { animation-delay: -300ms; }
+    .equalizer span:nth-child(3) { animation-delay: -600ms; }
+    .equalizer span:nth-child(4) { animation-delay: -150ms; }
+    .equalizer span:nth-child(5) { animation-delay: -450ms; }
 
     .equalizer[data-active='false'] span {
         animation: none;
@@ -298,62 +299,112 @@
     .shake {
         animation: shake 380ms ease-in-out;
     }
+
+    /* L'égaliseur des cartes du hub ne s'anime qu'au survol */
+    .group:hover .equalizer[data-active='hover'] span,
+    .group:focus-visible .equalizer[data-active='hover'] span {
+        animation: equalizer 900ms ease-in-out infinite;
+    }
+
+    .equalizer[data-active='hover'] span {
+        height: 35%;
+        animation: none;
+    }
+
+    /* ---------- Décompte 3, 2, 1 ---------- */
+    .countdown-backdrop {
+        animation: countdown-fade-in 250ms ease-out both;
+    }
+
+    .countdown-ring {
+        animation: countdown-drain var(--drain-duration, 3s) linear forwards;
+    }
+
+    .countdown-ring[data-go='true'] {
+        animation: countdown-go-ring 600ms cubic-bezier(0.2, 0.9, 0.3, 1.3) forwards;
+    }
+
+    .countdown-number {
+        animation: countdown-number 1000ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+    }
+
+    .countdown-go {
+        animation: countdown-go 700ms cubic-bezier(0.2, 0.9, 0.3, 1.4) both;
+    }
+
+    .countdown-tick {
+        animation: countdown-tick 600ms ease-out both;
+    }
+
+    .countdown-wave {
+        animation: countdown-wave 800ms cubic-bezier(0.1, 0.7, 0.3, 1) both;
+    }
+
+    .countdown-flash {
+        animation: countdown-flash 500ms ease-out both;
+    }
+}
+
+@keyframes countdown-fade-in {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+@keyframes countdown-drain {
+    from { --progress: 100%; }
+    to { --progress: 0%; }
+}
+
+@keyframes countdown-go-ring {
+    0% { --progress: 100%; transform: scale(0.92); }
+    60% { transform: scale(1.08); }
+    100% { --progress: 100%; transform: scale(1); }
+}
+
+@keyframes countdown-number {
+    0% { opacity: 0; transform: scale(2.4); filter: blur(10px); }
+    22% { opacity: 1; transform: scale(1); filter: blur(0); }
+    78% { opacity: 1; transform: scale(1); filter: blur(0); }
+    100% { opacity: 0; transform: scale(0.55); filter: blur(4px); }
+}
+
+@keyframes countdown-go {
+    0% { opacity: 0; transform: scale(0.3) rotate(-8deg); }
+    60% { opacity: 1; transform: scale(1.18) rotate(2deg); }
+    100% { opacity: 1; transform: scale(1) rotate(0); }
+}
+
+@keyframes countdown-tick {
+    0% { opacity: 0.9; transform: scale(0.85); }
+    100% { opacity: 0; transform: scale(1.25); }
+}
+
+@keyframes countdown-wave {
+    0% { opacity: 0.9; transform: scale(0.9); }
+    100% { opacity: 0; transform: scale(2.6); }
+}
+
+@keyframes countdown-flash {
+    0% { opacity: 0.35; }
+    100% { opacity: 0; }
 }
 
 @keyframes equalizer {
-
-    0%,
-    100% {
-        height: 25%;
-    }
-
-    50% {
-        height: 100%;
-    }
+    0%, 100% { height: 25%; }
+    50% { height: 100%; }
 }
 
 @keyframes points-pop {
-    0% {
-        opacity: 0;
-        transform: translateY(8px) scale(0.7);
-    }
-
-    25% {
-        opacity: 1;
-        transform: translateY(0) scale(1.08);
-    }
-
-    70% {
-        opacity: 1;
-        transform: translateY(-10px) scale(1);
-    }
-
-    100% {
-        opacity: 0;
-        transform: translateY(-26px) scale(1);
-    }
+    0% { opacity: 0; transform: translateY(8px) scale(0.7); }
+    25% { opacity: 1; transform: translateY(0) scale(1.08); }
+    70% { opacity: 1; transform: translateY(-10px) scale(1); }
+    100% { opacity: 0; transform: translateY(-26px) scale(1); }
 }
 
 @keyframes shake {
-
-    0%,
-    100% {
-        transform: translateX(0);
-    }
-
-    20% {
-        transform: translateX(-6px);
-    }
-
-    40% {
-        transform: translateX(6px);
-    }
-
-    60% {
-        transform: translateX(-4px);
-    }
-
-    80% {
-        transform: translateX(4px);
-    }
+    0%, 100% { transform: translateX(0); }
+    20% { transform: translateX(-6px); }
+    40% { transform: translateX(6px); }
+    60% { transform: translateX(-4px); }
+    80% { transform: translateX(4px); }
 }

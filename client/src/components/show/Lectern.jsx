@@ -11,6 +11,7 @@ const LAMPS = {
 };
 
 const SIZES = {
+    xs: { screen: 'text-xs min-h-[1.35rem]', plate: 'text-[9px] px-1.5 py-px', avatar: 14 },
     sm: { screen: 'text-lg min-h-[2.1rem]', plate: 'text-[11px] px-2 py-0.5', avatar: 22 },
     md: { screen: 'text-2xl min-h-[2.6rem]', plate: 'text-xs sm:text-sm px-2.5 py-1', avatar: 28 },
     lg: { screen: 'text-3xl sm:text-4xl min-h-[3.4rem]', plate: 'text-sm sm:text-base px-3 py-1', avatar: 34 },
@@ -64,6 +65,7 @@ export default function Lectern({
 
     return (
         <div
+            data-size={size}
             className={`lectern ${dimmed ? 'opacity-50' : ''} ${className}`}
             style={{ '--lamp': colors.lamp, '--lamp-glow': colors.glow }}
         >
