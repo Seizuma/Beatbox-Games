@@ -24,9 +24,14 @@ const avatarUrl = (discordId, avatar, size = 64) =>
  * GET /api/admin/session
  * Dit au client s'il doit afficher le lien d'administration.
  * Répond toujours 200 : ce n'est pas une porte, juste un interrupteur d'affichage.
+ *
+ * `discordId` est celui du demandeur, lu dans son propre jeton : il ne révèle
+ * rien qu'il ne sache déjà, et c'est la valeur à reporter dans ADMIN_DISCORD_IDS
+ * pour s'accorder l'accès.
  */
 router.get('/session', authenticateDiscord, (req, res) => {
-    res.json({ success: true, isAdmin: isAdmin(req.user?.discordId) });
+    const discordId = req.user?.discordId || null;
+    res.json({ success: true, isAdmin: isAdmin(discordId), discordId });
 });
 
 // Tout ce qui suit est réservé aux administrateurs

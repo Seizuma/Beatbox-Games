@@ -151,7 +151,9 @@ app.use('/api/players', playersRoutes);
 
 // Espace d'administration (accès restreint par ADMIN_DISCORD_IDS)
 const adminRoutes = require('./routes/admin');
+const { logAdminConfiguration } = require('./middleware/adminAuth');
 app.use('/api/admin', adminRoutes);
+logAdminConfiguration();
 // Middleware pour vérifier l'authentification Discord
 const requireDiscordAuth = (req, res, next) => {
     try {

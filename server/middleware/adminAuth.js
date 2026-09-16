@@ -12,7 +12,9 @@ const { authenticateDiscord } = require('./auth');
 function getAdminIds() {
     return String(process.env.ADMIN_DISCORD_IDS || '')
         .split(',')
-        .map((id) => id.trim())
+        // docker-compose `env_file` ne retire pas les guillemets : ADMIN_DISCORD_IDS="1,2"
+        // arriverait sinon comme `"1` et `2"`, et aucun identifiant ne correspondrait.
+        .map((id) => id.trim().replace(/^["']|["']$/g, '').trim())
         .filter(Boolean);
 }
 
@@ -34,4 +36,18 @@ function requireAdmin(req, res, next) {
     });
 }
 
-module.exports = { requireAdmin, isAdmin, getAdminIds };
+/**
+ * Trace au démarrage l'état de la configuration.
+ * Sans ce repère, une variable absente se manifeste seulement par un bouton
+ * d'administration qui n'apparaît jamais, sans rien dans les logs.
+ */
+function logAdminConfiguration() {
+    const count = getAdminIds().length;
+    if (count === 0) {
+        console.warn('⚠️  ADMIN_DISCORD_IDS est vide : aucun compte n\'a accès à /admin.');
+        return;
+    }
+    console.log(`🔑 ${count} compte(s) administrateur(s) configuré(s).`);
+}
+
+module.exports = { requireAdmin, isAdmin, getAdminIds, logAdminConfiguration };
