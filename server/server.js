@@ -134,9 +134,12 @@ app.use('/auth', authRoutes);
 const statsRoutes = require('./routes/stats');
 app.use('/api/stats', statsRoutes);
 
-// Classement compétitif (cote Elo, parties à plusieurs comptes Discord)
 const rankingRoutes = require('./routes/ranking');
 app.use('/api/ranking', rankingRoutes);
+
+// Liste des artistes du Blind Test (autocomplétion des réponses)
+const blindtestRoutes = require('./routes/blindtest');
+app.use('/api/blindtest', blindtestRoutes);
 // Middleware pour vérifier l'authentification Discord
 const requireDiscordAuth = (req, res, next) => {
     try {

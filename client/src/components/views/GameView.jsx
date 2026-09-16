@@ -7,6 +7,11 @@ import { Equalizer, LecternRow, LevelSteps, RoundTrack } from '../show/GameHud';
 import Icon from '../icons/Icon';
 import { VolumeControl } from '../UI';
 import { createShowT, getQuitGameConfirm, LEVEL_POINTS } from '../../utils/showI18n';
+import ShowModal from '../show/ShowModal';
+import ArtistAnswerInput from './ArtistAnswerInput';
+import ArtistListPanel from './ArtistListPanel';
+import { useBlindTestArtists } from '../../hooks/useBlindTestArtists';
+import { findArtist, rankArtists } from '../../utils/artistSearch.js';
 
 // Écran tactile : le clavier virtuel prend la moitié de l'écran quand on répond
 const isTouchDevice = () => typeof window !== 'undefined'
@@ -67,6 +72,10 @@ const GameView = ({
     const answerId = useId();
     const [touch] = useState(isTouchDevice);
     const [answerFocused, setAnswerFocused] = useState(false);
+    const [showArtistSheet, setShowArtistSheet] = useState(false);
+    const answerInputRef = useRef(null);
+    const answerHelpId = useId();
+    const { artists, status: artistsStatus } = useBlindTestArtists();
 
     // Clavier ouvert sur mobile : on replie le tableau et les pupitres pour garder chronomètre et réponse visibles
     const compact = touch && answerFocused;
@@ -141,9 +150,35 @@ const GameView = ({
         caption: st('game.stepCaption', { level: stepLevel }),
     }));
 
+    // Si la liste est chargée, seule une réponse présente dans la liste peut être envoyée
+    const listReady = artistsStatus === 'ready' && artists.length > 0;
+    const matchedArtist = listReady ? findArtist(answer, artists) : null;
+    const typed = Boolean(answer && answer.trim());
+    const canSubmit = typed && (!listReady || Boolean(matchedArtist));
+    const hasSuggestions = listReady && typed && rankArtists(answer, artists, 1).length > 0;
+    // Message d'erreur seulement quand plus aucun artiste ne correspond à la saisie
+    const showNotInList = listReady && typed && answer.trim().length >= 2 && !matchedArtist && !hasSuggestions;
+
     const submit = (event) => {
         event.preventDefault();
-        if (answer && answer.trim()) handleSubmitAnswer();
+        if (canSubmit) handleSubmitAnswer();
+    };
+
+    // Choix d'un nom dans la liste complète
+    const pickArtist = useCallback((artist) => {
+        setAnswer(artist);
+        setShowArtistSheet(false);
+        // Sur PC, on remet le curseur dans le champ ; sur mobile, on évite de rouvrir le clavier
+        if (!touch && answerInputRef.current) answerInputRef.current.focus();
+    }, [setAnswer, touch]);
+
+    const artistPanelLabels = {
+        filter: st('game.artistsFilter'),
+        pickHint: touch ? st('game.artistsPickHintTouch') : st('game.artistsPickHint'),
+        browseHint: st('game.artistsBrowseHint'),
+        loading: st('game.artistsLoading'),
+        error: st('game.artistsError'),
+        empty: st('game.artistsEmpty'),
     };
 
     return (
@@ -159,7 +194,8 @@ const GameView = ({
                 </>
             }
         >
-            <div className={`mx-auto flex w-full max-w-4xl flex-col ${compact ? 'gap-4' : 'gap-8 sm:gap-10'}`}>
+            <div className="mx-auto grid w-full max-w-5xl gap-8 lg:grid-cols-[minmax(0,1fr)_16rem] lg:gap-10">
+            <div className={`flex min-w-0 flex-col ${compact ? 'gap-4' : 'gap-8 sm:gap-10'}`}>
                 {gameState && !compact && (
                     <div className="grid gap-4 rounded-2xl bg-show-night/45 p-4 ring-1 ring-white/5 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end sm:gap-8">
                         <RoundTrack
@@ -227,29 +263,23 @@ const GameView = ({
 
                 <div className="mx-auto w-full max-w-xl">
                     {phase === 'answer' ? (
-                        <form onSubmit={submit} className="flex gap-2">
+                        <form onSubmit={submit} className="flex items-start gap-2">
                             <label htmlFor={answerId} className="sr-only">{st('game.answerLabel')}</label>
-                            <input
+                            <ArtistAnswerInput
+                                ref={answerInputRef}
                                 id={answerId}
-                                type="text"
                                 value={answer}
-                                onChange={(event) => setAnswer(event.target.value)}
+                                onChange={setAnswer}
+                                artists={listReady ? artists : []}
+                                placeholder={st('game.answerPlaceholder')}
+                                listLabel={st('game.suggestions')}
+                                autoFocus={!touch}
                                 onFocus={handleAnswerFocus}
                                 onBlur={handleAnswerBlur}
-                                placeholder={st('game.answerPlaceholder')}
-                                autoFocus={!touch}
-                                autoComplete="off"
-                                autoCorrect="off"
-                                autoCapitalize="words"
-                                spellCheck="false"
-                                enterKeyHint="send"
-                                className="min-w-0 flex-1 rounded-full bg-show-white px-5 py-3 text-base font-semibold text-show-night placeholder:text-slate-400 focus:outline-none focus-visible:ring-4 focus-visible:ring-show-yellow"
+                                invalid={showNotInList}
+                                describedBy={answerHelpId}
                             />
-                            <ShowButton
-                                type="submit"
-                                size="lg"
-                                disabled={!answer || !answer.trim()}
-                            >
+                            <ShowButton type="submit" size="lg" disabled={!canSubmit}>
                                 {st('game.submit')}
                             </ShowButton>
                         </form>
@@ -263,6 +293,24 @@ const GameView = ({
                             {st(phaseStyle.key)}
                         </p>
                     )}
+
+                    <div className="mt-2 flex min-h-[1.5rem] flex-wrap items-center justify-between gap-x-4 gap-y-1 px-2">
+                        <p id={answerHelpId} aria-live="polite" className={`text-xs font-semibold ${showNotInList ? 'text-[#FF8A7A]' : 'text-show-muted'}`}>
+                            {phase === 'answer'
+                                ? (showNotInList ? st('game.notInList') : listReady ? st('game.answerHint') : '')
+                                : ''}
+                        </p>
+                        {listReady && !compact && (
+                            <button
+                                type="button"
+                                onClick={() => setShowArtistSheet(true)}
+                                className="inline-flex items-center gap-1.5 text-xs font-extrabold text-show-white underline decoration-show-yellow decoration-2 underline-offset-4 lg:hidden"
+                            >
+                                <Icon name="menu" size={14} />
+                                {st('game.artistsButton', { count: artists.length })}
+                            </button>
+                        )}
+                    </div>
                 </div>
 
                 <section aria-labelledby="game-scores-title" className={compact ? 'hidden' : ''}>
@@ -285,6 +333,39 @@ const GameView = ({
                     <p className="mt-6 text-center text-xs text-show-muted">{st('game.legend')}</p>
                 </section>
             </div>
+
+            {listReady && (
+                <aside className="hidden lg:block" aria-labelledby="game-artists-title">
+                    <div className="sticky top-20 rounded-2xl bg-show-night/45 p-4 ring-1 ring-white/5">
+                        <h2 id="game-artists-title" className="mb-3 text-sm font-extrabold">
+                            {st('game.artistsTitle', { count: artists.length })}
+                        </h2>
+                        <ArtistListPanel
+                            artists={artists}
+                            status={artistsStatus}
+                            onPick={phase === 'answer' ? pickArtist : undefined}
+                            labels={artistPanelLabels}
+                            listClassName="max-h-[calc(100dvh-16rem)]"
+                        />
+                    </div>
+                </aside>
+            )}
+            </div>
+
+            <ShowModal
+                open={showArtistSheet}
+                onClose={() => setShowArtistSheet(false)}
+                title={st('game.artistsTitle', { count: artists.length })}
+                closeLabel={st('common.close')}
+            >
+                <ArtistListPanel
+                    artists={artists}
+                    status={artistsStatus}
+                    onPick={phase === 'answer' ? pickArtist : undefined}
+                    labels={artistPanelLabels}
+                    listClassName="max-h-[55dvh]"
+                />
+            </ShowModal>
         </GameShell>
     );
 };

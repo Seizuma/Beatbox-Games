@@ -185,6 +185,19 @@ class AudioManager {
     }
 
     /**
+     * Liste triée des artistes disponibles (liste et autocomplétion du Blind Test)
+     */
+    getArtistNames() {
+        const allFiles = this.audioCache.get('all_level1_files') || [];
+        const names = new Set(
+            allFiles
+                .map((file) => this.extractArtistFromFilename(file).trim())
+                .filter(Boolean)
+        );
+        return Array.from(names).sort((a, b) => a.localeCompare(b, 'fr', { sensitivity: 'base' }));
+    }
+
+    /**
      * Valide si les fichiers audio existent pour un morceau
      */
     validateSongFiles(songData) {
