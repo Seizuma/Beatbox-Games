@@ -239,6 +239,15 @@ const strings = {
             playAgain: 'Rejouer dans cette salle',
             stats: 'Buzz {buzzes}, justes {correct}, erreurs {wrong}',
         },
+        resultsExtra: {
+            champion: 'Champion',
+            points: 'points',
+            yourResult: 'Ton résultat',
+            outOf: 'sur {total}',
+            gapToFirst: 'du 1er',
+            rest: 'Le reste du classement',
+            empty: 'Aucun résultat pour cette partie.',
+        },
         notices: {
             audioUnlock: 'Touche l’écran pour activer le son',
             sharedLinkHint: 'Le serveur peut te proposer un autre pseudo automatiquement.',
@@ -478,6 +487,15 @@ const strings = {
         buzzerResults: {
             playAgain: 'Play again in this room',
             stats: 'Buzzes {buzzes}, correct {correct}, wrong {wrong}',
+        },
+        resultsExtra: {
+            champion: 'Champion',
+            points: 'points',
+            yourResult: 'Your result',
+            outOf: 'of {total}',
+            gapToFirst: 'behind 1st',
+            rest: 'The rest of the ranking',
+            empty: 'No results for this game.',
         },
         notices: {
             audioUnlock: 'Tap the screen to turn on sound',

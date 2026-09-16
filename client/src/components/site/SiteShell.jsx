@@ -1,11 +1,11 @@
 import React from 'react';
 import { SiteI18nProvider } from '../../utils/siteI18n';
-import { SiteThemeProvider, useSiteTheme } from '../../utils/siteTheme';
+import { useThemedSurface } from '../../utils/siteTheme';
 import SiteHeader from './SiteHeader';
 import SiteFooter from './SiteFooter';
 
 function ThemedFrame({ children }) {
-    const { theme } = useSiteTheme();
+    const theme = useThemedSurface('site');
 
     return (
         <div data-site-theme={theme} className="flex min-h-screen flex-col overflow-x-clip bg-site-paper font-site text-site-ink">
@@ -20,9 +20,7 @@ function ThemedFrame({ children }) {
 export default function SiteShell({ children }) {
     return (
         <SiteI18nProvider>
-            <SiteThemeProvider>
-                <ThemedFrame>{children}</ThemedFrame>
-            </SiteThemeProvider>
+            <ThemedFrame>{children}</ThemedFrame>
         </SiteI18nProvider>
     );
 }

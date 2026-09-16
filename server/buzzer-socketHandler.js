@@ -394,47 +394,44 @@ function handleBuzzerSocketConnection(socket, io) {
                 return callback({ success: false, error: 'Joueur introuvable. Veuillez vous reconnecter.' });
             }
 
-            stopBlurProgression(roomCode);
+            const clock = getRoundClock(io);
+
+            clock.pauseForAnswer(roomCode, {
+                onAnswerTimeout: (code) => {
+                    const currentGame = buzzerGameManager.getGame(code);
+                    if (!currentGame || currentGame.buzzedPlayer !== socket.id) {
+                        // Le joueur a répondu entre-temps : la reprise est déjà faite
+                        clock.resume(code);
+                        return;
+                    }
+
+                    console.log(`⏰ Timeout pour ${player.username}`);
+                    const timeoutResult = buzzerGameManager.checkGuess(code, socket.id, '___TIMEOUT___');
+                    currentGame.buzzedPlayer = null;
+
+                    io.to(code).emit('buzzer:wrongGuess', {
+                        playerId: socket.id,
+                        playerName: player.username,
+                        scores: timeoutResult.scores,
+                        currentPixelLevel: clock.pixelLevel(code),
+                        reason: 'timeout'
+                    });
+
+                    clock.resume(code);
+                },
+            });
+
+            // Le gestionnaire de partie garde une trace du niveau, pour les stats et la reconnexion
+            game.pixelLevel = clock.pixelLevel(roomCode);
 
             io.to(roomCode).emit('buzzer:playerBuzzed', {
                 playerId: socket.id,
                 playerName: player.username,
-                currentPixelLevel: result.pixelLevel
+                currentPixelLevel: game.pixelLevel
             });
 
-            // ✅ NOUVEAU : Timer de 10 secondes pour répondre
-            const guessTimeout = setTimeout(() => {
-                const currentGame = buzzerGameManager.getGame(roomCode);
-                if (!currentGame) return;
-
-                // Si le joueur n'a toujours pas répondu après 10s
-                if (currentGame.buzzedPlayer === socket.id) {
-                    const playerName = result.players[socket.id]?.username || socket.id;
-                    console.log(`⏰ Timeout pour ${playerName}`);
-
-                    // Compter comme mauvaise réponse
-                    const timeoutResult = buzzerGameManager.checkGuess(roomCode, socket.id, '___TIMEOUT___');
-
-                    // Réinitialiser le joueur qui a buzzé
-                    currentGame.buzzedPlayer = null;
-
-                    // Notifier de la mauvaise réponse
-                    io.to(roomCode).emit('buzzer:wrongGuess', {
-                        playerId: socket.id,
-                        playerName: currentGame.players[socket.id]?.username || socket.id,
-                        scores: timeoutResult.scores,
-                        currentPixelLevel: currentGame.pixelLevel,
-                        reason: 'timeout'
-                    });
-
-                    // Reprendre la progression
-                    resumeBlurProgression(roomCode, io, currentGame.pixelLevel);
-                }
-            }, 10000);
-
-            guessTimeouts.set(roomCode, guessTimeout);
-
             callback({ success: true });
+
         } catch (error) {
             console.error('❌ Erreur buzz:', error);
             callback({ success: false, error: error.message });
@@ -454,13 +451,7 @@ function handleBuzzerSocketConnection(socket, io) {
                 return callback({ success: false, error: 'Ce n\'est pas à vous de deviner' });
             }
 
-            // ✅ NOUVEAU : Annuler le timeout de réponse
-            const timeout = guessTimeouts.get(roomCode);
-            if (timeout) {
-                clearTimeout(timeout);
-                guessTimeouts.delete(roomCode);
-            }
-
+            const clock = getRoundClock(io);
             const result = buzzerGameManager.checkGuess(roomCode, socket.id, answer);
 
             if (!result) {
@@ -468,7 +459,9 @@ function handleBuzzerSocketConnection(socket, io) {
             }
 
             if (result.isCorrect) {
-                // Bonne réponse : révéler et continuer
+                // Bonne réponse : on révèle, puis l'horloge ferme la manche.
+                // C'est elle qui enchaîne (manche suivante ou fin de partie), jamais ce handler :
+                // un seul point de passage, donc pas de double avancement possible.
                 io.to(roomCode).emit('buzzer:guessResult', {
                     playerId: socket.id,
                     isCorrect: true,
@@ -476,53 +469,21 @@ function handleBuzzerSocketConnection(socket, io) {
                     scores: result.scores
                 });
 
-                if (game.currentRound >= game.totalRounds) {
-                    setTimeout(async () => {
-                        const endResult = buzzerGameManager.endGame(roomCode);
-
-                        // ✅ SAUVEGARDER LES STATS ICI (côté serveur, une seule fois)
-                        await saveGameStats(roomCode, endResult.finalScores);
-
-                        // Notifier les clients
-                        io.to(roomCode).emit('buzzer:gameFinished', {
-                            finalScores: endResult.finalScores,
-                            winner: endResult.winner
-                        });
-                    }, 2000);
-                } else {
-                    setTimeout(() => {
-                        const nextRoundGame = buzzerGameManager.nextRound(roomCode);
-
-                        if (nextRoundGame) {
-                            const nextBeatboxerData = buzzerBeatboxerManager.getBeatboxerData(nextRoundGame.currentBeatboxer);
-
-                            io.to(roomCode).emit('buzzer:nextRound', {
-                                currentRound: nextRoundGame.currentRound,
-                                totalRounds: nextRoundGame.totalRounds,
-                                beatboxerImage: nextBeatboxerData.imageUrl
-                            });
-                            startBlurProgression(roomCode, io);
-                        }
-                    }, 3000);
-                }
+                clock.endCurrentRound(roomCode, 'answered');
 
                 callback({ success: true, isCorrect: true });
             } else {
-                // ✅ MAUVAISE RÉPONSE : Reprendre la progression au niveau sauvegardé
-
-                // Réinitialiser le joueur qui a buzzé
+                // Mauvaise réponse : le buzzer se libère et le dévoilement repart où il s'était arrêté
                 game.buzzedPlayer = null;
 
-                // Notifier de la mauvaise réponse
                 io.to(roomCode).emit('buzzer:wrongGuess', {
                     playerId: socket.id,
                     playerName: game.players[socket.id].username,
                     scores: result.scores,
-                    currentPixelLevel: game.pixelLevel // Envoyer le niveau actuel
+                    currentPixelLevel: clock.pixelLevel(roomCode)
                 });
 
-                // ✅ REPRENDRE la progression AU NIVEAU SAUVEGARDÉ
-                resumeBlurProgression(roomCode, io, game.pixelLevel);
+                clock.resume(roomCode);
 
                 callback({ success: true, isCorrect: false });
             }
@@ -540,6 +501,9 @@ function handleBuzzerSocketConnection(socket, io) {
             if (!game) {
                 return callback({ success: false, error: 'Room introuvable' });
             }
+
+            // Couper l'horloge de manche avant de remettre la partie à zéro
+            stopBlurProgression(roomCode);
 
             // ✅ Réinitialiser le jeu
             game.status = 'waiting';
@@ -755,11 +719,15 @@ function handleBuzzerSocketConnection(socket, io) {
             if (game.status === 'playing' && game.currentBeatboxer) {
                 const beatboxerData = buzzerBeatboxerManager.getBeatboxerData(game.currentBeatboxer);
 
+                // L'horloge fait foi : le joueur qui revient reprend la manche là où elle en est
+                const snapshot = getRoundClock(io).snapshot(roomCode);
+
                 gameState.currentRoundState = {
                     currentRound: game.currentRound,
                     totalRounds: game.totalRounds,
                     beatboxerImage: beatboxerData.imageUrl,
-                    pixelLevel: game.pixelLevel || 100,
+                    pixelLevel: snapshot ? snapshot.hidden * 100 : (game.pixelLevel ?? 100),
+                    roundSync: snapshot,
                     buzzedPlayer: game.buzzedPlayer,
                     currentBeatboxer: game.buzzedPlayer ? game.currentBeatboxer : null // Révéler seulement si quelqu'un a buzzé et trouvé
                 };
@@ -919,184 +887,95 @@ async function saveGameStats(roomCode, finalScores) {
 
 // ==================== FONCTIONS UTILITAIRES ====================
 
-const blurIntervals = new Map();
-const blurTimeouts = new Map();
-const guessTimeouts = new Map();
+const { BuzzerRoundClock } = require('./services/buzzerRoundClock');
 
-function startBlurProgression(roomCode, io) {
-    let currentPixelLevel = 100;
+// Une seule horloge pour toutes les salles, créée à la première utilisation
+let roundClock = null;
 
-    const updatePixelation = () => {
-        const game = buzzerGameManager.getGame(roomCode);
-        if (!game || game.buzzedPlayer) {
-            stopBlurProgression(roomCode);
-            return;
-        }
+function getRoundClock(io) {
+    if (roundClock) return roundClock;
 
-        game.pixelLevel = currentPixelLevel;
-
-        io.to(roomCode).emit('buzzer:pixelUpdate', {
-            pixelLevel: currentPixelLevel,
-            maxPixelLevel: 100
-        });
-
-        currentPixelLevel -= 0.1;
-
-        if (currentPixelLevel <= 0) {
-            stopBlurProgression(roomCode);
-
-            // ✅ NOUVEAU : Laisser 3 secondes pour deviner à 0%
+    roundClock = new BuzzerRoundClock(io, {
+        // La photo est nette : dernière fenêtre pour buzzer
+        onFullReveal: (roomCode) => {
             io.to(roomCode).emit('buzzer:fullReveal', {
                 message: 'Image complètement révélée ! 3 secondes pour deviner !'
             });
+        },
 
-            // ✅ Après 3 secondes, révéler la réponse et passer au round suivant
-            const revealTimeout = setTimeout(() => {
-                const currentGame = buzzerGameManager.getGame(roomCode);
-                if (!currentGame) return;
+        // Fin de manche, quelle qu'en soit la cause. Point de passage unique.
+        onRoundEnd: (roomCode, roundId, reason) => {
+            const game = buzzerGameManager.getGame(roomCode);
+            if (!game) return;
 
-                // Révéler la réponse
+            if (reason === 'watchdog') {
+                console.warn(`⏱️ Manche ${roundId} close par le chien de garde (${roomCode})`);
+            }
+
+            // La réponse n'est révélée que si personne ne l'a trouvée
+            if (reason !== 'answered') {
+                game.buzzedPlayer = null;
                 io.to(roomCode).emit('buzzer:autoReveal', {
-                    beatboxer: currentGame.currentBeatboxer,
-                    correctAnswer: currentGame.currentBeatboxer.title
+                    beatboxer: game.currentBeatboxer,
+                    correctAnswer: game.currentBeatboxer?.title
                 });
+            }
 
-                console.log(`🎭 Auto-révélation: ${currentGame.currentBeatboxer.title}`);
-
-                // Attendre 3 secondes puis passer au round suivant
-                setTimeout(() => {
-                    if (currentGame.currentRound >= currentGame.totalRounds) {
-                        // Partie terminée
-                        const endResult = buzzerGameManager.endGame(roomCode);
-                        io.to(roomCode).emit('buzzer:gameFinished', {
-                            finalScores: endResult.finalScores,
-                            winner: endResult.winner
-                        });
-                    } else {
-                        // Round suivant
-                        const nextRoundGame = buzzerGameManager.nextRound(roomCode);
-
-                        if (nextRoundGame) {
-                            const nextBeatboxerData = buzzerBeatboxerManager.getBeatboxerData(nextRoundGame.currentBeatboxer);
-
-                            io.to(roomCode).emit('buzzer:nextRound', {
-                                currentRound: nextRoundGame.currentRound,
-                                totalRounds: nextRoundGame.totalRounds,
-                                beatboxerImage: nextBeatboxerData.imageUrl
-                            });
-                            startBlurProgression(roomCode, io);
-                        }
-                    }
-                }, 3000);
+            setTimeout(() => {
+                advanceRound(roomCode, io).catch((error) => {
+                    console.error('❌ Erreur passage de manche:', error);
+                });
             }, 3000);
+        },
+    });
 
-            blurTimeouts.set(roomCode, revealTimeout);
-        }
-    };
-
-    const interval = setInterval(updatePixelation, 20);
-
-    blurIntervals.set(roomCode, interval);
-
-    console.log(`🎨 Progression de pixelisation démarrée pour ${roomCode}`);
+    return roundClock;
 }
 
-function resumeBlurProgression(roomCode, io, startLevel) {
-    stopBlurProgression(roomCode);
+// Manche suivante, ou fin de partie. Appelée uniquement depuis onRoundEnd.
+async function advanceRound(roomCode, io) {
+    const game = buzzerGameManager.getGame(roomCode);
+    if (!game) return;
 
-    let currentPixelLevel = startLevel;
+    if (game.currentRound >= game.totalRounds) {
+        const endResult = buzzerGameManager.endGame(roomCode);
+        getRoundClock(io).stop(roomCode);
 
-    const updatePixelation = () => {
-        const game = buzzerGameManager.getGame(roomCode);
-        if (!game || game.buzzedPlayer) {
-            stopBlurProgression(roomCode);
-            return;
-        }
+        // Les stats sont sauvegardées ici, donc pour toutes les fins de partie,
+        // y compris celles où la dernière manche s'est terminée sans bonne réponse.
+        await saveGameStats(roomCode, endResult.finalScores);
 
-        game.pixelLevel = currentPixelLevel;
-
-        io.to(roomCode).emit('buzzer:pixelUpdate', {
-            pixelLevel: currentPixelLevel,
-            maxPixelLevel: 100
+        io.to(roomCode).emit('buzzer:gameFinished', {
+            finalScores: endResult.finalScores,
+            winner: endResult.winner
         });
+        return;
+    }
 
-        currentPixelLevel -= 0.1;
+    const nextRoundGame = buzzerGameManager.nextRound(roomCode);
+    if (!nextRoundGame) return;
 
-        if (currentPixelLevel <= 0) {
-            stopBlurProgression(roomCode);
+    const nextBeatboxerData = buzzerBeatboxerManager.getBeatboxerData(nextRoundGame.currentBeatboxer);
+    nextRoundGame.buzzedPlayer = null;
 
-            // ✅ NOUVEAU : Laisser 3 secondes pour deviner à 0%
-            io.to(roomCode).emit('buzzer:fullReveal', {
-                message: 'Image complètement révélée ! 3 secondes pour deviner !'
-            });
+    io.to(roomCode).emit('buzzer:nextRound', {
+        currentRound: nextRoundGame.currentRound,
+        totalRounds: nextRoundGame.totalRounds,
+        beatboxerImage: nextBeatboxerData.imageUrl
+    });
 
-            // ✅ Après 3 secondes, révéler la réponse et passer au round suivant
-            const revealTimeout = setTimeout(() => {
-                const currentGame = buzzerGameManager.getGame(roomCode);
-                if (!currentGame) return;
+    startBlurProgression(roomCode, io);
+}
 
-                io.to(roomCode).emit('buzzer:autoReveal', {
-                    beatboxer: currentGame.currentBeatboxer,
-                    correctAnswer: currentGame.currentBeatboxer.title
-                });
-
-                console.log(`🎭 Auto-révélation: ${currentGame.currentBeatboxer.title}`);
-
-                setTimeout(() => {
-                    if (currentGame.currentRound >= currentGame.totalRounds) {
-                        const endResult = buzzerGameManager.endGame(roomCode);
-                        io.to(roomCode).emit('buzzer:gameFinished', {
-                            finalScores: endResult.finalScores,
-                            winner: endResult.winner
-                        });
-                    } else {
-                        const nextRoundGame = buzzerGameManager.nextRound(roomCode);
-
-                        if (nextRoundGame) {
-                            const nextBeatboxerData = buzzerBeatboxerManager.getBeatboxerData(nextRoundGame.currentBeatboxer);
-
-                            io.to(roomCode).emit('buzzer:nextRound', {
-                                currentRound: nextRoundGame.currentRound,
-                                totalRounds: nextRoundGame.totalRounds,
-                                beatboxerImage: nextBeatboxerData.imageUrl
-                            });
-                            startBlurProgression(roomCode, io);
-                        }
-                    }
-                }, 3000);
-            }, 3000);
-
-            blurTimeouts.set(roomCode, revealTimeout);
-        }
-    };
-
-    const interval = setInterval(updatePixelation, 20);
-
-    blurIntervals.set(roomCode, interval);
-
-    console.log(`🔄 Progression de pixelisation reprise pour ${roomCode} à ${Math.round(startLevel)}%`);
+// Noms conservés : le reste du fichier appelle toujours ces deux fonctions
+function startBlurProgression(roomCode, io) {
+    const game = buzzerGameManager.getGame(roomCode);
+    const playerCount = game ? Object.keys(game.players || {}).length : 1;
+    getRoundClock(io).startRound(roomCode, { playerCount });
 }
 
 function stopBlurProgression(roomCode) {
-    const interval = blurIntervals.get(roomCode);
-    if (interval) {
-        clearInterval(interval);
-        blurIntervals.delete(roomCode);
-        console.log(`⏸️ Progression de pixelisation arrêtée pour ${roomCode}`);
-    }
-
-    const timeout = blurTimeouts.get(roomCode);
-    if (timeout) {
-        clearTimeout(timeout);
-        blurTimeouts.delete(roomCode);
-    }
-
-    // ✅ NOUVEAU : Nettoyer aussi le timeout de réponse
-    const guessTimeout = guessTimeouts.get(roomCode);
-    if (guessTimeout) {
-        clearTimeout(guessTimeout);
-        guessTimeouts.delete(roomCode);
-    }
+    if (roundClock) roundClock.stop(roomCode);
 }
 
 function generateRoomCode() {

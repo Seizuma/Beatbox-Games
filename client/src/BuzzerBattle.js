@@ -66,6 +66,7 @@ function BuzzerBattle() {
     const [currentRound, setCurrentRound] = useState(0);
     const [totalRounds, setTotalRounds] = useState(10);
     const [pixelLevel, setPixelLevel] = useState(100);
+    const [roundSync, setRoundSync] = useState(null);
     const [buzzedPlayer, setBuzzedPlayer] = useState(null);
     const [canBuzz, setCanBuzz] = useState(true);
     const [currentBeatboxer, setCurrentBeatboxer] = useState(null);
@@ -118,6 +119,7 @@ function BuzzerBattle() {
         socketBuzzer.on('buzzer:playerJoined', handlePlayerJoined);
         socketBuzzer.on('buzzer:gameStarted', handleGameStarted);
         socketBuzzer.on('buzzer:pixelUpdate', handlePixelUpdate);
+        socketBuzzer.on('buzzer:roundSync', handleRoundSync);
         socketBuzzer.on('buzzer:playerBuzzed', handlePlayerBuzzed);
         socketBuzzer.on('buzzer:guessResult', handleGuessResult);
         socketBuzzer.on('buzzer:wrongGuess', handleWrongGuess);
@@ -132,6 +134,7 @@ function BuzzerBattle() {
             socketBuzzer.off('buzzer:countdownStarted');
             socketBuzzer.off('buzzer:gameStarted');
             socketBuzzer.off('buzzer:pixelUpdate');
+            socketBuzzer.off('buzzer:roundSync');
             socketBuzzer.off('buzzer:playerBuzzed');
             socketBuzzer.off('buzzer:guessResult');
             socketBuzzer.off('buzzer:wrongGuess');
@@ -319,6 +322,7 @@ function BuzzerBattle() {
                             setTotalRounds(roundState.totalRounds);
                             setBeatboxerImage(roundState.beatboxerImage);
                             setPixelLevel(roundState.pixelLevel);
+                            setRoundSync(roundState.roundSync || null);
                             setBuzzedPlayer(roundState.buzzedPlayer);
                             setCurrentBeatboxer(roundState.currentBeatboxer);
                             setCanBuzz(!roundState.buzzedPlayer);
@@ -409,6 +413,7 @@ function BuzzerBattle() {
                                     setTotalRounds(roundState.totalRounds);
                                     setBeatboxerImage(roundState.beatboxerImage);
                                     setPixelLevel(roundState.pixelLevel);
+                                    setRoundSync(roundState.roundSync || null);
                                     setBuzzedPlayer(roundState.buzzedPlayer);
                                     setCurrentBeatboxer(roundState.currentBeatboxer);
                                     setCanBuzz(!roundState.buzzedPlayer);
@@ -480,12 +485,25 @@ function BuzzerBattle() {
         setBeatboxerImage(data.beatboxerImage);
         setCurrentView(VIEWS.GAME);
         setPixelLevel(100);
+        setRoundSync(null);
         setBuzzedPlayer(null);
         setCanBuzz(true);
     };
 
     const handlePixelUpdate = (data) => {
         setPixelLevel(data.pixelLevel);
+    };
+
+    // Synchro de manche du serveur : source unique de la progression du dévoilement
+    const handleRoundSync = (data) => {
+        setPixelLevel(data.hidden * 100);
+        setRoundSync({
+            roundId: data.roundId,
+            hidden: data.hidden,
+            paused: data.paused,
+            revealMs: data.revealMs,
+            phase: data.phase,
+        });
     };
 
     const handlePlayerBuzzed = (data) => {
@@ -555,6 +573,9 @@ function BuzzerBattle() {
         console.log('➡️ Round suivant:', data);
         setCurrentBeatboxer(null);
         setPixelLevel(100);
+        // On oublie la synchro de la manche précédente : sans ça, la photo de la
+        // nouvelle manche s'afficherait un instant avec l'avancement de l'ancienne.
+        setRoundSync(null);
         setCurrentRound(data.currentRound);
         setBeatboxerImage(data.beatboxerImage);
         setBuzzedPlayer(null);
@@ -693,6 +714,7 @@ function BuzzerBattle() {
         setScores([]);
         setCurrentRound(0);
         setPixelLevel(100);
+        setRoundSync(null);
         setBuzzedPlayer(null);
         setCanBuzz(true);
         setCurrentBeatboxer(null);
@@ -755,6 +777,7 @@ function BuzzerBattle() {
                     currentRound={currentRound}
                     totalRounds={totalRounds}
                     pixelLevel={pixelLevel}
+                    roundSync={roundSync}
                     buzzedPlayer={buzzedPlayer}
                     canBuzz={canBuzz}
                     currentBeatboxer={currentBeatboxer}

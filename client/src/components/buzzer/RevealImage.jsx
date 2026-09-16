@@ -4,8 +4,14 @@ import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from 're
 // et de l'image : tous les joueurs voient donc le même effet, sans rien changer côté serveur.
 export const REVEAL_EFFECTS = ['blur', 'pixels', 'zoom', 'tiles'];
 
-const TILE_COLUMNS = 8;
-const TILE_ROWS = 6;
+// Grille des tuiles. Plus de cases = une chute plus progressive.
+const TILE_COLUMNS = 10;
+const TILE_ROWS = 7;
+const TILE_COUNT = TILE_COLUMNS * TILE_ROWS;
+
+// Courbe de chute des tuiles : convexe, donc lente au début.
+// À mi-manche, environ 22 % des cases sont tombées (contre 50 % en linéaire).
+const TILE_CURVE = 2.2;
 
 const hashString = (value) => {
     let hash = 2166136261;
@@ -105,9 +111,38 @@ function PixelCanvas({ image, hidden, size }) {
     return <canvas ref={canvasRef} className="absolute inset-0 h-full w-full" aria-hidden="true" />;
 }
 
+// Voile de tuiles : elles tombent une à une, dans un ordre tiré au sort mais identique
+// pour tous les joueurs, et s'estompent au lieu de disparaître d'un coup.
+function TileVeil({ order, hidden }) {
+    const revealedCount = Math.round(TILE_COUNT * Math.pow(1 - hidden, TILE_CURVE));
+
+    return (
+        <div
+            className="absolute inset-0 grid"
+            style={{
+                gridTemplateColumns: `repeat(${TILE_COLUMNS}, 1fr)`,
+                gridTemplateRows: `repeat(${TILE_ROWS}, 1fr)`,
+            }}
+            aria-hidden="true"
+        >
+            {order.map((tileIndex, position) => (
+                <span
+                    key={tileIndex}
+                    style={{
+                        gridColumn: (tileIndex % TILE_COLUMNS) + 1,
+                        gridRow: Math.floor(tileIndex / TILE_COLUMNS) + 1,
+                        opacity: position < revealedCount ? 0 : 1,
+                    }}
+                    className="bg-show-night transition-opacity duration-[450ms] ease-out motion-reduce:duration-0"
+                />
+            ))}
+        </div>
+    );
+}
+
 /**
  * Photo du Buzzer Battle.
- * - hidden : 1 = totalement masquée, 0 = nette (dérivé du pixelLevel du serveur)
+ * - hidden : 1 = totalement masquée, 0 = nette (lissée par useRevealProgress)
  * - revealed : réponse donnée, la photo s'affiche nette
  * - effect : blur | pixels | zoom | tiles
  */
@@ -139,91 +174,50 @@ export default function RevealImage({ src, round, hidden, revealed, effect, alt,
     }, [src]);
 
     const ready = loaded && loaded.src === src;
-    const amount = Math.max(0, Math.min(1, hidden));
+    const amount = revealed ? 0 : Math.max(0, Math.min(1, hidden));
     const random = useMemo(() => seededRandom(hashString(`${round}:${src}`)), [round, src]);
 
     const zoomOrigin = useMemo(() => {
         const next = random();
         const other = random();
         return `${Math.round(25 + next * 50)}% ${Math.round(20 + other * 45)}%`;
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [random]);
 
+    // Ordre de chute des tuiles : mélange de Fisher-Yates avec la même graine partout
     const tileOrder = useMemo(() => {
-        const order = Array.from({ length: TILE_COLUMNS * TILE_ROWS }, (_, index) => index);
-        const shuffle = seededRandom(hashString(`tiles:${round}:${src}`));
+        const order = Array.from({ length: TILE_COUNT }, (_, index) => index);
         for (let index = order.length - 1; index > 0; index -= 1) {
-            const swap = Math.floor(shuffle() * (index + 1));
+            const swap = Math.floor(random() * (index + 1));
             [order[index], order[swap]] = [order[swap], order[index]];
         }
         return order;
-    }, [round, src]);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [random]);
 
-    const width = size.width || 600;
-    const baseStyle = { WebkitTouchCallout: 'none' };
-    let imageStyle = { ...baseStyle };
-    let showCanvas = false;
-    let tilesHidden = 0;
-
-    if (!revealed) {
-        switch (effect) {
-            case 'pixels':
-                showCanvas = amount > 0.01;
-                break;
-            case 'zoom':
-                imageStyle = {
-                    ...baseStyle,
-                    transform: `scale(${1 + amount * 5})`,
-                    transformOrigin: zoomOrigin,
-                    filter: `blur(${(amount * width * 0.008).toFixed(2)}px)`,
-                };
-                break;
-            case 'tiles':
-                tilesHidden = Math.ceil(amount * TILE_COLUMNS * TILE_ROWS);
-                imageStyle = { ...baseStyle, filter: `blur(${(amount * width * 0.006).toFixed(2)}px)` };
-                break;
-            case 'blur':
-            default:
-                imageStyle = {
-                    ...baseStyle,
-                    filter: `blur(${(amount * width * 0.045).toFixed(2)}px) brightness(${(0.7 + (1 - amount) * 0.3).toFixed(2)})`,
-                    transform: `scale(${1 + amount * 0.08})`,
-                };
-                break;
-        }
+    const imageStyle = {};
+    if (effect === 'blur') {
+        imageStyle.filter = `blur(${(amount * 26).toFixed(2)}px)`;
+        imageStyle.transform = `scale(${1 + amount * 0.08})`;
+    } else if (effect === 'zoom') {
+        imageStyle.transform = `scale(${1 + amount * 7})`;
+        imageStyle.transformOrigin = zoomOrigin;
     }
 
-    const hiddenTiles = new Set(tileOrder.slice(0, tilesHidden));
-
     return (
-        <div ref={boxRef} className="absolute inset-0 overflow-hidden">
-            {ready && !showCanvas && (
+        <div ref={boxRef} className="absolute inset-0 overflow-hidden bg-show-night">
+            {ready && effect === 'pixels' ? (
+                <PixelCanvas image={loaded.image} hidden={amount} size={size} />
+            ) : ready ? (
                 <img
                     src={src}
                     alt={alt}
-                    draggable="false"
-                    className="pointer-events-none absolute inset-0 h-full w-full select-none object-contain"
                     style={imageStyle}
+                    className="absolute inset-0 h-full w-full object-contain transition-[filter,transform] duration-300 ease-out motion-reduce:transition-none"
                 />
-            )}
+            ) : null}
 
-            {ready && showCanvas && <PixelCanvas image={loaded.image} hidden={amount} size={size} />}
-
-            {ready && !revealed && effect === 'tiles' && tilesHidden > 0 && (
-                <div
-                    className="absolute inset-0 grid"
-                    style={{ gridTemplateColumns: `repeat(${TILE_COLUMNS}, 1fr)`, gridTemplateRows: `repeat(${TILE_ROWS}, 1fr)` }}
-                    aria-hidden="true"
-                >
-                    {Array.from({ length: TILE_COLUMNS * TILE_ROWS }, (_, index) => (
-                        <span
-                            key={index}
-                            className={`border border-show-night/60 transition-opacity duration-300 ${hiddenTiles.has(index) ? 'bg-show-desk opacity-100' : 'opacity-0'}`}
-                        />
-                    ))}
-                </div>
-            )}
-
-            {!ready && <div className="absolute inset-0 bg-show-night" aria-hidden="true" />}
+            {ready && effect === 'tiles' && !revealed && <TileVeil order={tileOrder} hidden={amount} />}
         </div>
     );
 }

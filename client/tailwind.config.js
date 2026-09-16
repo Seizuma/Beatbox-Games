@@ -27,20 +27,24 @@ module.exports = {
                     danger: 'rgb(var(--site-danger) / <alpha-value>)',
                     success: 'rgb(var(--site-success) / <alpha-value>)',
                 },
-                // Le plateau : Blind Test et Buzzer Battle
+                // Le plateau : Blind Test et Buzzer Battle.
+                // Mêmes variables CSS que le site, avec un jeu de valeurs « plateau de nuit »
+                // et un jeu « plateau éclairé » (index.css, [data-show-theme]).
+                // Note : `show.white` reste le nom historique de la couleur du texte sur le
+                // plateau ; en thème jour elle devient l'encre foncée.
                 show: {
-                    night: '#0A1B45',
-                    stage: '#0E2A6B',
-                    'stage-2': '#163A8F',
-                    desk: '#2A4FB0',
-                    dim: '#233F8A',
-                    yellow: '#FFC72C',
-                    'yellow-deep': '#C99400',
-                    white: '#FFFFFF',
-                    buzz: '#E8402F',
-                    'buzz-deep': '#9E2518',
-                    ready: '#2DBE6C',
-                    muted: '#A9B8E0',
+                    night: 'rgb(var(--show-night) / <alpha-value>)',
+                    stage: 'rgb(var(--show-stage) / <alpha-value>)',
+                    'stage-2': 'rgb(var(--show-stage-2) / <alpha-value>)',
+                    desk: 'rgb(var(--show-desk) / <alpha-value>)',
+                    dim: 'rgb(var(--show-dim) / <alpha-value>)',
+                    yellow: 'rgb(var(--show-yellow) / <alpha-value>)',
+                    'yellow-deep': 'rgb(var(--show-yellow-deep) / <alpha-value>)',
+                    white: 'rgb(var(--show-ink) / <alpha-value>)',
+                    buzz: 'rgb(var(--show-buzz) / <alpha-value>)',
+                    'buzz-deep': 'rgb(var(--show-buzz-deep) / <alpha-value>)',
+                    ready: 'rgb(var(--show-ready) / <alpha-value>)',
+                    muted: 'rgb(var(--show-muted) / <alpha-value>)',
                 },
             },
             fontFamily: {
@@ -52,9 +56,9 @@ module.exports = {
                 screen: '1rem',
             },
             boxShadow: {
-                'show-btn': '0 3px 0 #C99400',
-                'show-btn-light': '0 3px 0 #9FB0D8',
-                'show-buzz': '0 6px 0 #9E2518',
+                'show-btn': '0 3px 0 rgb(var(--show-yellow-deep))',
+                'show-btn-light': '0 3px 0 rgb(var(--show-dim))',
+                'show-buzz': '0 6px 0 rgb(var(--show-buzz-deep))',
             },
             maxWidth: {
                 site: '72rem',

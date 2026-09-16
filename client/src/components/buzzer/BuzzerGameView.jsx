@@ -6,6 +6,7 @@ import { LecternRow, RoundTrack, ScoreChips, SharpnessGauge } from '../show/Game
 import Icon from '../icons/Icon';
 import { BUZZER_ANSWER_SECONDS, createShowT, getQuitGameConfirm } from '../../utils/showI18n';
 import RevealImage, { pickRevealEffect } from './RevealImage';
+import useRevealProgress from '../../hooks/useRevealProgress';
 
 const API_BASE_URL = process.env.REACT_APP_API_URL || 'https://dev.beatboxgames.com';
 
@@ -43,6 +44,7 @@ function BuzzerGameView({
     currentRound,
     totalRounds,
     pixelLevel,
+    roundSync,
     buzzedPlayer,
     canBuzz,
     currentBeatboxer,
@@ -71,6 +73,14 @@ function BuzzerGameView({
 
     const imageSrc = beatboxerImage ? resolveImageUrl(beatboxerImage) : null;
     const effect = pickRevealEffect(currentRound, beatboxerImage);
+
+    // Progression lissée : un paquet en retard ne peut plus dévoiler la photo d'un coup
+    const hidden = useRevealProgress({
+        target: roundSync ? roundSync.hidden : (pixelLevel ?? 100) / 100,
+        roundKey: roundSync?.roundId || currentRound,
+        paused: Boolean(roundSync?.paused) || Boolean(buzzedPlayer),
+        durationMs: roundSync?.revealMs || 20000,
+    });
 
     useEffect(() => {
         setGuess('');
@@ -116,7 +126,7 @@ function BuzzerGameView({
 
     const buzzedName = playerList.find((player) => player.id === buzzedPlayer)?.username;
     const isMyWrongGuess = Boolean(wrongGuessFeedback) && wrongGuessFeedback.playerId === myPlayerId;
-    const sharpness = Math.max(0, Math.min(100, Math.round(100 - (pixelLevel ?? 100))));
+    const sharpness = Math.max(0, Math.min(100, Math.round((1 - hidden) * 100)));
     const buzzerDisabled = !canBuzz || Boolean(buzzedPlayer) || Boolean(currentBeatboxer);
     const lockedAfterError = !canBuzz && !buzzedPlayer && !currentBeatboxer;
     const isGuessing = isBuzzedByMe && showGuessInput && !currentBeatboxer;
@@ -158,7 +168,7 @@ function BuzzerGameView({
                     autoCapitalize="words"
                     spellCheck="false"
                     enterKeyHint="send"
-                    className="min-w-0 flex-1 rounded-full bg-show-white px-5 py-3 text-base font-semibold text-show-night placeholder:text-slate-400 focus:outline-none focus-visible:ring-4 focus-visible:ring-show-yellow"
+                    className="min-w-0 flex-1 rounded-full bg-show-white px-5 py-3 text-base font-semibold text-show-night placeholder:text-show-muted focus:outline-none focus-visible:ring-4 focus-visible:ring-show-yellow"
                 />
                 <ShowButton type="submit" size="lg" disabled={!guess.trim()}>{st('game.submit')}</ShowButton>
             </div>
@@ -182,12 +192,13 @@ function BuzzerGameView({
             quitLabel={st('common.quit')}
             quitConfirm={getQuitGameConfirm(st)}
             tools={languageSwitch}
+            language={language}
             actionBar={actionBar}
             actionBarClassName={isGuessing ? '' : 'lg:hidden'}
         >
             <div className="mx-auto grid w-full max-w-5xl gap-8 lg:grid-cols-[minmax(0,1fr)_15rem] lg:gap-10">
                 <div className="flex min-w-0 flex-col gap-4">
-                    <div className="grid gap-3 rounded-2xl bg-show-night/45 p-4 ring-1 ring-white/5 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end sm:gap-6">
+                    <div className="grid gap-3 rounded-2xl bg-show-night/45 p-4 ring-1 ring-show-muted/15 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end sm:gap-6">
                         <RoundTrack
                             round={currentRound}
                             total={totalRounds}
@@ -202,12 +213,12 @@ function BuzzerGameView({
                         />
                     </div>
 
-                    <div className="relative aspect-[4/3] w-full select-none overflow-hidden rounded-2xl bg-show-night shadow-[0_0_0_4px_#FFFFFF,0_18px_40px_rgb(0_0_0/0.35)] sm:aspect-video">
+                    <div className="screen-frame relative aspect-[4/3] w-full select-none overflow-hidden rounded-2xl bg-show-night sm:aspect-video">
                         {imageSrc && !imageFailed ? (
                             <RevealImage
                                 src={imageSrc}
                                 round={currentRound}
-                                hidden={(pixelLevel ?? 100) / 100}
+                                hidden={hidden}
                                 revealed={revealed}
                                 effect={effect}
                                 alt={revealed ? currentBeatboxer : st('buzzerGame.imageAlt')}

@@ -12,6 +12,7 @@
 }
 
 @layer base {
+
     /* La chaîne : thème nuit par défaut, thème jour en option */
     :root,
     [data-site-theme='night'] {
@@ -48,6 +49,61 @@
         color-scheme: light;
     }
 
+    /* Le plateau : mêmes thèmes que le site, valeurs « studio de nuit » et « studio éclairé » */
+    :root,
+    [data-show-theme='night'] {
+        --show-night: 10 27 69;
+        --show-stage: 14 42 107;
+        --show-stage-2: 22 58 143;
+        --show-desk: 42 79 176;
+        --show-dim: 35 63 138;
+        --show-yellow: 255 199 44;
+        --show-yellow-deep: 201 148 0;
+        --show-ink: 255 255 255;
+        --show-buzz: 232 64 47;
+        --show-buzz-deep: 158 37 24;
+        --show-ready: 45 190 108;
+        --show-muted: 169 184 224;
+        --show-spot: 255 255 255;
+        --show-spot-opacity: 0.10;
+        --show-floor: 91 134 240;
+        --show-podium-top: 245 247 255;
+        --show-podium-bottom: 201 212 242;
+        --lectern-desk-top: 108 147 242;
+        --lectern-desk-bottom: 68 113 223;
+        --lectern-front-1: 46 91 211;
+        --lectern-front-2: 29 61 155;
+        --lectern-front-3: 23 48 124;
+        --lectern-screen: 6 16 46;
+    }
+
+    [data-show-theme='day'] {
+        --show-night: 214 224 246;
+        --show-stage: 233 239 252;
+        --show-stage-2: 255 255 255;
+        --show-desk: 255 255 255;
+        --show-dim: 197 211 240;
+        --show-yellow: 240 168 0;
+        --show-yellow-deep: 176 120 0;
+        --show-ink: 15 27 61;
+        --show-buzz: 208 46 32;
+        --show-buzz-deep: 140 28 18;
+        --show-ready: 21 128 61;
+        --show-muted: 74 85 115;
+        --show-spot: 255 255 255;
+        --show-spot-opacity: 0.85;
+        --show-floor: 120 152 225;
+        --show-podium-top: 255 255 255;
+        --show-podium-bottom: 197 211 240;
+        --lectern-desk-top: 255 255 255;
+        --lectern-desk-bottom: 220 229 247;
+        --lectern-front-1: 246 248 253;
+        --lectern-front-2: 228 236 250;
+        --lectern-front-3: 210 222 246;
+        --lectern-screen: 15 27 61;
+        color-scheme: light;
+    }
+
     html {
         -webkit-text-size-adjust: 100%;
     }
@@ -67,6 +123,7 @@
     }
 
     @media (prefers-reduced-motion: reduce) {
+
         *,
         *::before,
         *::after {
@@ -79,14 +136,13 @@
 }
 
 @layer components {
+
     /* Couronne d'ampoules du plateau : --progress règle la part allumée */
     .bulb-ring {
         --progress: 100%;
         border-radius: 9999px;
-        background: conic-gradient(
-            theme('colors.show.yellow') 0 var(--progress),
-            theme('colors.show.dim') var(--progress) 100%
-        );
+        background: conic-gradient(rgb(var(--show-yellow)) 0 var(--progress),
+                rgb(var(--show-dim)) var(--progress) 100%);
         -webkit-mask:
             repeating-conic-gradient(#000 0 7deg, transparent 7deg 12deg),
             radial-gradient(circle, transparent 58%, #000 59% 74%, transparent 75%);
@@ -114,7 +170,7 @@
 
 @layer base {
     .show-surface :focus-visible {
-        outline-color: theme('colors.show.yellow');
+        outline-color: rgb(var(--show-yellow));
     }
 }
 
@@ -137,12 +193,28 @@
 }
 
 @layer components {
+
     /* ---------- Plateau : lumière de scène ---------- */
     .stage-light {
         background:
-            radial-gradient(ellipse 70% 45% at 50% -8%, rgb(255 255 255 / 0.10), transparent 70%),
-            radial-gradient(ellipse 90% 60% at 50% 110%, rgb(10 27 69 / 0.55), transparent 70%),
-            theme('colors.show.stage');
+            radial-gradient(ellipse 70% 45% at 50% -8%, rgb(var(--show-spot) / var(--show-spot-opacity)), transparent 70%),
+            radial-gradient(ellipse 90% 60% at 50% 110%, rgb(var(--show-night) / 0.55), transparent 70%),
+            rgb(var(--show-stage));
+    }
+
+    /* Cadre blanc de l'écran du plateau (photo du Buzzer Battle) */
+    .screen-frame {
+        box-shadow:
+            0 0 0 4px rgb(var(--show-ink)),
+            0 18px 40px rgb(0 0 0 / 0.35);
+    }
+
+    /* Projecteur de l'écran de victoire */
+    .winner-spotlight {
+        background:
+            radial-gradient(ellipse 60% 70% at 50% -10%, rgb(var(--show-yellow) / 0.22), transparent 72%),
+            rgb(var(--show-stage-2) / 0.55);
+        box-shadow: inset 0 0 0 1px rgb(var(--show-muted) / 0.15);
     }
 
     /* Sol du plateau sous les pupitres */
@@ -156,13 +228,13 @@
         inset: auto 0 -0.75rem;
         height: 55%;
         border-radius: 50%;
-        background: radial-gradient(ellipse at center, rgb(91 134 240 / 0.22), transparent 70%);
+        background: radial-gradient(ellipse at center, rgb(var(--show-floor) / 0.22), transparent 70%);
         pointer-events: none;
     }
 
     /* ---------- Pupitre ---------- */
     .lectern {
-        --lamp: theme('colors.show.dim');
+        --lamp: rgb(var(--show-dim));
         --lamp-glow: transparent;
         position: relative;
         display: flex;
@@ -174,7 +246,7 @@
     /* Plateau du pupitre, vu légèrement du dessus */
     .lectern-desk {
         height: 0.7rem;
-        background: linear-gradient(180deg, #6C93F2 0%, #4471DF 100%);
+        background: linear-gradient(180deg, rgb(var(--lectern-desk-top)) 0%, rgb(var(--lectern-desk-bottom)) 100%);
         clip-path: polygon(3% 0, 97% 0, 100% 100%, 0 100%);
     }
 
@@ -194,7 +266,7 @@
         align-items: center;
         gap: 0.5rem;
         padding: 0.6rem 12% 0.9rem;
-        background: linear-gradient(180deg, #2E5BD3 0%, #1D3D9B 55%, #17307C 100%);
+        background: linear-gradient(180deg, rgb(var(--lectern-front-1)) 0%, rgb(var(--lectern-front-2)) 55%, rgb(var(--lectern-front-3)) 100%);
         clip-path: polygon(0 0, 100% 0, 93% 100%, 7% 100%);
     }
 
@@ -216,12 +288,12 @@
         width: 100%;
         min-height: 2.4rem;
         border-radius: 0.45rem;
-        background: #06102E;
+        background: rgb(var(--lectern-screen));
         box-shadow:
             inset 0 0 0 1px rgb(255 255 255 / 0.07),
             inset 0 3px 8px rgb(0 0 0 / 0.65),
             0 1px 0 rgb(255 255 255 / 0.12);
-        color: theme('colors.show.yellow');
+        color: rgb(var(--show-yellow));
     }
 
     .lectern-plate {
@@ -238,16 +310,32 @@
     }
 
     /* Pupitre miniature (cartes du hub) */
-    .lectern[data-size='xs'] .lectern-desk { height: 0.4rem; }
-    .lectern[data-size='xs'] .lectern-strip { height: 3px; }
-    .lectern[data-size='xs'] .lectern-front { gap: 0.25rem; padding: 0.3rem 11% 0.45rem; }
-    .lectern[data-size='xs'] .lectern-screen { min-height: 1.35rem; border-radius: 0.3rem; }
-    .lectern[data-size='xs'] .lectern-shadow { height: 0.45rem; }
+    .lectern[data-size='xs'] .lectern-desk {
+        height: 0.4rem;
+    }
+
+    .lectern[data-size='xs'] .lectern-strip {
+        height: 3px;
+    }
+
+    .lectern[data-size='xs'] .lectern-front {
+        gap: 0.25rem;
+        padding: 0.3rem 11% 0.45rem;
+    }
+
+    .lectern[data-size='xs'] .lectern-screen {
+        min-height: 1.35rem;
+        border-radius: 0.3rem;
+    }
+
+    .lectern[data-size='xs'] .lectern-shadow {
+        height: 0.45rem;
+    }
 
     .lectern[data-empty='true'] .lectern-front {
         background: transparent;
         clip-path: none;
-        border: 2px dashed rgb(169 184 224 / 0.35);
+        border: 2px dashed rgb(var(--show-muted) / 0.35);
         border-top: 0;
         border-radius: 0 0 0.9rem 0.9rem;
     }
@@ -258,10 +346,15 @@
 
     /* Socle de podium sous un pupitre */
     .podium-block {
-        background: linear-gradient(180deg, #F5F7FF 0%, #C9D4F2 100%);
+        background: linear-gradient(180deg, rgb(var(--show-podium-top)) 0%, rgb(var(--show-podium-bottom)) 100%);
         clip-path: polygon(0 0, 100% 0, 100% 100%, 0 100%);
         border-radius: 0.35rem 0.35rem 0 0;
-        color: theme('colors.show.night');
+        color: rgb(var(--show-night));
+    }
+
+    /* La marche du 1er porte l'or du plateau */
+    .podium-block[data-place='1'] {
+        background: linear-gradient(180deg, rgb(var(--show-yellow)) 0%, rgb(var(--show-yellow-deep)) 100%);
     }
 
     /* ---------- Égaliseur (extrait en cours) ---------- */
@@ -280,10 +373,21 @@
         animation: equalizer 900ms ease-in-out infinite;
     }
 
-    .equalizer span:nth-child(2) { animation-delay: -300ms; }
-    .equalizer span:nth-child(3) { animation-delay: -600ms; }
-    .equalizer span:nth-child(4) { animation-delay: -150ms; }
-    .equalizer span:nth-child(5) { animation-delay: -450ms; }
+    .equalizer span:nth-child(2) {
+        animation-delay: -300ms;
+    }
+
+    .equalizer span:nth-child(3) {
+        animation-delay: -600ms;
+    }
+
+    .equalizer span:nth-child(4) {
+        animation-delay: -150ms;
+    }
+
+    .equalizer span:nth-child(5) {
+        animation-delay: -450ms;
+    }
 
     .equalizer[data-active='false'] span {
         animation: none;
@@ -346,65 +450,172 @@
 }
 
 @keyframes countdown-fade-in {
-    from { opacity: 0; }
-    to { opacity: 1; }
+    from {
+        opacity: 0;
+    }
+
+    to {
+        opacity: 1;
+    }
 }
 
 @keyframes countdown-drain {
-    from { --progress: 100%; }
-    to { --progress: 0%; }
+    from {
+        --progress: 100%;
+    }
+
+    to {
+        --progress: 0%;
+    }
 }
 
 @keyframes countdown-go-ring {
-    0% { --progress: 100%; transform: scale(0.92); }
-    60% { transform: scale(1.08); }
-    100% { --progress: 100%; transform: scale(1); }
+    0% {
+        --progress: 100%;
+        transform: scale(0.92);
+    }
+
+    60% {
+        transform: scale(1.08);
+    }
+
+    100% {
+        --progress: 100%;
+        transform: scale(1);
+    }
 }
 
 @keyframes countdown-number {
-    0% { opacity: 0; transform: scale(2.4); filter: blur(10px); }
-    22% { opacity: 1; transform: scale(1); filter: blur(0); }
-    78% { opacity: 1; transform: scale(1); filter: blur(0); }
-    100% { opacity: 0; transform: scale(0.55); filter: blur(4px); }
+    0% {
+        opacity: 0;
+        transform: scale(2.4);
+        filter: blur(10px);
+    }
+
+    22% {
+        opacity: 1;
+        transform: scale(1);
+        filter: blur(0);
+    }
+
+    78% {
+        opacity: 1;
+        transform: scale(1);
+        filter: blur(0);
+    }
+
+    100% {
+        opacity: 0;
+        transform: scale(0.55);
+        filter: blur(4px);
+    }
 }
 
 @keyframes countdown-go {
-    0% { opacity: 0; transform: scale(0.3) rotate(-8deg); }
-    60% { opacity: 1; transform: scale(1.18) rotate(2deg); }
-    100% { opacity: 1; transform: scale(1) rotate(0); }
+    0% {
+        opacity: 0;
+        transform: scale(0.3) rotate(-8deg);
+    }
+
+    60% {
+        opacity: 1;
+        transform: scale(1.18) rotate(2deg);
+    }
+
+    100% {
+        opacity: 1;
+        transform: scale(1) rotate(0);
+    }
 }
 
 @keyframes countdown-tick {
-    0% { opacity: 0.9; transform: scale(0.85); }
-    100% { opacity: 0; transform: scale(1.25); }
+    0% {
+        opacity: 0.9;
+        transform: scale(0.85);
+    }
+
+    100% {
+        opacity: 0;
+        transform: scale(1.25);
+    }
 }
 
 @keyframes countdown-wave {
-    0% { opacity: 0.9; transform: scale(0.9); }
-    100% { opacity: 0; transform: scale(2.6); }
+    0% {
+        opacity: 0.9;
+        transform: scale(0.9);
+    }
+
+    100% {
+        opacity: 0;
+        transform: scale(2.6);
+    }
 }
 
 @keyframes countdown-flash {
-    0% { opacity: 0.35; }
-    100% { opacity: 0; }
+    0% {
+        opacity: 0.35;
+    }
+
+    100% {
+        opacity: 0;
+    }
 }
 
 @keyframes equalizer {
-    0%, 100% { height: 25%; }
-    50% { height: 100%; }
+
+    0%,
+    100% {
+        height: 25%;
+    }
+
+    50% {
+        height: 100%;
+    }
 }
 
 @keyframes points-pop {
-    0% { opacity: 0; transform: translateY(8px) scale(0.7); }
-    25% { opacity: 1; transform: translateY(0) scale(1.08); }
-    70% { opacity: 1; transform: translateY(-10px) scale(1); }
-    100% { opacity: 0; transform: translateY(-26px) scale(1); }
+    0% {
+        opacity: 0;
+        transform: translateY(8px) scale(0.7);
+    }
+
+    25% {
+        opacity: 1;
+        transform: translateY(0) scale(1.08);
+    }
+
+    70% {
+        opacity: 1;
+        transform: translateY(-10px) scale(1);
+    }
+
+    100% {
+        opacity: 0;
+        transform: translateY(-26px) scale(1);
+    }
 }
 
 @keyframes shake {
-    0%, 100% { transform: translateX(0); }
-    20% { transform: translateX(-6px); }
-    40% { transform: translateX(6px); }
-    60% { transform: translateX(-4px); }
-    80% { transform: translateX(4px); }
+
+    0%,
+    100% {
+        transform: translateX(0);
+    }
+
+    20% {
+        transform: translateX(-6px);
+    }
+
+    40% {
+        transform: translateX(6px);
+    }
+
+    60% {
+        transform: translateX(-4px);
+    }
+
+    80% {
+        transform: translateX(4px);
+    }
 }
