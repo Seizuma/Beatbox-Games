@@ -33,7 +33,7 @@ export default function GameShell({
     };
 
     return (
-        <div className="show-surface stage-light flex min-h-[100dvh] flex-col font-show text-show-white">
+        <div className="show-surface stage-light flex min-h-[100dvh] flex-col overflow-x-clip font-show text-show-white">
             <header className="sticky top-0 z-30 border-b border-white/5 bg-show-night/95 backdrop-blur">
                 <div className="mx-auto flex h-14 max-w-5xl items-center gap-3 px-3 sm:px-5">
                     {onQuit ? (

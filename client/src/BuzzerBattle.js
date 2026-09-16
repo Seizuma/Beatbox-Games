@@ -553,9 +553,10 @@ function BuzzerBattle() {
 
     const handleNextRound = (data) => {
         console.log('➡️ Round suivant:', data);
+        setCurrentBeatboxer(null);
+        setPixelLevel(100);
         setCurrentRound(data.currentRound);
         setBeatboxerImage(data.beatboxerImage);
-        setPixelLevel(100);
         setBuzzedPlayer(null);
         setCanBuzz(true);
     };

@@ -5,12 +5,12 @@ import Lectern from '../show/Lectern';
 import { LecternRow, RoundTrack, ScoreChips, SharpnessGauge } from '../show/GameHud';
 import Icon from '../icons/Icon';
 import { BUZZER_ANSWER_SECONDS, createShowT, getQuitGameConfirm } from '../../utils/showI18n';
+import RevealImage, { pickRevealEffect } from './RevealImage';
 
 const API_BASE_URL = process.env.REACT_APP_API_URL || 'https://dev.beatboxgames.com';
 
-const resolveImageUrl = (image) => (image.startsWith('http') ? image : `${API_BASE_URL}${image}`);
+const resolveImageUrl = (image) => (/^(https?:|data:|blob:)/.test(image) ? image : `${API_BASE_URL}${image}`);
 
-const PLACEHOLDER_IMAGE = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="200" height="200"%3E%3Crect fill="%23163A8F" width="200" height="200"/%3E%3C/svg%3E';
 
 const discordAvatar = (player) => (player?.isDiscordUser && player?.discordId && player?.discordAvatar
     ? `https://cdn.discordapp.com/avatars/${player.discordId}/${player.discordAvatar}.png?size=64`
@@ -63,16 +63,32 @@ function BuzzerGameView({
 
     const [guess, setGuess] = useState('');
     const [showGuessInput, setShowGuessInput] = useState(false);
-    const [imageLoaded, setImageLoaded] = useState(false);
+    const [imageFailed, setImageFailed] = useState(false);
+    const [revealedSrc, setRevealedSrc] = useState(null);
 
     const isBuzzedByMe = Boolean(buzzedPlayer) && buzzedPlayer === myPlayerId;
     const answerSeconds = useAnswerCountdown(buzzedPlayer);
 
+    const imageSrc = beatboxerImage ? resolveImageUrl(beatboxerImage) : null;
+    const effect = pickRevealEffect(currentRound, beatboxerImage);
+
     useEffect(() => {
         setGuess('');
         setShowGuessInput(false);
-        setImageLoaded(false);
     }, [currentRound]);
+
+    useEffect(() => {
+        setImageFailed(false);
+    }, [imageSrc]);
+
+    // La photo n'est affichée nette que si la réponse concerne bien la photo à l'écran.
+    // Sans ce verrou, la photo de la manche suivante pouvait apparaître nette un instant.
+    useEffect(() => {
+        setRevealedSrc((previous) => (currentBeatboxer ? previous || imageSrc : null));
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [currentBeatboxer]);
+
+    const revealed = Boolean(currentBeatboxer) && revealedSrc === imageSrc;
 
     useEffect(() => {
         if (isBuzzedByMe && !showGuessInput) {
@@ -179,6 +195,7 @@ function BuzzerGameView({
                         />
                         <ScoreChips
                             items={[
+                                { label: st(`buzzerGame.effect.${effect}`), tone: 'neutral' },
                                 { label: st('buzzerGame.scoreGood'), tone: 'good' },
                                 { label: st('buzzerGame.scoreBad'), tone: 'bad' },
                             ]}
@@ -186,30 +203,17 @@ function BuzzerGameView({
                     </div>
 
                     <div className="relative aspect-[4/3] w-full select-none overflow-hidden rounded-2xl bg-show-night shadow-[0_0_0_4px_#FFFFFF,0_18px_40px_rgb(0_0_0/0.35)] sm:aspect-video">
-                        {beatboxerImage ? (
-                            <img
-                                key={currentRound}
-                                src={resolveImageUrl(beatboxerImage)}
-                                alt={currentBeatboxer ? currentBeatboxer : st('buzzerGame.imageAlt')}
-                                draggable="false"
-                                className="pointer-events-none absolute inset-0 h-full w-full select-none object-contain"
-                                style={{
-                                    filter: currentBeatboxer
-                                        ? 'none'
-                                        : `blur(${pixelLevel * 0.3}px) brightness(${0.5 + (100 - pixelLevel) / 200})`,
-                                    transform: currentBeatboxer ? 'scale(1)' : `scale(${1 + (pixelLevel / 300)})`,
-                                    transition: 'filter 0.05s linear, transform 0.05s linear',
-                                    imageRendering: pixelLevel > 30 ? 'pixelated' : 'auto',
-                                    opacity: imageLoaded
-                                        ? (currentBeatboxer ? 1 : 0.3 + ((100 - pixelLevel) / 100) * 0.7)
-                                        : 0,
-                                    WebkitTouchCallout: 'none'
-                                }}
-                                onLoad={() => setImageLoaded(true)}
-                                onError={(event) => {
+                        {imageSrc && !imageFailed ? (
+                            <RevealImage
+                                src={imageSrc}
+                                round={currentRound}
+                                hidden={(pixelLevel ?? 100) / 100}
+                                revealed={revealed}
+                                effect={effect}
+                                alt={revealed ? currentBeatboxer : st('buzzerGame.imageAlt')}
+                                onError={() => {
                                     console.error('Erreur chargement image:', beatboxerImage);
-                                    event.target.src = PLACEHOLDER_IMAGE;
-                                    setImageLoaded(true);
+                                    setImageFailed(true);
                                 }}
                             />
                         ) : (
@@ -235,7 +239,7 @@ function BuzzerGameView({
                             </div>
                         )}
 
-                        {currentBeatboxer && (
+                        {revealed && (
                             <div className="absolute inset-x-0 bottom-0 flex justify-center p-4">
                                 <div className="show-pop rounded-2xl bg-show-white px-5 py-3 text-center text-show-night shadow-xl" role="status">
                                     <p className="text-xs font-extrabold text-show-desk">{st('buzzerGame.revealed')}</p>
@@ -255,9 +259,9 @@ function BuzzerGameView({
                     </div>
 
                     <SharpnessGauge
-                        value={currentBeatboxer ? 100 : sharpness}
+                        value={revealed ? 100 : sharpness}
                         label={st('buzzerGame.sharpnessLabel')}
-                        valueLabel={`${currentBeatboxer ? 100 : sharpness} %`}
+                        valueLabel={`${revealed ? 100 : sharpness} %`}
                     />
 
                     {wrongGuessFeedback && !isMyWrongGuess && (

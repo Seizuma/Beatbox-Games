@@ -216,6 +216,12 @@ const strings = {
             answering: '{name} répond…',
             secondsLeft: '{seconds} s',
             lockedAfterError: 'Buzzer bloqué un instant après ton erreur',
+            effect: {
+                blur: 'Effet : flou',
+                pixels: 'Effet : pixels',
+                zoom: 'Effet : zoom',
+                tiles: 'Effet : cases',
+            },
         },
         buzzerResults: {
             playAgain: 'Rejouer dans cette salle',
@@ -438,6 +444,12 @@ const strings = {
             answering: '{name} is answering…',
             secondsLeft: '{seconds} s',
             lockedAfterError: 'Buzzer locked for a moment after your mistake',
+            effect: {
+                blur: 'Effect: blur',
+                pixels: 'Effect: pixels',
+                zoom: 'Effect: zoom',
+                tiles: 'Effect: tiles',
+            },
         },
         buzzerResults: {
             playAgain: 'Play again in this room',

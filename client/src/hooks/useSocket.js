@@ -1,6 +1,7 @@
 import { useEffect, useRef, useCallback } from 'react';
 import socketOnline from '../socketOnline';
 import { getRandomPseudo } from '../utils/randomPseudo';
+import { listenForAudioUnlock, playArtistClip, stopArtistClip } from '../utils/artistAudio';
 
 /**
  * Hook Socket.io - Version corrigée avec Discord + Logique de base fonctionnelle
@@ -90,6 +91,7 @@ export const useSocket = ({
         }
 
         console.log('🚀 INITIALISATION SOCKET PRINCIPALE');
+        listenForAudioUnlock();
         socketInitialized.current = true;
 
         // ✅ DISCORD : Configurer l'auth AVANT tout
@@ -280,16 +282,20 @@ export const useSocket = ({
             setView(VIEWS.GAME);
         });
 
+        // Décompte : chaque chiffre reste affiché jusqu'au suivant pour que l'animation soit continue
+        let countdownClearTimer = null;
         socketOnline.on('countdown', ({ count }) => {
             console.log('📢 COUNTDOWN reçu:', count);
+            if (countdownClearTimer) clearTimeout(countdownClearTimer);
             if (count > 0) {
                 setCountdown(count.toString());
                 playCountdownReadySound();
-                setTimeout(() => setCountdown(''), 800);
+                // Filet de sécurité si le chiffre suivant n'arrive pas
+                countdownClearTimer = setTimeout(() => setCountdown(''), 1600);
             } else {
                 setCountdown('Go!');
                 playCountdownGoSound();
-                setTimeout(() => setCountdown(''), 1200);
+                countdownClearTimer = setTimeout(() => setCountdown(''), 900);
             }
         });
 
@@ -316,59 +322,26 @@ export const useSocket = ({
                 setCanAnswer(!hasFoundManche);
             }
 
-            // Gestion audio
-            if (audioRef.current) {
-                audioRef.current.pause();
-                audioRef.current = null;
-            }
-
+            // Extrait de l'artiste : lecteur unique réutilisé, débloqué au premier toucher (utils/artistAudio.js)
             if (audioUrl) {
-                try {
-                    console.log('🎵 Création nouvel élément audio:', audioUrl);
-                    const newAudio = new Audio(audioUrl);
-                    newAudio.volume = audioVolume;
-
-                    newAudio.addEventListener('ended', () => {
+                console.log('🎵 Lecture extrait:', audioUrl);
+                audioRef.current = playArtistClip(audioUrl, {
+                    volume: audioVolume,
+                    onEnded: () => {
                         console.log('🎵 Audio artiste terminé - Démarrage musique de tension');
                         setTimeout(() => playTensionMusic(), 500);
-                    });
-
-                    newAudio.addEventListener('error', (e) => {
-                        console.error('❌ Erreur audio artiste:', e);
+                    },
+                    onBlocked: () => {
+                        const message = t('safariAudioInfo');
+                        setError(message && message !== 'safariAudioInfo' ? message : 'Touche l’écran pour activer le son');
+                    },
+                    onError: () => {
                         setTimeout(() => playTensionMusic(), 5000);
-                    });
-
-                    audioRef.current = newAudio;
-
-                    const playAudioWithVolume = () => {
-                        if (audioRef.current) {
-                            audioRef.current.volume = audioVolume;
-                            audioRef.current.play()
-                                .then(() => console.log('✅ Audio: Lecture démarrée'))
-                                .catch(err => {
-                                    console.error('❌ Erreur audio:', err);
-                                    setTimeout(() => playTensionMusic(), 5000);
-                                });
-                        }
-                    };
-
-                    newAudio.addEventListener('loadstart', () => {
-                        if (audioRef.current) audioRef.current.volume = audioVolume;
-                    });
-
-                    if (newAudio.readyState >= 3) {
-                        playAudioWithVolume();
-                    } else {
-                        newAudio.addEventListener('canplaythrough', playAudioWithVolume, { once: true });
-                        newAudio.load();
-                    }
-
-                } catch (error) {
-                    console.error('❌ Erreur création audio:', error);
-                    setTimeout(() => playTensionMusic(), 3000);
-                }
+                    },
+                });
             } else {
                 console.warn('⚠️ Pas d\'URL audio');
+                stopArtistClip();
                 setTimeout(() => playTensionMusic(), 2000);
             }
         });
@@ -400,10 +373,8 @@ export const useSocket = ({
         socketOnline.on('round-results', ({ artist, level, results, scores, revealArtist }) => {
             console.log('📊 Résultats du round');
 
-            if (audioRef.current) {
-                audioRef.current.pause();
-                audioRef.current = null;
-            }
+            stopArtistClip();
+            audioRef.current = null;
             console.log('🔇 Arrêt musique de tension - Round results');
             stopTensionMusic();
 

@@ -8,7 +8,7 @@ function ThemedFrame({ children }) {
     const { theme } = useSiteTheme();
 
     return (
-        <div data-site-theme={theme} className="flex min-h-screen flex-col bg-site-paper font-site text-site-ink">
+        <div data-site-theme={theme} className="flex min-h-screen flex-col overflow-x-clip bg-site-paper font-site text-site-ink">
             <SiteHeader />
             <main className="flex-1">{children}</main>
             <SiteFooter />
