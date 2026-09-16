@@ -15,6 +15,9 @@ const NAV_ITEMS = [
     { to: '/profile', key: 'nav.profile', icon: 'user' },
 ];
 
+// Ajouté aux deux navigations quand le compte est administrateur
+const ADMIN_ITEM = { to: '/admin', key: 'nav.admin', icon: 'settings' };
+
 const LANGUAGES = [
     { id: 'fr', label: 'FR' },
     { id: 'en', label: 'EN' },
@@ -92,8 +95,8 @@ export default function SiteHeader() {
                         </NavLink>
                     ))}
                     {isAdmin && (
-                        <NavLink to="/admin" className={desktopLinkClass}>
-                            {t('nav.admin')}
+                        <NavLink to={ADMIN_ITEM.to} className={desktopLinkClass}>
+                            {t(ADMIN_ITEM.key)}
                         </NavLink>
                     )}
                 </nav>
@@ -118,6 +121,8 @@ export default function SiteHeader() {
  */
 export function SiteTabBar() {
     const { t } = useSiteI18n();
+    const isAdmin = useIsAdmin();
+    const items = isAdmin ? [...NAV_ITEMS, ADMIN_ITEM] : NAV_ITEMS;
 
     const tabClass = ({ isActive }) =>
         `flex min-h-[3.25rem] flex-1 flex-col items-center justify-center gap-0.5 border-t-[3px] px-1 pt-0.5 text-[11px] font-bold transition-colors ${isActive
@@ -131,7 +136,7 @@ export function SiteTabBar() {
             className="sticky bottom-0 z-30 border-t border-site-line bg-site-surface pb-[env(safe-area-inset-bottom)] md:hidden"
         >
             <div className="mx-auto flex max-w-site">
-                {NAV_ITEMS.map((item) => (
+                {items.map((item) => (
                     <NavLink key={item.to} to={item.to} end={item.end} className={tabClass}>
                         <Icon name={item.icon} size={19} />
                         <span>{t(item.key)}</span>

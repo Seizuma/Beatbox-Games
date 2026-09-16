@@ -1,16 +1,21 @@
 import { useEffect, useState } from 'react';
-import { API_BASE_URL, getStoredDiscordToken } from './useApi';
+import { useDiscordAuth } from './discordAuth';
+import { API_BASE_URL } from './useApi';
 
 /**
  * Indique si le compte connecté fait partie des administrateurs.
  * Sert uniquement à afficher ou masquer le lien : chaque route d'administration
  * revérifie le droit côté serveur.
+ *
+ * Le jeton vient du client Discord plutôt que de localStorage : la vérification
+ * est donc refaite au retour de connexion et à la déconnexion, sans recharger
+ * la page.
  */
 export function useIsAdmin() {
+    const { token } = useDiscordAuth();
     const [isAdmin, setIsAdmin] = useState(false);
 
     useEffect(() => {
-        const token = getStoredDiscordToken();
         if (!token) {
             setIsAdmin(false);
             return undefined;
@@ -27,7 +32,7 @@ export function useIsAdmin() {
             .catch(() => setIsAdmin(false));
 
         return () => controller.abort();
-    }, []);
+    }, [token]);
 
     return isAdmin;
 }
