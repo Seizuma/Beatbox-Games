@@ -144,6 +144,14 @@ app.use('/api/blindtest', blindtestRoutes);
 // Recherche d'une salle par son code, pour rejoindre sans choisir le jeu
 const roomsRoutes = require('./routes/rooms');
 app.use('/api/rooms', roomsRoutes);
+
+// Profils publics des joueurs et recherche par pseudo
+const playersRoutes = require('./routes/players');
+app.use('/api/players', playersRoutes);
+
+// Espace d'administration (accès restreint par ADMIN_DISCORD_IDS)
+const adminRoutes = require('./routes/admin');
+app.use('/api/admin', adminRoutes);
 // Middleware pour vérifier l'authentification Discord
 const requireDiscordAuth = (req, res, next) => {
     try {

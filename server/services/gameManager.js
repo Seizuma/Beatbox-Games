@@ -401,6 +401,18 @@ class GameManager {
                 db.finishGame(room.gameId);
                 console.log(`✅ Partie marquée comme terminée (finished_at défini)`);
 
+                // Journal consulté depuis la page d'administration
+                db.logEvent({
+                    type: 'game',
+                    message: `Blind Test terminé dans ${room.code} (${finalRanking.length} joueurs)`,
+                    discordId: finalRanking.find((player) => player.discordId)?.discordId || null,
+                    context: {
+                        roomCode: room.code,
+                        gameMode: room.gameMode,
+                        winner: finalRanking[0]?.pseudo || null,
+                    },
+                });
+
                 // Sauvegarder les participations de chaque joueur Discord
                 let savedCount = 0;
                 finalRanking.forEach((player) => {

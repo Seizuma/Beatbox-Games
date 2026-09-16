@@ -55,7 +55,7 @@ router.get('/leaderboard', (req, res) => {
 
         // Requête pour obtenir le top joueurs
         const stmt = db.db.prepare(`
-            SELECT 
+            SELECT
                 u.discord_id,
                 u.username,
                 u.avatar,
@@ -134,6 +134,8 @@ router.get('/me/:gameType', authenticateDiscord, (req, res) => {
         res.json({
             success: true,
             gameType,
+            // Visibilité du profil public, pilotée depuis la page Profil
+            publicProfile: db.isProfilePublic(discordId),
             stats: {
                 totalGames: stats.total_games || 0,
                 totalPoints: stats.total_points || 0,
@@ -178,7 +180,7 @@ router.get('/general', (req, res) => {
         // Statistiques générales avec comptage correct des tentatives par niveau
         const generalStatsQuery = db.db.prepare(`
             WITH round_details AS (
-                SELECT 
+                SELECT
                     rp.game_id,
                     rp.round_number,
                     rp.discord_id,
@@ -189,15 +191,15 @@ router.get('/general', (req, res) => {
                     -- Si trouvé au niveau 2: 2 tentatives (1 fausse + 1 juste)
                     -- Si trouvé au niveau 3: 3 tentatives (2 fausses + 1 juste)
                     -- Si pas trouvé (level 0): 3 tentatives (3 fausses)
-                    CASE 
+                    CASE
                         WHEN rp.level_found = 0 THEN 3
                         ELSE rp.level_found
                     END as total_attempts_for_round,
-                    CASE 
+                    CASE
                         WHEN rp.level_found > 0 THEN 1
                         ELSE 0
                     END as correct_count,
-                    CASE 
+                    CASE
                         WHEN rp.level_found = 0 THEN 3
                         ELSE (rp.level_found - 1)
                     END as incorrect_count
@@ -207,7 +209,7 @@ router.get('/general', (req, res) => {
                   AND g.finished_at IS NOT NULL
                   AND rp.round_number <= g.total_rounds
             )
-            SELECT 
+            SELECT
                 COUNT(DISTINCT discord_id) as unique_players,
                 COUNT(DISTINCT game_id || '-' || round_number) as total_rounds_played,
                 SUM(total_attempts_for_round) as total_attempts,
@@ -256,12 +258,12 @@ router.get('/artists', (req, res) => {
         // Calculer les stats par artiste en comptant les rounds UNIQUES
         const artistStatsQuery = db.db.prepare(`
             WITH round_stats AS (
-                SELECT 
+                SELECT
                     rp.artist_name,
                     rp.game_id,
                     rp.round_number,
                     MAX(CASE WHEN rp.level_found > 0 THEN 1 ELSE 0 END) as was_found,
-                    MAX(CASE 
+                    MAX(CASE
                         WHEN rp.level_found = 1 THEN 3
                         WHEN rp.level_found = 2 THEN 2
                         WHEN rp.level_found = 3 THEN 1
@@ -273,7 +275,7 @@ router.get('/artists', (req, res) => {
                   AND rp.round_number <= g.total_rounds
                 GROUP BY rp.artist_name, rp.game_id, rp.round_number
             )
-            SELECT 
+            SELECT
                 artist_name,
                 COUNT(*) as total_appearances,
                 SUM(was_found) as times_found,
@@ -321,7 +323,7 @@ router.get('/rounds', (req, res) => {
         // Calculer les stats par niveau en comptant les rounds UNIQUES
         const levelStatsQuery = db.db.prepare(`
             WITH round_stats AS (
-                SELECT 
+                SELECT
                     rp.game_id,
                     rp.round_number,
                     MAX(rp.level_found) as best_level_found
@@ -331,31 +333,31 @@ router.get('/rounds', (req, res) => {
                   AND rp.round_number <= g.total_rounds
                 GROUP BY rp.game_id, rp.round_number
             )
-            SELECT 
+            SELECT
                 1 as level,
                 SUM(CASE WHEN best_level_found = 1 THEN 1 ELSE 0 END) as times_found_at_level,
                 COUNT(*) as total_rounds,
                 ROUND((SUM(CASE WHEN best_level_found = 1 THEN 1 ELSE 0 END) * 100.0 / COUNT(*)), 2) as success_rate
             FROM round_stats
-            
+
             UNION ALL
-            
-            SELECT 
+
+            SELECT
                 2 as level,
                 SUM(CASE WHEN best_level_found = 2 THEN 1 ELSE 0 END) as times_found_at_level,
                 COUNT(*) as total_rounds,
                 ROUND((SUM(CASE WHEN best_level_found = 2 THEN 1 ELSE 0 END) * 100.0 / COUNT(*)), 2) as success_rate
             FROM round_stats
-            
+
             UNION ALL
-            
-            SELECT 
+
+            SELECT
                 3 as level,
                 SUM(CASE WHEN best_level_found = 3 THEN 1 ELSE 0 END) as times_found_at_level,
                 COUNT(*) as total_rounds,
                 ROUND((SUM(CASE WHEN best_level_found = 3 THEN 1 ELSE 0 END) * 100.0 / COUNT(*)), 2) as success_rate
             FROM round_stats
-            
+
             ORDER BY level ASC
         `);
 
@@ -382,7 +384,7 @@ router.get('/leaderboard/blindtest', (req, res) => {
         const limit = Math.min(parseInt(req.query.limit) || 10, 50);
 
         const blindTestLeaderboardQuery = db.db.prepare(`
-            SELECT 
+            SELECT
                 u.discord_id,
                 u.username,
                 u.avatar,
@@ -455,7 +457,7 @@ router.get('/leaderboard/categories', (req, res) => {
         }
 
         const leaderboardQuery = db.db.prepare(`
-            SELECT 
+            SELECT
                 u.discord_id,
                 u.username,
                 u.avatar,
@@ -466,7 +468,7 @@ router.get('/leaderboard/categories', (req, res) => {
                 SUM(gp.rounds_won) as total_rounds_won,
                 -- Calculer le pourcentage de victoires
                 ROUND(
-                    (SUM(CASE WHEN gp.final_rank = 1 THEN 1 ELSE 0 END) * 100.0 / COUNT(DISTINCT gp.game_id)), 
+                    (SUM(CASE WHEN gp.final_rank = 1 THEN 1 ELSE 0 END) * 100.0 / COUNT(DISTINCT gp.game_id)),
                     1
                 ) as win_rate
             FROM users u
@@ -524,7 +526,7 @@ router.get('/categories/info', (req, res) => {
         }
 
         const categoriesInfoQuery = db.db.prepare(`
-            SELECT 
+            SELECT
                 COUNT(CASE WHEN g.total_rounds >= 65 THEN 1 END) as full_roster_games,
                 COUNT(CASE WHEN g.total_rounds < 65 THEN 1 END) as selection_games,
                 COUNT(DISTINCT CASE WHEN g.total_rounds >= 65 THEN gp.discord_id END) as full_roster_players,
@@ -655,7 +657,7 @@ router.get('/buzzer/leaderboard', (req, res) => {
         console.log('🔍 Condition de filtre finale:', filterCondition);
 
         const buzzerLeaderboardQuery = db.db.prepare(`
-            SELECT 
+            SELECT
                 u.discord_id,
                 u.username,
                 u.avatar,
@@ -665,7 +667,7 @@ router.get('/buzzer/leaderboard', (req, res) => {
                 SUM(CASE WHEN gp.final_rank = 1 THEN 1 ELSE 0 END) as wins,
                 SUM(gp.rounds_won) as total_rounds_won,
                 ROUND(
-                    (SUM(CASE WHEN gp.final_rank = 1 THEN 1 ELSE 0 END) * 100.0 / COUNT(DISTINCT gp.game_id)), 
+                    (SUM(CASE WHEN gp.final_rank = 1 THEN 1 ELSE 0 END) * 100.0 / COUNT(DISTINCT gp.game_id)),
                     1
                 ) as win_rate
             FROM users u

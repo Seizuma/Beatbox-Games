@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import SEO from './SEO';
 import SiteShell from './site/SiteShell';
@@ -8,7 +8,7 @@ import Icon from './icons/Icon';
 import { useDiscordAuth } from '../utils/discordAuth';
 import { useDiscordCallback } from '../utils/useDiscordCallback';
 import { useSiteI18n, formatDay, formatNumber, formatOrdinal } from '../utils/siteI18n';
-import { getStoredDiscordToken, useApi } from '../utils/useApi';
+import { API_BASE_URL, getStoredDiscordToken, useApi } from '../utils/useApi';
 import useUrlTab from '../hooks/useUrlTab.js';
 
 const isBuzzerMode = (gameMode) => typeof gameMode === 'string' && gameMode.startsWith('buzzer_');
@@ -103,6 +103,29 @@ function ConnectedProfile() {
     const rankingPlayer = ranking.data?.player;
     const stats = current.data?.stats;
     const recentGames = current.data?.recentGames || [];
+
+    // Visibilité du profil public : la valeur de départ vient de l'API du profil
+    const [isPublic, setIsPublic] = useState(true);
+
+    useEffect(() => {
+        if (typeof current.data?.publicProfile === 'boolean') setIsPublic(current.data.publicProfile);
+    }, [current.data]);
+
+    const updateVisibility = async (next) => {
+        setIsPublic(next);
+        try {
+            await fetch(`${API_BASE_URL}/api/players/me/visibility`, {
+                method: 'PATCH',
+                headers: {
+                    'Content-Type': 'application/json',
+                    Authorization: `Bearer ${getStoredDiscordToken()}`,
+                },
+                body: JSON.stringify({ public: next }),
+            });
+        } catch (error) {
+            setIsPublic(!next);
+        }
+    };
 
     const handleLogout = async () => {
         await logout();
@@ -231,6 +254,19 @@ function ConnectedProfile() {
             </div>
 
             <section className="mt-14 border-t border-site-line pt-8">
+                <SectionTitle aside={t('profile.visibilityHelp')}>{t('profile.visibility')}</SectionTitle>
+                <label className="flex max-w-xl items-start gap-3 text-sm">
+                    <input
+                        type="checkbox"
+                        checked={isPublic}
+                        onChange={(event) => updateVisibility(event.target.checked)}
+                        className="mt-0.5 h-4 w-4 shrink-0"
+                    />
+                    <span>{t('profile.visibilityLabel')}</span>
+                </label>
+            </section>
+
+            <section className="mt-12 border-t border-site-line pt-8">
                 <SectionTitle>{t('profile.account')}</SectionTitle>
                 <div className="flex flex-wrap gap-3">
                     <SiteButton variant="secondary" onClick={handleLogout} disabled={loading}>

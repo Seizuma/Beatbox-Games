@@ -880,6 +880,19 @@ async function saveGameStats(roomCode, finalScores) {
         db.finishGame(gameId);
         console.log(`✅ Partie ${roomCode} finalisée en DB`);
 
+        // Journal consulté depuis la page d'administration
+        db.logEvent({
+            type: 'game',
+            message: `Buzzer Battle terminé dans ${roomCode} (${finalScores.length} joueurs)`,
+            discordId: creatorDiscordId,
+            context: {
+                roomCode,
+                gameMode,
+                rounds: game.totalRounds,
+                winner: finalScores[0]?.username || null,
+            },
+        });
+
     } catch (error) {
         console.error('❌ Erreur sauvegarde stats Buzzer:', error);
     }

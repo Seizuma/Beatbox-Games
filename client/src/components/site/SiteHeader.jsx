@@ -5,6 +5,8 @@ import { useSiteTheme } from '../../utils/siteTheme';
 import BrandMark from '../brand/BrandMark';
 import Icon from '../icons/Icon';
 import SiteAccountButton from './SiteAccountButton';
+import SiteSearch from './SiteSearch';
+import { useIsAdmin } from '../../utils/useIsAdmin';
 
 const NAV_ITEMS = [
     { to: '/', key: 'nav.games', icon: 'headphones', end: true },
@@ -66,6 +68,7 @@ function ThemeToggle() {
  */
 export default function SiteHeader() {
     const { t } = useSiteI18n();
+    const isAdmin = useIsAdmin();
 
     const desktopLinkClass = ({ isActive }) =>
         `inline-flex items-center border-b-[3px] pt-[3px] text-sm font-semibold transition-colors ${isActive
@@ -88,10 +91,16 @@ export default function SiteHeader() {
                             {t(item.key)}
                         </NavLink>
                     ))}
+                    {isAdmin && (
+                        <NavLink to="/admin" className={desktopLinkClass}>
+                            {t('nav.admin')}
+                        </NavLink>
+                    )}
                 </nav>
 
                 <div className="ml-auto flex items-center gap-2 sm:gap-3">
-                    <div role="group" aria-label={t('footer.preferences')} className="flex items-center gap-2">
+                    <SiteSearch />
+                    <div role="group" aria-label={t('footer.preferences')} className="hidden items-center gap-2 min-[560px]:flex">
                         <ThemeToggle />
                         <LanguageToggle />
                     </div>
@@ -128,6 +137,12 @@ export function SiteTabBar() {
                         <span>{t(item.key)}</span>
                     </NavLink>
                 ))}
+            </div>
+
+            {/* Sous 560 px, le header n'a plus la place pour ces deux contrôles */}
+            <div className="flex items-center justify-center gap-2 border-t border-site-line py-2 min-[560px]:hidden">
+                <ThemeToggle />
+                <LanguageToggle />
             </div>
         </nav>
     );
