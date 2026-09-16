@@ -63,12 +63,30 @@ function CreditsContent() {
                     {t('credits.count', { count: filtered.length, total: ARTISTS.length })}
                 </p>
 
+                {/* Index A–Z collant : la liste dépasse largement un écran */}
+                {groups.length > 1 && (
+                    <nav
+                        aria-label={t('credits.jumpTo')}
+                        className="sticky top-14 z-10 -mx-4 mt-3 flex gap-1 overflow-x-auto bg-site-paper px-4 py-2 sm:-mx-6 sm:px-6"
+                    >
+                        {groups.map((group) => (
+                            <a
+                                key={group.initial}
+                                href={`#letter-${group.initial}`}
+                                className="flex h-8 min-w-[2rem] items-center justify-center rounded-md px-1 text-xs font-bold text-site-muted transition-colors hover:bg-site-tint hover:text-site-ink"
+                            >
+                                {group.initial}
+                            </a>
+                        ))}
+                    </nav>
+                )}
+
                 {groups.length === 0 ? (
                     <p className="py-10 text-site-muted">{t('credits.empty', { query: query.trim() })}</p>
                 ) : (
                     <div className="mt-4 grid gap-x-10 gap-y-8 sm:grid-cols-2 lg:grid-cols-4">
                         {groups.map((group) => (
-                            <section key={group.initial} aria-label={group.initial} className="break-inside-avoid">
+                            <section key={group.initial} id={`letter-${group.initial}`} aria-label={group.initial} className="scroll-mt-28 break-inside-avoid">
                                 <h2 className="mb-2 font-brand text-2xl leading-none text-site-soft">{group.initial}</h2>
                                 <ul className="flex flex-col">
                                     {group.names.map((name) => (

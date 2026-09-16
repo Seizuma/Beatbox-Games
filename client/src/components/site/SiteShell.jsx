@@ -1,7 +1,7 @@
 import React from 'react';
 import { SiteI18nProvider } from '../../utils/siteI18n';
 import { useThemedSurface } from '../../utils/siteTheme';
-import SiteHeader from './SiteHeader';
+import SiteHeader, { SiteTabBar } from './SiteHeader';
 import SiteFooter from './SiteFooter';
 
 function ThemedFrame({ children }) {
@@ -12,6 +12,7 @@ function ThemedFrame({ children }) {
             <SiteHeader />
             <main className="flex-1">{children}</main>
             <SiteFooter />
+            <SiteTabBar />
         </div>
     );
 }

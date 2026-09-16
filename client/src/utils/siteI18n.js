@@ -31,6 +31,7 @@ const strings = {
             privacy: 'Confidentialité',
             legal: 'Mentions légales',
             madeBy: 'Un projet de Seizuma pour la communauté beatbox',
+            preferences: 'Préférences d’affichage',
         },
         common: {
             loading: 'Chargement…',
@@ -67,13 +68,16 @@ const strings = {
             },
         },
         join: {
-            title: 'Rejoindre une salle',
+            title: 'J’ai un code',
             game: 'Jeu de la salle',
             code: 'Code de salle',
             placeholder: 'CODE',
             submit: 'Rejoindre',
-            help: 'Le code est donné par l’hôte de la salle.',
+            help: 'Le jeu est reconnu à partir du code de l’hôte.',
             invalid: 'Entre le code complet donné par l’hôte : 4 à 8 lettres ou chiffres.',
+            checking: 'Recherche de la salle…',
+            notFound: 'Aucune salle ouverte avec ce code. Vérifie auprès de l’hôte.',
+            failed: 'La recherche a échoué. Réessaie dans un instant.',
         },
         ranking: {
             title: 'Classement général',
@@ -83,6 +87,8 @@ const strings = {
             hint: 'Cote de classement, parties à plusieurs uniquement',
             error: 'Le classement n’a pas pu être chargé. Recharge la page pour réessayer.',
             avatarAlt: 'Avatar de {name}',
+            yourRank: 'Ta place',
+            notRanked: 'Pas encore classé',
         },
         stats: {
             seoTitle: 'Classements et statistiques — BeatBox Games',
@@ -137,6 +143,10 @@ const strings = {
             showLess: 'Réduire la liste',
             noData: 'Pas encore assez de parties pour afficher ces données.',
             noMatch: 'Aucun artiste ne correspond à cette recherche.',
+            filterLabel: 'Filtrer les beatboxers',
+            filterEveryone: 'Tous les beatboxers',
+            groupCountries: 'Pays',
+            groupEvents: 'Événements',
         },
         profile: {
             seoTitle: 'Mon profil — BeatBox Games',
@@ -163,6 +173,8 @@ const strings = {
             noGames: 'Aucune partie enregistrée pour l’instant.',
             room: 'Salle {room}',
             rankOf: '{rank} sur {total}',
+            gameRank: '{game}, {rank} sur {total}',
+            gameRankShort: '{game}, {rank}',
             gameDetail: 'Détail de la partie',
             participants: 'Participants',
             noParticipants: 'Les participants de cette partie ne sont pas disponibles.',
@@ -188,6 +200,7 @@ const strings = {
             license: 'Licence',
             removal: 'Tu es artiste et tu souhaites retirer ton extrait ?',
             removalLink: 'Écris-nous',
+            jumpTo: 'Aller à une lettre',
         },
         contact: {
             seoTitle: 'Contact — BeatBox Games',
@@ -219,6 +232,7 @@ const strings = {
             tooShort: 'Ton message doit faire au moins 10 caractères.',
             tooLong: 'Ton message ne peut pas dépasser 2000 caractères.',
             email: 'Tu peux aussi écrire à',
+            needLonger: 'Écris au moins {min} caractères pour pouvoir envoyer.',
         },
         legal: {
             tabs: 'Documents',
@@ -261,6 +275,7 @@ const strings = {
             privacy: 'Privacy',
             legal: 'Legal notice',
             madeBy: 'A Seizuma project for the beatbox community',
+            preferences: 'Display preferences',
         },
         common: {
             loading: 'Loading…',
@@ -297,13 +312,16 @@ const strings = {
             },
         },
         join: {
-            title: 'Join a room',
+            title: 'I have a code',
             game: 'Room game',
             code: 'Room code',
             placeholder: 'CODE',
             submit: 'Join',
-            help: 'The room host gives you the code.',
+            help: 'The game is recognised from the host’s code.',
             invalid: 'Enter the full code from the host: 4 to 8 letters or numbers.',
+            checking: 'Looking for the room…',
+            notFound: 'No open room with that code. Check with the host.',
+            failed: 'The lookup failed. Try again in a moment.',
         },
         ranking: {
             title: 'Overall ranking',
@@ -313,6 +331,8 @@ const strings = {
             hint: 'Ranking rating, multiplayer games only',
             error: 'The ranking couldn’t be loaded. Reload the page to try again.',
             avatarAlt: '{name}’s avatar',
+            yourRank: 'Your place',
+            notRanked: 'Not ranked yet',
         },
         stats: {
             seoTitle: 'Rankings and statistics — BeatBox Games',
@@ -367,6 +387,10 @@ const strings = {
             showLess: 'Show less',
             noData: 'Not enough games yet to show this data.',
             noMatch: 'No artist matches this search.',
+            filterLabel: 'Filter beatboxers',
+            filterEveryone: 'All beatboxers',
+            groupCountries: 'Countries',
+            groupEvents: 'Events',
         },
         profile: {
             seoTitle: 'My profile — BeatBox Games',
@@ -403,6 +427,8 @@ const strings = {
             deleteText: 'Your BeatBox Games account will be deleted and you will be logged out. This can’t be undone.',
             deleteConfirm: 'Delete permanently',
             deleteError: 'Deletion failed. Try again or contact us.',
+            gameRank: '{game}, {rank} of {total}',
+            gameRankShort: '{game}, {rank}',
         },
         credits: {
             seoTitle: 'The artists — BeatBox Games',
@@ -418,6 +444,7 @@ const strings = {
             license: 'License',
             removal: 'Are you an artist and want your clip removed?',
             removalLink: 'Contact us',
+            jumpTo: 'Jump to a letter',
         },
         contact: {
             seoTitle: 'Contact — BeatBox Games',
@@ -449,6 +476,7 @@ const strings = {
             tooShort: 'Your message must be at least 10 characters long.',
             tooLong: 'Your message can’t exceed 2000 characters.',
             email: 'You can also write to',
+            needLonger: 'Write at least {min} characters to send.',
         },
         legal: {
             tabs: 'Documents',

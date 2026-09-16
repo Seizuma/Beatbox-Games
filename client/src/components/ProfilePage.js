@@ -9,8 +9,11 @@ import { useDiscordAuth } from '../utils/discordAuth';
 import { useDiscordCallback } from '../utils/useDiscordCallback';
 import { useSiteI18n, formatDay, formatNumber, formatOrdinal } from '../utils/siteI18n';
 import { getStoredDiscordToken, useApi } from '../utils/useApi';
+import useUrlTab from '../hooks/useUrlTab.js';
 
 const isBuzzerMode = (gameMode) => typeof gameMode === 'string' && gameMode.startsWith('buzzer_');
+
+const GAME_TABS = ['blindtest', 'buzzer'];
 
 function GuestProfile({ pending }) {
     const { t } = useSiteI18n();
@@ -87,7 +90,8 @@ function ConnectedProfile() {
     const navigate = useNavigate();
     const { user, getAvatarUrl, logout, deleteAccount, loading } = useDiscordAuth();
 
-    const [game, setGame] = useState('blindtest');
+    // L'onglet vit dans l'URL : le bouton retour et le partage d'un lien fonctionnent
+    const [game, setGame] = useUrlTab('game', GAME_TABS, 'blindtest');
     const [selectedGame, setSelectedGame] = useState(null);
     const [showDelete, setShowDelete] = useState(false);
     const [deleteError, setDeleteError] = useState(false);
@@ -141,51 +145,51 @@ function ConnectedProfile() {
 
             <div className="mt-10 grid gap-10 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.4fr)] lg:gap-12">
                 <div className="flex flex-col gap-10">
-                <section>
-                    <SectionTitle aside={t('profile.rankingHelp')}>{t('profile.rankingTitle')}</SectionTitle>
-                    <DataState status={ranking.status} isEmpty={!rankingPlayer} loadingText={t('common.loading')} errorText={t('common.loadError')} emptyText={t('profile.noGames')}>
-                        {rankingPlayer && (
-                            <>
+                    <section>
+                        <SectionTitle aside={t('profile.rankingHelp')}>{t('profile.rankingTitle')}</SectionTitle>
+                        <DataState status={ranking.status} isEmpty={!rankingPlayer} loadingText={t('common.loading')} errorText={t('common.loadError')} emptyText={t('profile.noGames')}>
+                            {rankingPlayer && (
+                                <>
+                                    <Figures
+                                        items={[
+                                            { label: t('profile.rating'), value: formatNumber(language, rankingPlayer.rating) },
+                                            {
+                                                label: t('profile.position'),
+                                                value: rankingPlayer.position ? formatOrdinal(language, rankingPlayer.position) : '—',
+                                            },
+                                            { label: t('profile.rankedGames'), value: formatNumber(language, rankingPlayer.rankedGames) },
+                                            { label: t('profile.peak'), value: formatNumber(language, rankingPlayer.peakRating ?? rankingPlayer.rating) },
+                                        ]}
+                                    />
+                                    {rankingPlayer.placementRemaining > 0 && (
+                                        <p className="mt-4 rounded-lg bg-site-tint px-4 py-3 text-sm text-site-muted">
+                                            {t('profile.placement', { count: rankingPlayer.placementRemaining })}
+                                        </p>
+                                    )}
+                                </>
+                            )}
+                        </DataState>
+                    </section>
+
+                    <section>
+                        <SectionTitle>{t('profile.personalTitle')}</SectionTitle>
+                        <DataState status={current.status} isEmpty={!stats} loadingText={t('common.loading')} errorText={t('common.loadError')} emptyText={t('profile.noGames')}>
+                            {stats && (
                                 <Figures
                                     items={[
-                                        { label: t('profile.rating'), value: formatNumber(language, rankingPlayer.rating) },
+                                        { label: t('profile.games'), value: formatNumber(language, stats.totalGames) },
+                                        { label: t('profile.wins'), value: formatNumber(language, stats.wins) },
+                                        { label: t('profile.points'), value: formatNumber(language, stats.totalPoints) },
+                                        { label: t('profile.average'), value: formatNumber(language, stats.averageScore) },
                                         {
-                                            label: t('profile.position'),
-                                            value: rankingPlayer.position ? formatOrdinal(language, rankingPlayer.position) : '—',
+                                            label: game === 'buzzer' ? t('profile.correctGuesses') : t('profile.roundsWon'),
+                                            value: formatNumber(language, stats.totalRoundsWon),
                                         },
-                                        { label: t('profile.rankedGames'), value: formatNumber(language, rankingPlayer.rankedGames) },
-                                        { label: t('profile.peak'), value: formatNumber(language, rankingPlayer.peakRating ?? rankingPlayer.rating) },
                                     ]}
                                 />
-                                {rankingPlayer.placementRemaining > 0 && (
-                                    <p className="mt-4 rounded-lg bg-site-tint px-4 py-3 text-sm text-site-muted">
-                                        {t('profile.placement', { count: rankingPlayer.placementRemaining })}
-                                    </p>
-                                )}
-                            </>
-                        )}
-                    </DataState>
-                </section>
-
-                <section>
-                    <SectionTitle>{t('profile.personalTitle')}</SectionTitle>
-                    <DataState status={current.status} isEmpty={!stats} loadingText={t('common.loading')} errorText={t('common.loadError')} emptyText={t('profile.noGames')}>
-                        {stats && (
-                            <Figures
-                                items={[
-                                    { label: t('profile.games'), value: formatNumber(language, stats.totalGames) },
-                                    { label: t('profile.wins'), value: formatNumber(language, stats.wins) },
-                                    { label: t('profile.points'), value: formatNumber(language, stats.totalPoints) },
-                                    { label: t('profile.average'), value: formatNumber(language, stats.averageScore) },
-                                    {
-                                        label: game === 'buzzer' ? t('profile.correctGuesses') : t('profile.roundsWon'),
-                                        value: formatNumber(language, stats.totalRoundsWon),
-                                    },
-                                ]}
-                            />
-                        )}
-                    </DataState>
-                </section>
+                            )}
+                        </DataState>
+                    </section>
                 </div>
 
                 <section aria-labelledby="profile-recent">
@@ -194,6 +198,14 @@ function ConnectedProfile() {
                         <ul>
                             {recentGames.map((item, index) => {
                                 const total = Array.isArray(item.participants) ? item.participants.length : null;
+                                // Le mode vient du serveur ; à défaut, l'onglet courant fait foi
+                                const isBuzzer = item.gameMode ? isBuzzerMode(item.gameMode) : game === 'buzzer';
+                                const gameName = isBuzzer ? t('games.buzzer.name') : t('games.blindtest.name');
+                                const rank = formatOrdinal(language, item.finalRank);
+                                const title = total
+                                    ? t('profile.gameRank', { game: gameName, rank, total })
+                                    : t('profile.gameRankShort', { game: gameName, rank });
+
                                 return (
                                     <li key={`${item.roomCode}-${item.finishedAt}-${index}`} className="border-b border-site-line last:border-b-0">
                                         <button
@@ -201,17 +213,14 @@ function ConnectedProfile() {
                                             onClick={() => setSelectedGame(item)}
                                             className="flex w-full items-center gap-3 rounded-md px-1 py-3 text-left text-sm transition-colors hover:bg-site-tint"
                                         >
-                                            <span className="w-20 shrink-0 text-xs text-site-soft">{formatDay(language, item.finishedAt, t)}</span>
-                                            <span className="min-w-0 flex-1 truncate">
-                                                {item.roomCode ? t('profile.room', { room: item.roomCode }) : ''}
-                                            </span>
-                                            <span className={`shrink-0 font-semibold ${item.finalRank === 1 ? 'text-site-ink' : 'text-site-muted'}`}>
-                                                {total
-                                                    ? t('profile.rankOf', { rank: formatOrdinal(language, item.finalRank), total })
-                                                    : formatOrdinal(language, item.finalRank)}
+                                            <span className="flex min-w-0 flex-1 flex-col">
+                                                <span className={`truncate font-semibold ${item.finalRank === 1 ? 'text-site-ink' : 'text-site-muted'}`}>
+                                                    {title}
+                                                </span>
+                                                <span className="text-xs text-site-soft">{formatDay(language, item.finishedAt, t)}</span>
                                             </span>
                                             <span className="w-16 shrink-0 text-right font-bold tabular-nums">{formatNumber(language, item.finalScore)}</span>
-                                            <Icon name="chevron-right" size={16} className="text-site-soft" />
+                                            <Icon name="chevron-right" size={16} className="shrink-0 text-site-soft" />
                                         </button>
                                     </li>
                                 );

@@ -89,6 +89,11 @@ function ContactForm() {
     const handleSubmit = async (event) => {
         event.preventDefault();
 
+        if (!canSubmitCategory(formData.category)) {
+            setSubmitStatus('rate_limited');
+            return;
+        }
+
         if (detailsLength < MIN_LENGTH) {
             setSubmitStatus('too_short');
             return;
@@ -134,6 +139,11 @@ function ContactForm() {
 
     const categoryRemaining = remaining(formData.category);
     const categoryOpen = canSubmitCategory(formData.category);
+
+    // Pourquoi l'envoi ne passera pas, dit avant le clic plutôt que par un bouton gris
+    const blockedReason = !categoryOpen
+        ? t('contact.limitReached')
+        : (detailsLength > 0 && detailsLength < MIN_LENGTH ? t('contact.needLonger', { min: MIN_LENGTH }) : '');
 
     const categories = [
         { id: 'blindtest', label: t('games.blindtest.name') },
@@ -200,9 +210,16 @@ function ContactForm() {
             {submitStatus && <Notice tone={STATUS_TONE[submitStatus]}>{t(STATUS_KEY[submitStatus])}</Notice>}
 
             <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-                <SiteButton type="submit" disabled={isSubmitting || detailsLength < MIN_LENGTH || !categoryOpen}>
-                    {isSubmitting ? t('contact.sending') : t('contact.send')}
-                </SiteButton>
+                {/* Le bouton reste actif : un bouton grisé ne dit pas pourquoi.
+                    La raison est écrite juste en dessous, et le clic affiche l'erreur. */}
+                <div className="flex flex-col gap-1.5">
+                    <SiteButton type="submit" disabled={isSubmitting}>
+                        {isSubmitting ? t('contact.sending') : t('contact.send')}
+                    </SiteButton>
+                    {blockedReason && (
+                        <p className="text-xs font-semibold text-site-muted">{blockedReason}</p>
+                    )}
+                </div>
                 <p className="text-xs text-site-soft">
                     {t('contact.email')}{' '}
                     <a href={`mailto:${CONTACT_EMAIL}`} className="font-semibold text-site-ink underline decoration-site-line decoration-2 underline-offset-4">{CONTACT_EMAIL}</a>

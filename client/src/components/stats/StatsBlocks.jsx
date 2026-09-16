@@ -7,7 +7,7 @@ import Icon from '../icons/Icon';
 const clampRate = (value) => Math.max(0, Math.min(100, Math.round(Number(value) || 0)));
 
 // Tableau du classement compétitif (cote Elo, parties classées uniquement)
-export function LeaderboardTable({ state, rows, titleId, placementGames = 5 }) {
+export function LeaderboardTable({ state, rows, titleId, placementGames = 5, skeletonRows = 0 }) {
     const { t, language } = useSiteI18n();
     const { user } = useDiscordAuth();
 
@@ -18,6 +18,7 @@ export function LeaderboardTable({ state, rows, titleId, placementGames = 5 }) {
             loadingText={t('common.loading')}
             errorText={t('common.loadError')}
             emptyText={t('stats.emptyLeaderboard', { placement: placementGames })}
+            skeletonRows={skeletonRows}
         >
             <div className="overflow-x-auto">
                 <table className="w-full border-collapse text-sm" aria-labelledby={titleId}>
@@ -73,9 +74,12 @@ export function RankingExplainer({ config }) {
     };
 
     return (
-        <section className="rounded-xl border border-site-line bg-site-surface p-5" aria-labelledby="ranking-how">
-            <h2 id="ranking-how" className="text-base font-bold">{t('stats.howTitle')}</h2>
-            <ol className="mt-3 flex flex-col gap-2.5 text-sm text-site-muted">
+        <details className="group rounded-xl border border-site-line bg-site-surface">
+            <summary className="flex min-h-[2.75rem] cursor-pointer list-none items-center justify-between gap-4 px-5 py-3 text-base font-bold">
+                {t('stats.howTitle')}
+                <Icon name="chevron-down" size={18} className="shrink-0 text-site-soft transition-transform group-open:rotate-180" />
+            </summary>
+            <ol className="flex flex-col gap-2.5 px-5 pb-5 text-sm text-site-muted">
                 {['stats.how1', 'stats.how2', 'stats.how3', 'stats.how4'].map((key, index) => (
                     <li key={key} className="flex gap-3">
                         <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-site-tint text-[11px] font-extrabold text-site-ink">
@@ -85,7 +89,7 @@ export function RankingExplainer({ config }) {
                     </li>
                 ))}
             </ol>
-        </section>
+        </details>
     );
 }
 

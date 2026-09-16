@@ -58,7 +58,7 @@ export function Segmented({ label, options, value, onChange, className = '' }) {
                         type="button"
                         aria-pressed={active}
                         onClick={() => onChange(option.id)}
-                        className={`whitespace-nowrap rounded-md px-2.5 py-1.5 text-[13px] transition-colors sm:px-3 sm:text-sm ${active ? 'bg-site-surface text-site-ink shadow-[0_1px_0_rgb(var(--site-line))]' : 'text-site-muted hover:text-site-ink'}`}
+                        className={`min-h-[2.5rem] whitespace-nowrap rounded-md px-3 py-2 text-[13px] transition-colors sm:text-sm ${active ? 'bg-site-surface text-site-ink shadow-[0_1px_0_rgb(var(--site-line))]' : 'text-site-muted hover:text-site-ink'}`}
                     >
                         {option.label}
                     </button>
@@ -84,9 +84,36 @@ export function Avatar({ src, name, size = 28 }) {
     );
 }
 
-// Affiche le chargement, l'erreur ou le vide ; sinon le contenu
-export function DataState({ status, isEmpty, loadingText, errorText, emptyText, children }) {
+/**
+ * Lignes grises pendant le chargement.
+ * Elles occupent la place des vraies données, donc la page ne saute pas
+ * au moment où elles arrivent.
+ */
+export function SkeletonRows({ rows = 5, label }) {
+    return (
+        <div role="status" aria-live="polite" className="flex flex-col">
+            <span className="sr-only">{label}</span>
+            {Array.from({ length: rows }, (_, index) => (
+                <span
+                    key={index}
+                    aria-hidden="true"
+                    className="flex items-center gap-3 border-b border-site-line py-2.5 last:border-b-0"
+                >
+                    <span className="h-6 w-6 shrink-0 rounded-md bg-site-tint" />
+                    <span className="h-7 w-7 shrink-0 rounded-full bg-site-tint" />
+                    <span className="h-3 flex-1 rounded bg-site-tint" style={{ maxWidth: `${70 - index * 6}%` }} />
+                    <span className="h-3 w-10 shrink-0 rounded bg-site-tint" />
+                </span>
+            ))}
+        </div>
+    );
+}
+
+// Affiche le chargement, l'erreur ou le vide ; sinon le contenu.
+// skeletonRows > 0 remplace le texte de chargement par des lignes grises.
+export function DataState({ status, isEmpty, loadingText, errorText, emptyText, skeletonRows = 0, children }) {
     if (status === 'loading' || status === 'idle') {
+        if (skeletonRows > 0) return <SkeletonRows rows={skeletonRows} label={loadingText} />;
         return <p className="py-6 text-sm text-site-soft" aria-live="polite">{loadingText}</p>;
     }
     if (status === 'error') {

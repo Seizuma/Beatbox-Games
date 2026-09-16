@@ -1,12 +1,14 @@
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
 import SEO from './SEO';
 import SiteShell from './site/SiteShell';
 import { DataState, PageContainer, PageHeader, Segmented, SectionTitle } from './site/SiteUI';
+import useUrlTab from '../hooks/useUrlTab.js';
 import { ArtistList, Figures, LeaderboardTable, RankingExplainer, RateBars } from './stats/StatsBlocks';
 import { useSiteI18n, formatNumber } from '../utils/siteI18n';
 import { useApi } from '../utils/useApi';
 
 const LEADERBOARD_LIMIT = 15;
+const GAME_TABS = ['blindtest', 'buzzer', 'all'];
 
 const toArtistBars = (list = []) => list.map((item) => ({ key: item.name, label: item.name, rate: item.successRate }));
 
@@ -23,6 +25,7 @@ function RankingSection({ game, titleId }) {
                 rows={ranking.data?.leaderboard || []}
                 titleId={titleId}
                 placementGames={ranking.data?.config?.placementGames}
+                skeletonRows={LEADERBOARD_LIMIT}
             />
             <div className="mt-6">
                 <RankingExplainer config={ranking.data?.config} />
@@ -105,21 +108,15 @@ function BlindTestStats() {
 
 function BuzzerStats() {
     const { t, language } = useSiteI18n();
-    const [filterType, setFilterType] = useState('all');
-    const [filterValue, setFilterValue] = useState('');
+    // Une seule valeur, encodée « type:valeur » : le select est toujours là,
+    // donc plus de saut de mise en page quand on change de type de filtre.
+    const [filter, setFilter] = useState('all');
 
     const filters = useApi('/api/stats/buzzer/filters');
-    const options = filterType === 'country' ? (filters.data?.countries || []) : (filters.data?.events || []);
+    const countries = filters.data?.countries || [];
+    const events = filters.data?.events || [];
 
-    // Dès qu'un type de filtre est choisi, on sélectionne sa première valeur
-    useEffect(() => {
-        if (filterType === 'all') {
-            setFilterValue('');
-        } else if (!options.includes(filterValue)) {
-            setFilterValue(options[0] || '');
-        }
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [filterType, filters.data]);
+    const [filterType, filterValue] = filter === 'all' ? ['all', ''] : filter.split(/:(.*)/s);
 
     const filterParams = filterType !== 'all' && filterValue
         ? `&filter=${filterType}&filterValue=${encodeURIComponent(filterValue)}`
@@ -164,30 +161,29 @@ function BuzzerStats() {
             </div>
 
             <div className="flex flex-wrap items-center gap-3">
-                <Segmented
-                    label={t('stats.filter')}
-                    value={filterType}
-                    onChange={setFilterType}
-                    options={[
-                        { id: 'all', label: t('stats.filterAll') },
-                        { id: 'country', label: t('stats.filterCountry') },
-                        { id: 'event', label: t('stats.filterEvent') },
-                    ]}
-                />
-                {filterType !== 'all' && (
-                    <select
-                        value={filterValue}
-                        onChange={(event) => setFilterValue(event.target.value)}
-                        aria-label={t('stats.filterValue')}
-                        disabled={filters.status !== 'ready' || options.length === 0}
-                        className="min-w-[12rem] rounded-lg border border-site-line bg-site-surface px-3 py-2 text-sm font-semibold text-site-ink focus:outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-site-ink disabled:opacity-60"
-                    >
-                        {options.length === 0 && <option value="">{t('stats.choose')}</option>}
-                        {options.map((option) => (
-                            <option key={option} value={option}>{option}</option>
-                        ))}
-                    </select>
-                )}
+                <select
+                    value={filter}
+                    onChange={(event) => setFilter(event.target.value)}
+                    aria-label={t('stats.filterLabel')}
+                    disabled={filters.status !== 'ready'}
+                    className="min-h-[2.75rem] min-w-[14rem] rounded-lg border border-site-line bg-site-surface px-3 py-2 text-sm font-semibold text-site-ink focus:outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-site-ink disabled:opacity-60"
+                >
+                    <option value="all">{t('stats.filterEveryone')}</option>
+                    {countries.length > 0 && (
+                        <optgroup label={t('stats.groupCountries')}>
+                            {countries.map((country) => (
+                                <option key={`country:${country}`} value={`country:${country}`}>{country}</option>
+                            ))}
+                        </optgroup>
+                    )}
+                    {events.length > 0 && (
+                        <optgroup label={t('stats.groupEvents')}>
+                            {events.map((event) => (
+                                <option key={`event:${event}`} value={`event:${event}`}>{event}</option>
+                            ))}
+                        </optgroup>
+                    )}
+                </select>
                 <p className="w-full text-xs text-site-soft sm:w-auto">{t('stats.filterNote')}</p>
             </div>
 
@@ -227,7 +223,8 @@ function AllGamesStats() {
 
 function StatsContent() {
     const { t } = useSiteI18n();
-    const [game, setGame] = useState('blindtest');
+    // L'onglet vit dans l'URL : le bouton retour et le partage d'un lien fonctionnent
+    const [game, setGame] = useUrlTab('game', GAME_TABS, 'blindtest');
 
     return (
         <>

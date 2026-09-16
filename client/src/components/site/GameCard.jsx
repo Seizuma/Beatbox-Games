@@ -84,7 +84,7 @@ export default function GameCard({ game, to, kicker, name, description, players,
     return (
         <Link
             to={to}
-            className="group stage-light relative flex h-full flex-col overflow-hidden rounded-2xl font-show text-show-white shadow-[0_24px_48px_-24px_rgb(0_0_0/0.75)] ring-1 ring-white/10 transition duration-200 hover:-translate-y-1 hover:shadow-[0_32px_60px_-24px_rgb(0_0_0/0.85)] focus-visible:-translate-y-1 focus-visible:outline focus-visible:outline-4 focus-visible:outline-offset-2 focus-visible:outline-brand-yellow"
+            className="group stage-light relative flex h-full flex-col overflow-hidden rounded-2xl font-show text-show-white shadow-[0_24px_48px_-24px_rgb(0_0_0/0.75)] ring-1 ring-white/20 transition duration-200 hover:-translate-y-1 hover:shadow-[0_32px_60px_-24px_rgb(0_0_0/0.85)] focus-visible:-translate-y-1 focus-visible:outline focus-visible:outline-4 focus-visible:outline-offset-2 focus-visible:outline-brand-yellow"
         >
             <div className="px-5 pt-5 sm:px-6 sm:pt-6">
                 <p className="text-xs font-extrabold text-show-yellow">{kicker}</p>

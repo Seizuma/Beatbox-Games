@@ -140,6 +140,10 @@ app.use('/api/ranking', rankingRoutes);
 // Liste des artistes du Blind Test (autocomplétion des réponses)
 const blindtestRoutes = require('./routes/blindtest');
 app.use('/api/blindtest', blindtestRoutes);
+
+// Recherche d'une salle par son code, pour rejoindre sans choisir le jeu
+const roomsRoutes = require('./routes/rooms');
+app.use('/api/rooms', roomsRoutes);
 // Middleware pour vérifier l'authentification Discord
 const requireDiscordAuth = (req, res, next) => {
     try {
