@@ -31,7 +31,7 @@ const strings = {
             privacy: 'Confidentialité',
             legal: 'Mentions légales',
             madeBy: 'Un projet de Seizuma pour la communauté beatbox',
-            preferences: 'Préférences d’affichage',
+            preferences: 'Thème et langue',
         },
         common: {
             loading: 'Chargement…',
@@ -275,7 +275,7 @@ const strings = {
             privacy: 'Privacy',
             legal: 'Legal notice',
             madeBy: 'A Seizuma project for the beatbox community',
-            preferences: 'Display preferences',
+            preferences: 'Theme and language',
         },
         common: {
             loading: 'Loading…',
