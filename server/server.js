@@ -149,6 +149,10 @@ app.use('/api/rooms', roomsRoutes);
 const playersRoutes = require('./routes/players');
 app.use('/api/players', playersRoutes);
 
+// Beatboxdle : l'énigme quotidienne (modes lettres et indices)
+const beatboxdleRoutes = require('./routes/beatboxdle');
+app.use('/api/beatboxdle', beatboxdleRoutes);
+
 // Espace d'administration (accès restreint par ADMIN_DISCORD_IDS)
 const adminRoutes = require('./routes/admin');
 const { logAdminConfiguration } = require('./middleware/adminAuth');

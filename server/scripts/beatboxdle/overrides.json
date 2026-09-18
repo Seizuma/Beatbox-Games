@@ -1,0 +1,19 @@
+{
+  "_readme": [
+    "Corrections manuelles appliquées par build.js. C'est le seul fichier du pipeline",
+    "qui est versionné dans git : il contient le travail humain, pas la sortie du robot.",
+    "",
+    "exclude : slugs à retirer du roster (crews, doublons, entrées parasites).",
+    "patch   : champs à forcer, par slug. Clés acceptées :",
+    "          name, countryCode, gender (M|F), category (solo|loopstation|tag-team|crew),",
+    "          bestTitleId (ex. gbb-champion, wbc-runner-up)."
+  ],
+  "exclude": [
+    "finals"
+  ],
+  "patch": {
+    "alexinho": {
+      "gender": "M"
+    }
+  }
+}

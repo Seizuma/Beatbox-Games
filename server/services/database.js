@@ -232,8 +232,28 @@ class DatabaseService {
             )
         `);
 
+        // Résultats du Beatboxdle : une ligne par joueur, par mode et par jour.
+        // La contrainte UNIQUE est la règle du jeu — on ne rejoue pas sa journée.
+        this.db.exec(`
+            CREATE TABLE IF NOT EXISTS beatboxdle_results (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                discord_id TEXT NOT NULL,
+                mode TEXT NOT NULL,
+                puzzle_number INTEGER NOT NULL,
+                puzzle_date TEXT NOT NULL,
+                solved INTEGER NOT NULL DEFAULT 0,
+                attempts INTEGER NOT NULL,
+                answer_slug TEXT NOT NULL,
+                created_at INTEGER NOT NULL,
+                FOREIGN KEY (discord_id) REFERENCES users(discord_id),
+                UNIQUE(discord_id, mode, puzzle_number)
+            )
+        `);
+
         // Index pour optimiser les requêtes
         this.db.exec(`
+            CREATE INDEX IF NOT EXISTS idx_beatboxdle_user ON beatboxdle_results(discord_id, mode, puzzle_number DESC);
+            CREATE INDEX IF NOT EXISTS idx_beatboxdle_puzzle ON beatboxdle_results(mode, puzzle_number);
             CREATE INDEX IF NOT EXISTS idx_log_created ON activity_log(created_at DESC);
             CREATE INDEX IF NOT EXISTS idx_log_type ON activity_log(type);
             CREATE INDEX IF NOT EXISTS idx_users_username ON users(username);
@@ -743,7 +763,7 @@ class DatabaseService {
     }
 
     getTableCounts() {
-        const tables = ['users', 'games', 'game_participations', 'round_performances', 'buzzer_performances', 'activity_log'];
+        const tables = ['users', 'games', 'game_participations', 'round_performances', 'buzzer_performances', 'beatboxdle_results', 'activity_log'];
         return tables.map((table) => ({
             table,
             rows: this.db.prepare(`SELECT COUNT(*) AS n FROM ${table}`).get().n,
@@ -777,6 +797,7 @@ class DatabaseService {
         const run = this.db.transaction(() => {
             const before = this.getTableCounts();
 
+            this.db.exec('DELETE FROM beatboxdle_results');
             this.db.exec('DELETE FROM buzzer_performances');
             this.db.exec('DELETE FROM round_performances');
             this.db.exec('DELETE FROM game_participations');
@@ -786,7 +807,7 @@ class DatabaseService {
 
             this.db.exec(`
                 DELETE FROM sqlite_sequence
-                WHERE name IN ('games', 'game_participations', 'round_performances', 'buzzer_performances')
+                WHERE name IN ('games', 'game_participations', 'round_performances', 'buzzer_performances', 'beatboxdle_results')
             `);
 
             return before;
@@ -795,6 +816,80 @@ class DatabaseService {
         const before = run();
         this.db.exec('VACUUM');
         return { before, after: this.getTableCounts() };
+    }
+
+    /**
+     * Enregistre le résultat du jour. INSERT OR IGNORE : la première soumission
+     * fait foi, recommencer ne réécrit rien. Renvoie true si la ligne est neuve.
+     */
+    recordBeatboxdleResult({ discordId, mode, puzzleNumber, puzzleDate, solved, attempts, answerSlug }) {
+        const stmt = this.db.prepare(`
+            INSERT OR IGNORE INTO beatboxdle_results
+                (discord_id, mode, puzzle_number, puzzle_date, solved, attempts, answer_slug, created_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        `);
+        const result = stmt.run(
+            discordId, mode, puzzleNumber, puzzleDate,
+            solved ? 1 : 0, attempts, answerSlug, Date.now(),
+        );
+        return result.changes > 0;
+    }
+
+    /**
+     * Séries et répartition des essais d'un joueur sur un mode.
+     * Les séries se calculent en JS plutôt qu'en SQL : la requête récursive
+     * équivalente serait illisible pour quelques centaines de lignes par joueur.
+     */
+    getBeatboxdleStats(discordId, mode) {
+        const rows = this.db.prepare(`
+            SELECT puzzle_number, solved, attempts
+            FROM beatboxdle_results
+            WHERE discord_id = ? AND mode = ?
+            ORDER BY puzzle_number ASC
+        `).all(discordId, mode);
+
+        const distribution = {};
+        let won = 0;
+        let currentStreak = 0;
+        let bestStreak = 0;
+        let previousNumber = null;
+
+        rows.forEach((row) => {
+            if (row.solved) {
+                won += 1;
+                distribution[row.attempts] = (distribution[row.attempts] || 0) + 1;
+                // La série ne continue que si la veille a été jouée ET réussie.
+                currentStreak = previousNumber !== null && row.puzzle_number === previousNumber + 1
+                    ? currentStreak + 1
+                    : 1;
+            } else {
+                currentStreak = 0;
+            }
+            bestStreak = Math.max(bestStreak, currentStreak);
+            previousNumber = row.puzzle_number;
+        });
+
+        return {
+            played: rows.length,
+            won,
+            winRate: rows.length ? Math.round((won / rows.length) * 100) : 0,
+            currentStreak,
+            bestStreak,
+            distribution,
+            lastPuzzleNumber: previousNumber,
+        };
+    }
+
+    /** Statistiques collectives d'une énigme : « 62 % ont trouvé aujourd'hui ». */
+    getBeatboxdleDayStats(mode, puzzleNumber) {
+        return this.db.prepare(`
+            SELECT
+                COUNT(*) AS players,
+                SUM(solved) AS solvers,
+                ROUND(AVG(CASE WHEN solved = 1 THEN attempts END), 2) AS averageAttempts
+            FROM beatboxdle_results
+            WHERE mode = ? AND puzzle_number = ?
+        `).get(mode, puzzleNumber);
     }
 
     close() {
