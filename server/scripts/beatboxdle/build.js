@@ -109,6 +109,43 @@ function loadBuzzerPhotos() {
     return photos;
 }
 
+/**
+ * Liste les entrées qui ne sont pas jouables dans les deux modes, avec la
+ * raison. C'est la feuille de route du travail manuel : chaque genre renseigné
+ * dans overrides.json fait basculer une ligne d'ici vers le mode indices.
+ */
+function writeIncompleteReport(incomplete) {
+    fs.mkdirSync(config.REPORT_DIR, { recursive: true });
+
+    const rows = [
+        'slug;nom;longueur;pays;genre;categorie;meilleur_titre;manque;source',
+        ...incomplete.map((beatboxer) => {
+            const missing = [];
+            if (!beatboxer.gender) missing.push('genre');
+            if (!beatboxer.country) missing.push('pays');
+            if (!beatboxer.category) missing.push('categorie');
+            if (!beatboxer.bestTitle) missing.push('titre');
+            if (!beatboxer.modes.includes('letters')) missing.push(`longueur:${beatboxer.length}`);
+
+            return [
+                beatboxer.slug,
+                beatboxer.name,
+                beatboxer.length,
+                beatboxer.country || '',
+                beatboxer.gender || '',
+                beatboxer.category || '',
+                beatboxer.bestTitle ? beatboxer.bestTitle.id : '',
+                missing.join('+'),
+                beatboxer.source,
+            ].join(';');
+        }),
+    ];
+
+    const file = path.join(config.REPORT_DIR, 'a-completer.csv');
+    fs.writeFileSync(file, `${rows.join('\n')}\n`, 'utf8');
+    if (incomplete.length) console.log(`   📄 ${incomplete.length} entrées incomplètes listées dans ${file}`);
+}
+
 function main() {
     if (!fs.existsSync(config.PROFILES_FILE)) {
         console.error(`❌ ${config.PROFILES_FILE} introuvable. Lance d'abord npm run beatboxdle:profiles`);
@@ -169,8 +206,15 @@ function main() {
         }))
         .sort((a, b) => b.fame - a.fame);
 
-    const playable = built.filter((beatboxer) => beatboxer.modes.length === 2);
+    // Une entrée entre dans la base dès qu'elle est jouable dans UN mode : un nom
+    // au genre inconnu sert quand même au mode lettres, un nom de quinze lettres
+    // sert quand même au mode indices. Le tirage du jour filtre ensuite par mode,
+    // donc les deux jeux ne se mélangent jamais.
+    const playable = built.filter((beatboxer) => beatboxer.modes.length > 0);
     const selection = keepAll ? built : playable.slice(0, targetSize);
+    const countMode = (mode) => selection.filter((beatboxer) => beatboxer.modes.includes(mode)).length;
+
+    writeIncompleteReport(built.filter((beatboxer) => beatboxer.modes.length < 2));
 
     fs.mkdirSync(path.dirname(config.DATASET_FILE), { recursive: true });
     fs.writeFileSync(
@@ -190,7 +234,7 @@ function main() {
     );
 
     console.log(`   ${built.length} beatboxers normalisés`);
-    console.log(`   ${playable.length} jouables dans les deux modes`);
+    console.log(`   mode lettres : ${countMode('letters')} · mode indices : ${countMode('clues')}`);
     console.log(`\n✅ ${selection.length} retenus dans ${config.DATASET_FILE}`);
     console.log('\n👉 Étape suivante : npm run beatboxdle:validate');
 }

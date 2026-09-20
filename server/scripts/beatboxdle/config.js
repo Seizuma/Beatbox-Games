@@ -79,11 +79,14 @@ module.exports = {
     // Départage quand un beatboxer a autant d'entrées dans deux disciplines.
     CATEGORY_PRIORITY: ['solo', 'loopstation', 'tag-team', 'crew'],
 
-    // ----- Sélection finale -----
-    TARGET_SIZE: 420,       // 365 jours + marge pour les retraits manuels
-    MIN_SIZE: 365,          // en dessous, validate.js échoue
+    TARGET_SIZE: 500,       // plafond ; on garde tout ce qui est jouable
+    MIN_SIZE: 120,          // v1 : cycle d'environ quatre mois. En dessous, validate.js échoue
     LETTERS_MIN: 3,         // longueur de nom jouable en mode lettres
     LETTERS_MAX: 12,
+    // Une longueur n'est tirable que s'il existe assez d'autres noms de la même
+    // longueur à proposer. Doit rester aligné sur BEATBOXDLE_MIN_CANDIDATES,
+    // le seuil appliqué par beatboxdle-daily.js au moment du tirage.
+    LETTERS_MIN_CANDIDATES: 12,
 
     // ----- Chemins -----
     DATA_DIR,

@@ -3,17 +3,44 @@
 //
 // Contrôle qualité. Sort en code 1 si la base n'est pas jouable : à brancher
 // dans le déploiement pour ne jamais mettre en ligne un Beatboxdle troué.
-// Produit aussi reports/a-completer.csv, la liste de ce qu'il reste à trancher
-// à la main dans overrides.json.
+//
+// Le contrôle se fait mode par mode. Une entrée sans genre reste parfaitement
+// jouable en mode lettres — la refuser globalement amputerait la base pour
+// rien. Chaque vivier est donc mesuré et validé séparément.
 //
 //   node scripts/beatboxdle/validate.js
 
 const fs = require('fs');
-const path = require('path');
 const config = require('./config');
 
 const errors = [];
 const warnings = [];
+
+/**
+ * Vivier réel du mode lettres : les longueurs qui n'ont pas assez de noms à
+ * proposer sont écartées du tirage, exactement comme le fait le serveur.
+ */
+function lettersPool(list) {
+    const playable = list.filter((beatboxer) => beatboxer.modes.includes('letters'));
+    const byLength = new Map();
+    playable.forEach((beatboxer) => byLength.set(beatboxer.length, (byLength.get(beatboxer.length) || 0) + 1));
+
+    return {
+        playable,
+        byLength,
+        drawable: playable.filter((beatboxer) => byLength.get(beatboxer.length) >= config.LETTERS_MIN_CANDIDATES),
+    };
+}
+
+/** Répartition d'un champ : un indice n'est utile que s'il discrimine. */
+function distribution(list, field) {
+    const counts = new Map();
+    list.forEach((beatboxer) => {
+        const key = field === 'bestTitle' ? (beatboxer.bestTitle && beatboxer.bestTitle.id) : beatboxer[field];
+        counts.set(key || '—', (counts.get(key || '—') || 0) + 1);
+    });
+    return [...counts.entries()].sort((a, b) => b[1] - a[1]);
+}
 
 function main() {
     if (!fs.existsSync(config.DATASET_FILE)) {
@@ -23,85 +50,76 @@ function main() {
 
     const dataset = JSON.parse(fs.readFileSync(config.DATASET_FILE, 'utf8'));
     const list = dataset.beatboxers || [];
+    const clues = list.filter((beatboxer) => beatboxer.modes.includes('clues'));
+    const letters = lettersPool(list);
+
     console.log(`🎤 Beatboxdle — contrôle de ${list.length} entrées\n`);
 
-    // --- Volume ------------------------------------------------------------
-    if (list.length < config.MIN_SIZE) {
-        errors.push(`${list.length} beatboxers seulement, il en faut au moins ${config.MIN_SIZE} (un par jour).`);
-    }
-
-    // --- Champs obligatoires ----------------------------------------------
-    const incomplete = [];
+    // --- Unicité -----------------------------------------------------------
     const seenSlugs = new Set();
     const seenLetters = new Map();
+    let collisions = 0;
 
     list.forEach((beatboxer) => {
-        const missing = ['name', 'country', 'gender', 'category', 'bestTitle'].filter((field) => !beatboxer[field]);
-        if (missing.length) incomplete.push({ ...beatboxer, missing });
-
         if (seenSlugs.has(beatboxer.slug)) errors.push(`Slug en double : ${beatboxer.slug}`);
         seenSlugs.add(beatboxer.slug);
-
-        // Deux noms identiques une fois normalisés rendent le mode lettres injouable.
-        const previous = seenLetters.get(beatboxer.letters);
-        if (previous) warnings.push(`Noms confondus en mode lettres : ${previous} / ${beatboxer.name}`);
-        else seenLetters.set(beatboxer.letters, beatboxer.name);
-
-        if (beatboxer.length < config.LETTERS_MIN || beatboxer.length > config.LETTERS_MAX) {
-            warnings.push(`Nom hors gabarit lettres (${beatboxer.length}) : ${beatboxer.name}`);
-        }
     });
 
-    if (incomplete.length) {
-        errors.push(`${incomplete.length} entrées incomplètes (voir reports/a-completer.csv).`);
+    // Deux noms qui se confondent une fois réduits aux lettres rendent la grille
+    // insoluble : le joueur tape le bon mot et on lui répond que c'est faux.
+    letters.playable.forEach((beatboxer) => {
+        const previous = seenLetters.get(beatboxer.letters);
+        if (previous) {
+            collisions += 1;
+            if (collisions <= 10) warnings.push(`Noms confondus en mode lettres : ${previous} / ${beatboxer.name}`);
+        } else {
+            seenLetters.set(beatboxer.letters, beatboxer.name);
+        }
+    });
+    if (collisions > 10) warnings.push(`… et ${collisions - 10} autres collisions de noms`);
+
+    // --- Mode lettres ------------------------------------------------------
+    console.log('   MODE LETTRES');
+    console.log(`   ${letters.playable.length} noms proposables · ${letters.drawable.length} tirables comme réponse`);
+    const lengths = [...letters.byLength.entries()].sort((a, b) => a[0] - b[0]);
+    const summary = lengths
+        .map(([length, count]) => `${length}:${count}${count >= config.LETTERS_MIN_CANDIDATES ? '' : '✗'}`)
+        .join(' ');
+    console.log(`   longueurs : ${summary}`);
+    console.log(`   (✗ = moins de ${config.LETTERS_MIN_CANDIDATES} noms, longueur écartée du tirage)\n`);
+
+    if (letters.drawable.length < config.MIN_SIZE) {
+        errors.push(`Mode lettres : ${letters.drawable.length} réponses tirables, il en faut au moins ${config.MIN_SIZE}.`);
     }
 
-    // --- Répartition des indices ------------------------------------------
-    // Un indice n'est utile que s'il discrimine : si 95 % sont des hommes solo,
-    // le mode indices n'apprend rien au joueur.
-    const distribution = (field) => {
-        const counts = new Map();
-        list.forEach((beatboxer) => {
-            const key = field === 'bestTitle' ? beatboxer.bestTitle?.id : beatboxer[field];
-            counts.set(key || '—', (counts.get(key || '—') || 0) + 1);
-        });
-        return [...counts.entries()].sort((a, b) => b[1] - a[1]);
-    };
+    // --- Mode indices ------------------------------------------------------
+    console.log('   MODE INDICES');
+    console.log(`   ${clues.length} beatboxers jouables`);
 
     for (const field of ['country', 'continent', 'gender', 'category', 'bestTitle']) {
-        const values = distribution(field);
-        const top = values[0];
-        const share = Math.round((top[1] / list.length) * 100);
-        console.log(`   ${field.padEnd(10)} ${values.length} valeurs · plus fréquente : ${top[0]} (${share} %)`);
+        const values = distribution(clues, field);
+        if (values.length === 0) continue;
+        const [topValue, topCount] = values[0];
+        const share = Math.round((topCount / clues.length) * 100);
+        console.log(`   ${field.padEnd(10)} ${values.length} valeurs · plus fréquente : ${topValue} (${share} %)`);
+
         if (values.length < 2) errors.push(`L'indice « ${field} » n'a qu'une seule valeur : inutilisable.`);
-        else if (share > 90) warnings.push(`L'indice « ${field} » est à ${share} % sur « ${top[0]} » : peu discriminant.`);
+        else if (share > 90) warnings.push(`L'indice « ${field} » est à ${share} % sur « ${topValue} » : peu discriminant.`);
     }
 
-    // --- Longueurs de noms, pour la grille du mode lettres ------------------
-    const lengths = new Map();
-    list.forEach((beatboxer) => lengths.set(beatboxer.length, (lengths.get(beatboxer.length) || 0) + 1));
-    const sortedLengths = [...lengths.entries()].sort((a, b) => a[0] - b[0]);
-    console.log(`\n   Longueurs : ${sortedLengths.map(([len, count]) => `${len}:${count}`).join(' ')}`);
+    if (clues.length < config.MIN_SIZE) {
+        errors.push(`Mode indices : ${clues.length} beatboxers, il en faut au moins ${config.MIN_SIZE}.`);
+    }
 
-    // --- Rapport des entrées à compléter -----------------------------------
-    fs.mkdirSync(config.REPORT_DIR, { recursive: true });
-    const reportFile = path.join(config.REPORT_DIR, 'a-completer.csv');
-    const rows = [
-        'slug;nom;pays;genre;categorie;meilleur_titre;manquants;source',
-        ...incomplete.map((beatboxer) =>
-            [
-                beatboxer.slug,
-                beatboxer.name,
-                beatboxer.country || '',
-                beatboxer.gender || '',
-                beatboxer.category || '',
-                beatboxer.bestTitle?.id || '',
-                beatboxer.missing.join('+'),
-                beatboxer.source,
-            ].join(';'),
-        ),
-    ];
-    fs.writeFileSync(reportFile, `${rows.join('\n')}\n`, 'utf8');
+    // Une entrée du vivier indices doit avoir ses quatre indices : une case vide
+    // dans la grille, c'est un indice qu'on ne peut pas colorer.
+    const broken = clues.filter(
+        (beatboxer) => !beatboxer.country || !beatboxer.gender || !beatboxer.category || !beatboxer.bestTitle,
+    );
+    if (broken.length) {
+        const sample = broken.slice(0, 5).map((beatboxer) => beatboxer.slug).join(', ');
+        errors.push(`${broken.length} entrées du mode indices ont un indice manquant (${sample}…).`);
+    }
 
     // --- Verdict -----------------------------------------------------------
     console.log('');
@@ -109,17 +127,13 @@ function main() {
     if (warnings.length > 15) console.log(`   ⚠️  … et ${warnings.length - 15} autres avertissements`);
     errors.forEach((error) => console.log(`   ❌ ${error}`));
 
-    if (incomplete.length) {
-        console.log(`\n   📄 ${incomplete.length} lignes à compléter : ${reportFile}`);
-        console.log('      Reporte les corrections dans scripts/beatboxdle/overrides.json, puis relance build.');
-    }
-
     if (errors.length) {
         console.log('\n❌ Base non jouable.');
         process.exit(1);
     }
 
-    console.log(`\n✅ Base valide — ${list.length} beatboxers, de quoi tenir ${Math.floor(list.length / 365)} an(s).`);
+    const cycle = Math.min(letters.drawable.length, clues.length);
+    console.log(`\n✅ Base valide — cycle le plus court : ${cycle} jours (~${Math.round(cycle / 30)} mois avant répétition).`);
 }
 
 main();
