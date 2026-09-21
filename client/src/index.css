@@ -29,6 +29,13 @@
         --site-on-button: 10 14 28;
         --site-danger: 255 120 104;
         --site-success: 74 222 128;
+        /* Beatboxdle : les trois verdicts du jour */
+        --dle-absent: 26 35 52;
+        --dle-absent-ink: 147 160 184;
+        --dle-present: 122 78 20;
+        --dle-present-ink: 246 227 196;
+        --dle-correct: 26 92 62;
+        --dle-correct-ink: 217 239 227;
         color-scheme: dark;
     }
 
@@ -46,6 +53,13 @@
         --site-on-button: 255 255 255;
         --site-danger: 200 48 36;
         --site-success: 21 128 61;
+        /* Beatboxdle : les trois verdicts du jour */
+        --dle-absent: 226 229 238;
+        --dle-absent-ink: 74 85 115;
+        --dle-present: 247 231 204;
+        --dle-present-ink: 122 78 16;
+        --dle-correct: 227 239 228;
+        --dle-correct-ink: 35 92 56;
         color-scheme: light;
     }
 

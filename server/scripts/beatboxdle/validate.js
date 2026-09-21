@@ -96,7 +96,7 @@ function main() {
     console.log('   MODE INDICES');
     console.log(`   ${clues.length} beatboxers jouables`);
 
-    for (const field of ['country', 'continent', 'gender', 'category', 'bestTitle']) {
+    for (const field of ['country', 'continent', 'gender', 'firstYear', 'bestTitle']) {
         const values = distribution(clues, field);
         if (values.length === 0) continue;
         const [topValue, topCount] = values[0];
@@ -114,7 +114,7 @@ function main() {
     // Une entrée du vivier indices doit avoir ses quatre indices : une case vide
     // dans la grille, c'est un indice qu'on ne peut pas colorer.
     const broken = clues.filter(
-        (beatboxer) => !beatboxer.country || !beatboxer.gender || !beatboxer.category || !beatboxer.bestTitle,
+        (beatboxer) => !beatboxer.country || !beatboxer.gender || !beatboxer.firstYear || !beatboxer.bestTitle,
     );
     if (broken.length) {
         const sample = broken.slice(0, 5).map((beatboxer) => beatboxer.slug).join(', ');

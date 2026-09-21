@@ -2,6 +2,7 @@ import React from 'react';
 import SEO from './SEO';
 import SiteShell from './site/SiteShell';
 import GameCard from './site/GameCard';
+import DailyCard from './site/DailyCard';
 import JoinRoomForm from './site/JoinRoomForm';
 import RankingPreview from './site/RankingPreview';
 import { useSiteI18n } from '../utils/siteI18n';
@@ -39,7 +40,16 @@ function HubContent() {
                         <div className="order-1 lg:order-none">
                             <JoinRoomForm />
                         </div>
-                        <div className="order-4 border-t border-site-line pt-8 lg:order-none lg:border-t-0 lg:pt-0">
+                        <div className="order-4 lg:order-none">
+                            <DailyCard
+                                kicker={t('games.beatboxdle.kicker')}
+                                name={t('games.beatboxdle.name')}
+                                description={t('games.beatboxdle.description')}
+                                meta={t('games.beatboxdle.meta')}
+                                cta={t('games.beatboxdle.cta')}
+                            />
+                        </div>
+                        <div className="order-5 border-t border-site-line pt-8 lg:order-none lg:border-t-0 lg:pt-0">
                             <RankingPreview />
                         </div>
                     </aside>

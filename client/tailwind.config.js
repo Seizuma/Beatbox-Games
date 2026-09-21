@@ -27,6 +27,15 @@ module.exports = {
                     danger: 'rgb(var(--site-danger) / <alpha-value>)',
                     success: 'rgb(var(--site-success) / <alpha-value>)',
                 },
+                // Beatboxdle : gris, orange, vert — mêmes jetons dans les deux thèmes
+                dle: {
+                    absent: 'rgb(var(--dle-absent) / <alpha-value>)',
+                    'absent-ink': 'rgb(var(--dle-absent-ink) / <alpha-value>)',
+                    present: 'rgb(var(--dle-present) / <alpha-value>)',
+                    'present-ink': 'rgb(var(--dle-present-ink) / <alpha-value>)',
+                    correct: 'rgb(var(--dle-correct) / <alpha-value>)',
+                    'correct-ink': 'rgb(var(--dle-correct-ink) / <alpha-value>)',
+                },
                 // Le plateau : Blind Test et Buzzer Battle.
                 // Mêmes variables CSS que le site, avec un jeu de valeurs « plateau de nuit »
                 // et un jeu « plateau éclairé » (index.css, [data-show-theme]).

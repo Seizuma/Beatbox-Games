@@ -2,6 +2,7 @@ import React from 'react';
 import { Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import BlindTestOnline from './BlindTestOnline';
 import BuzzerBattle from './BuzzerBattle';
+import Beatboxdle from './Beatboxdle';
 import Hub from './components/Hub';
 import CreditsPage from './components/CreditsPage';
 import StatsPage from './components/StatsPage';
@@ -24,6 +25,7 @@ function App() {
         <Route path="/blindtest" element={<Navigate to="/blindtest-online" replace />} />
         <Route path="/blindtest-online" element={<BlindTestOnline />} />
         <Route path="/buzzer-battle" element={<BuzzerBattle />} />
+        <Route path="/beatboxdle" element={<Beatboxdle />} />
         <Route path="/credits" element={<CreditsPage />} />
         <Route path="/stats" element={<StatsPage />} />
         <Route path="/profile" element={<ProfilePage />} />

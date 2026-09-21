@@ -5,6 +5,11 @@
 // navigateur dès le chargement se fait éventer en une ouverture d'onglet
 // réseau. Le client ne reçoit que des couleurs.
 
+// Tolérance de l'orange sur la première apparition. Deux ans de part et
+// d'autre : assez large pour signaler une génération, assez étroit pour que
+// l'orange reste une information (mesuré à ~18 % des paires sur la base).
+const YEAR_TOLERANCE = 2;
+
 /**
  * Mode lettres — coloration façon Wordle, en deux passes.
  *
@@ -32,7 +37,7 @@ function compareLetters(guess, target) {
     });
 
     // Passe 2 : les présentes mal placées, dans la limite du stock restant.
-    result.forEach((cell, index) => {
+    result.forEach((cell) => {
         if (cell.state === 'correct') return;
         const available = remaining.get(cell.letter) || 0;
         if (available > 0) {
@@ -46,20 +51,29 @@ function compareLetters(guess, target) {
 
 /** Vert / gris simple. */
 const exact = (guessValue, targetValue, label) => ({
-    value: label ?? guessValue ?? null,
+    value: label !== undefined ? label : (guessValue !== undefined ? guessValue : null),
     state: guessValue && guessValue === targetValue ? 'correct' : 'absent',
 });
+
+/** Flèche : elle pointe vers la réponse, jamais vers la proposition. */
+const directionOf = (guessValue, targetValue) => {
+    if (guessValue == null || targetValue == null) return null;
+    if (targetValue > guessValue) return 'up';
+    if (targetValue < guessValue) return 'down';
+    return null;
+};
 
 /**
  * Mode indices — quatre colonnes.
  *
- * Pays   : vert si même pays, orange si même continent.
- * Genre  : vert ou gris.
- * Catégorie : vert ou gris.
- * Titre  : vert si exactement le même titre, orange si titre de rang
- *          équivalent (champion GBB vs champion du monde), gris sinon.
- *          `direction` indique si le titre cherché est plus ou moins
- *          prestigieux, pour afficher une flèche.
+ * Pays     : vert si même pays, orange si même continent.
+ * Genre    : vert ou gris.
+ * Première apparition : vert si même année, orange à ±2 ans, flèche vers la
+ *            réponse. Cette colonne a remplacé « catégorie principale », qui
+ *            répondait « solo » pour 89 % de la base et n'apprenait rien.
+ * Meilleur titre : vert si exactement le même titre, orange si titre de rang
+ *            équivalent (champion GBB vs champion du monde), gris sinon, avec
+ *            une flèche vers le rang cherché.
  */
 function compareClues(guess, target) {
     const titleState = (() => {
@@ -68,12 +82,9 @@ function compareClues(guess, target) {
         return guess.bestTitle.tier === target.bestTitle.tier ? 'present' : 'absent';
     })();
 
-    const titleDirection = (() => {
-        if (!guess.bestTitle || !target.bestTitle) return null;
-        if (target.bestTitle.tier > guess.bestTitle.tier) return 'up';
-        if (target.bestTitle.tier < guess.bestTitle.tier) return 'down';
-        return null;
-    })();
+    const yearGap = guess.firstYear != null && target.firstYear != null
+        ? Math.abs(guess.firstYear - target.firstYear)
+        : null;
 
     return {
         country: {
@@ -86,12 +97,18 @@ function compareClues(guess, target) {
                         ? 'present'
                         : 'absent',
         },
-        gender: exact(guess.gender, target.gender, guess.gender === 'F' ? 'Femme' : 'Homme'),
-        category: exact(guess.category, target.category, guess.categoryLabel),
+        gender: exact(guess.gender, target.gender, guess.gender === 'F' ? 'F' : 'M'),
+        firstYear: {
+            value: guess.firstYear,
+            state: yearGap === 0 ? 'correct' : (yearGap !== null && yearGap <= YEAR_TOLERANCE) ? 'present' : 'absent',
+            direction: directionOf(guess.firstYear, target.firstYear),
+        },
         title: {
             value: guess.bestTitle ? guess.bestTitle.label : null,
             state: titleState,
-            direction: titleDirection,
+            direction: guess.bestTitle && target.bestTitle
+                ? directionOf(guess.bestTitle.tier, target.bestTitle.tier)
+                : null,
         },
     };
 }
@@ -104,6 +121,8 @@ function revealAnswer(beatboxer) {
         country: beatboxer.country,
         countryCode: beatboxer.countryCode,
         gender: beatboxer.gender,
+        firstYear: beatboxer.firstYear,
+        lastYear: beatboxer.lastYear,
         category: beatboxer.category,
         categoryLabel: beatboxer.categoryLabel,
         bestTitle: beatboxer.bestTitle,
@@ -112,4 +131,4 @@ function revealAnswer(beatboxer) {
     };
 }
 
-module.exports = { compareLetters, compareClues, revealAnswer };
+module.exports = { compareLetters, compareClues, revealAnswer, YEAR_TOLERANCE };

@@ -123,7 +123,7 @@ function writeIncompleteReport(incomplete) {
             const missing = [];
             if (!beatboxer.gender) missing.push('genre');
             if (!beatboxer.country) missing.push('pays');
-            if (!beatboxer.category) missing.push('categorie');
+            if (!beatboxer.firstYear) missing.push('annee');
             if (!beatboxer.bestTitle) missing.push('titre');
             if (!beatboxer.modes.includes('letters')) missing.push(`longueur:${beatboxer.length}`);
 
@@ -201,7 +201,7 @@ function main() {
             // le mode indices n'a besoin que des quatre champs d'indices.
             modes: [
                 beatboxer.length >= config.LETTERS_MIN && beatboxer.length <= config.LETTERS_MAX ? 'letters' : null,
-                beatboxer.country && beatboxer.gender && beatboxer.category && beatboxer.bestTitle ? 'clues' : null,
+                beatboxer.country && beatboxer.gender && beatboxer.firstYear && beatboxer.bestTitle ? 'clues' : null,
             ].filter(Boolean),
         }))
         .sort((a, b) => b.fame - a.fame);
