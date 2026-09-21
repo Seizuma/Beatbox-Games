@@ -9,8 +9,7 @@
 // La liste est mélangée par une permutation de Fisher-Yates semée avec
 // (BEATBOXDLE_SEED + mode + numéro de cycle). Deux conséquences voulues :
 //   - aucun beatboxer ne repasse avant que toute la liste soit épuisée ;
-//   - le cycle suivant est dans un ordre différent ;
-//   - les deux modes ne proposent pas le même beatboxer le même jour.
+//   - le cycle suivant est dans un ordre différent.
 //
 // Le `reroll` est la seule entorse, et elle est réservée aux tests : il vient
 // de la base (l'administrateur l'incrémente) et ne sale la graine QUE pour la
@@ -28,6 +27,10 @@ const MODES = {
     letters: { maxAttempts: 6 },
     clues: { maxAttempts: 8 },
 };
+
+// Ordre de priorité quand deux modes convoitent le même beatboxer : le premier
+// de la liste garde le sien, les suivants s'écartent.
+const PRIORITY = ['letters', 'clues'];
 
 // Mode lettres : une réponse de 13 lettres n'est jouable que s'il existe assez
 // d'autres noms de 13 lettres à proposer. En dessous de ce seuil, la longueur
@@ -122,21 +125,11 @@ function nextResetAt(from = new Date()) {
     return new Date(cursor + 86400000).toISOString();
 }
 
-/**
- * Énigme du jour, réponse comprise. Usage interne au serveur uniquement.
- *
- * @param {string} mode   'letters' ou 'clues'
- * @param {Date}   date   instant de référence
- * @param {number} reroll compteur de relances pour cette date (0 = tirage normal)
- */
-function getPuzzle(mode, date = new Date(), reroll = 0) {
-    if (!isMode(mode)) throw new Error(`Mode Beatboxdle inconnu : ${mode}`);
-
+/** Ordre mélangé du mode et position du jour dedans. */
+function drawFor(mode, dateString, index, reroll) {
     const candidates = pool(mode);
     if (candidates.length === 0) return null;
 
-    const dateString = localDate(date);
-    const index = dayIndex(dateString);
     const cycle = Math.floor(index / candidates.length);
     const position = ((index % candidates.length) + candidates.length) % candidates.length;
 
@@ -145,17 +138,54 @@ function getPuzzle(mode, date = new Date(), reroll = 0) {
     const seed = reroll > 0
         ? `${SEED}:${mode}:${cycle}:reroll-${reroll}:${dateString}`
         : `${SEED}:${mode}:${cycle}`;
-    const order = shuffle(candidates, seed);
+
+    return { order: shuffle(candidates, seed), position, cycle, size: candidates.length };
+}
+
+/**
+ * Énigme du jour, réponse comprise. Usage interne au serveur uniquement.
+ *
+ * @param {string} mode    'letters' ou 'clues'
+ * @param {Date}   date    instant de référence
+ * @param {object} rerolls compteurs de relances par mode, ex. { letters: 0, clues: 2 }
+ */
+function getPuzzle(mode, date = new Date(), rerolls = {}) {
+    if (!isMode(mode)) throw new Error(`Mode Beatboxdle inconnu : ${mode}`);
+
+    const dateString = localDate(date);
+    const index = dayIndex(dateString);
+    const draw = drawFor(mode, dateString, index, rerolls[mode] || 0);
+    if (!draw) return null;
+
+    let answer = draw.order[draw.position];
+
+    // Aucun mode ne propose le beatboxer déjà pris par un mode prioritaire le
+    // même jour. Celui qui cède avance d'un cran dans SON propre ordre : le
+    // calcul reste déterministe, donc identique pour tous les joueurs, et sans
+    // rien stocker. Les viviers ayant des tailles différentes, la collision
+    // était rare — mais « rare » n'est pas « jamais ».
+    const taken = new Set();
+    for (const other of PRIORITY) {
+        if (other === mode) break;
+        const otherDraw = drawFor(other, dateString, index, rerolls[other] || 0);
+        if (otherDraw) taken.add(otherDraw.order[otherDraw.position].slug);
+    }
+
+    let step = 0;
+    while (answer && taken.has(answer.slug) && step < draw.size) {
+        step += 1;
+        answer = draw.order[(draw.position + step) % draw.size];
+    }
 
     return {
         mode,
         date: dateString,
         puzzleNumber: index + 1,
-        reroll,
-        cycle: cycle + 1,
-        answer: order[position],
+        reroll: rerolls[mode] || 0,
+        cycle: draw.cycle + 1,
+        answer,
         maxAttempts: MODES[mode].maxAttempts,
-        poolSize: candidates.length,
+        poolSize: draw.size,
         nextResetAt: nextResetAt(date),
     };
 }
@@ -165,8 +195,8 @@ function getPuzzle(mode, date = new Date(), reroll = 0) {
  * publique en mode lettres, c'est le gabarit de la grille. `reroll` l'est aussi :
  * c'est lui qui fait jeter aux navigateurs la grille devenue caduque.
  */
-function getPublicPuzzle(mode, date = new Date(), reroll = 0) {
-    const puzzle = getPuzzle(mode, date, reroll);
+function getPublicPuzzle(mode, date = new Date(), rerolls = {}) {
+    const puzzle = getPuzzle(mode, date, rerolls);
     if (!puzzle) return null;
 
     return {
@@ -181,4 +211,4 @@ function getPublicPuzzle(mode, date = new Date(), reroll = 0) {
     };
 }
 
-module.exports = { MODES, isMode, localDate, dayIndex, nextResetAt, getPuzzle, getPublicPuzzle };
+module.exports = { MODES, PRIORITY, isMode, localDate, dayIndex, nextResetAt, getPuzzle, getPublicPuzzle };

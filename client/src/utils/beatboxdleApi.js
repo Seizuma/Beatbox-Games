@@ -42,6 +42,12 @@ async function parse(response) {
     return payload;
 }
 
+/** Les deux énigmes du jour, pour l'écran de choix du mode. Un seul appel. */
+export async function fetchSummary(signal) {
+    const response = await fetch(`${API_BASE_URL}/api/beatboxdle/summary`, { signal });
+    return parse(response);
+}
+
 /** Énigme du jour, sans la réponse, plus la liste des propositions acceptées. */
 export async function fetchDaily(mode, signal) {
     const response = await fetch(`${API_BASE_URL}/api/beatboxdle/daily/${mode}`, { signal });

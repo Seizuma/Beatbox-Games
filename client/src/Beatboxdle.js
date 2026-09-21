@@ -1,161 +1,71 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import React, { useEffect, useState } from 'react';
 import SEO from './components/SEO';
 import SiteShell from './components/site/SiteShell';
-import BeatboxdleInput from './components/beatboxdle/BeatboxdleInput';
-import LettersGrid from './components/beatboxdle/LettersGrid';
-import CluesGrid from './components/beatboxdle/CluesGrid';
-import ResultModal from './components/beatboxdle/ResultModal';
+import ModeCard from './components/beatboxdle/ModeCard';
 import { useSiteI18n } from './utils/siteI18n';
-import { fetchDaily, submitGuess, reportResult } from './utils/beatboxdleApi';
-import { loadGame, saveGame, purgeOldGames } from './utils/beatboxdleStorage';
+import { fetchSummary } from './utils/beatboxdleApi';
+import { loadGame, purgeOldGames } from './utils/beatboxdleStorage';
 
 const MODES = ['letters', 'clues'];
-const readMode = (value) => (MODES.includes(value) ? value : 'letters');
 
-// La fiche de réponse attend la fin de la révélation : quatre cases à 160 ms
-// d'écart plus 520 ms d'animation. L'ouvrir plus tôt masque le dernier essai.
-const REVEAL_TOTAL_MS = 1260;
-
-/** Jauge d'essais : des pastilles valent mieux qu'un « 5 essais restants » en gris. */
-function AttemptPips({ used, total, label }) {
-    return (
-        <span className="flex items-center gap-1.5" role="img" aria-label={label}>
-            {Array.from({ length: total }, (_, index) => (
-                <span
-                    key={index}
-                    className={`h-2 w-2 rounded-full ${index < used ? 'bg-site-line' : 'bg-brand-yellow'}`}
-                />
-            ))}
-        </span>
-    );
-}
-
-function BeatboxdleContent() {
-    const { t, language } = useSiteI18n();
-    const [searchParams, setSearchParams] = useSearchParams();
-    const mode = readMode(searchParams.get('mode'));
-
+/**
+ * Accueil du Beatboxdle : le choix du mode.
+ *
+ * L'ancien sélecteur à deux onglets posé au-dessus de la grille obligeait à
+ * choisir avant d'avoir rien vu, et occupait la place du plateau. Une page de
+ * choix règle les deux : chaque mode se présente, et l'état du jour se lit
+ * d'un coup d'œil — c'est ce qu'on vient vérifier en ouvrant la page.
+ */
+function BeatboxdleHome() {
+    const { t } = useSiteI18n();
     const [status, setStatus] = useState('loading');
-    const [errorCode, setErrorCode] = useState(null);
-    const [revealIndex, setRevealIndex] = useState(-1);
-    const [puzzle, setPuzzle] = useState(null);
-    const [candidates, setCandidates] = useState([]);
-    const [guesses, setGuesses] = useState([]);
-    const [draft, setDraft] = useState('');
-    const [notice, setNotice] = useState('');
-    const [sending, setSending] = useState(false);
-    const [modalOpen, setModalOpen] = useState(false);
+    const [modes, setModes] = useState({});
+    const [played, setPlayed] = useState({});
 
-    // Le compte-rendu au serveur ne part qu'une fois par jour et par mode
-    const reportedRef = useRef(false);
-
-    // --- Chargement de l'énigme, et reprise de la partie en cours -----------
     useEffect(() => {
         const controller = new AbortController();
-        setStatus('loading');
-        setNotice('');
-        setErrorCode(null);
-        setRevealIndex(-1);
-        setModalOpen(false);
-        setDraft('');
-        reportedRef.current = false;
 
-        fetchDaily(mode, controller.signal)
+        fetchSummary(controller.signal)
             .then((payload) => {
-                const saved = loadGame(mode, payload.puzzle.date, payload.puzzle.puzzleNumber, payload.puzzle.reroll);
-                setPuzzle(payload.puzzle);
-                setCandidates(payload.candidates || []);
-                setGuesses(saved ? saved.guesses : []);
-                reportedRef.current = Boolean(saved && saved.reported);
+                setModes(payload.modes || {});
                 setStatus('ready');
-                purgeOldGames(payload.puzzle.date);
+
+                // L'état de chaque mode vient du navigateur : aucune requête
+                // supplémentaire, et cela marche aussi sans compte Discord.
+                const found = {};
+                MODES.forEach((mode) => {
+                    const puzzle = (payload.modes || {})[mode];
+                    if (!puzzle) return;
+                    const saved = loadGame(mode, puzzle.date, puzzle.puzzleNumber, puzzle.reroll);
+                    if (!saved || !saved.guesses.length) return;
+                    found[mode] = {
+                        finished: saved.guesses.some((guess) => guess.finished),
+                        solved: saved.guesses.some((guess) => guess.correct),
+                        attempts: saved.guesses.length,
+                    };
+                });
+                setPlayed(found);
+
+                const anyDate = Object.values(payload.modes || {})[0];
+                if (anyDate) purgeOldGames(anyDate.date);
             })
             .catch((error) => {
-                if (error.name === 'AbortError') return;
-                // Le code HTTP reste affiché : 503 = base absente du conteneur,
-                // 404 = route non montée (serveur pas redéployé). Sans lui, les
-                // deux pannes se ressemblent et on cherche au mauvais endroit.
-                setErrorCode(error.status || 0);
-                setStatus('error');
+                if (error.name !== 'AbortError') setStatus('error');
             });
 
         return () => controller.abort();
-    }, [mode]);
+    }, []);
 
-    const finished = useMemo(() => guesses.some((guess) => guess.finished), [guesses]);
-    const solved = useMemo(() => guesses.some((guess) => guess.correct), [guesses]);
-    const answer = useMemo(() => {
-        const last = guesses[guesses.length - 1];
-        return last && last.answer ? last.answer : null;
-    }, [guesses]);
-
-    // --- Sauvegarde locale à chaque coup ------------------------------------
-    useEffect(() => {
-        if (!puzzle || guesses.length === 0) return;
-        saveGame(mode, puzzle.date, {
-            puzzleNumber: puzzle.puzzleNumber,
-            reroll: puzzle.reroll,
-            guesses,
-            reported: reportedRef.current,
-        });
-    }, [mode, puzzle, guesses]);
-
-    // --- Compte-rendu au serveur une fois la partie finie -------------------
-    useEffect(() => {
-        if (!finished || !puzzle || reportedRef.current) return;
-        reportedRef.current = true;
-        saveGame(mode, puzzle.date, {
-            puzzleNumber: puzzle.puzzleNumber,
-            reroll: puzzle.reroll,
-            guesses,
-            reported: true,
-        });
-        reportResult({ mode, solved, attempts: guesses.length });
-    }, [finished, solved, guesses, mode, puzzle]);
-
-    // --- Ouverture de la fiche, une fois la dernière ligne posée ------------
-    useEffect(() => {
-        if (!finished) return undefined;
-        // Reprise d'une partie déjà terminée : pas d'animation, donc pas d'attente
-        const delay = revealIndex >= 0 ? REVEAL_TOTAL_MS : 0;
-        const timer = setTimeout(() => setModalOpen(true), delay);
-        return () => clearTimeout(timer);
-    }, [finished, revealIndex]);
-
-    const play = useCallback(async () => {
-        const value = draft.trim();
-        if (!value || sending || finished || !puzzle) return;
-
-        setSending(true);
-        setNotice('');
-
-        try {
-            const payload = await submitGuess({ mode, guess: value, attempt: guesses.length + 1 });
-            // Seule la ligne qui arrive s'anime : au rechargement, les essais
-            // déjà joués se reposent sans rejouer toute la séquence.
-            setRevealIndex(guesses.length);
-            setGuesses((previous) => [...previous, payload]);
-            setDraft('');
-        } catch (error) {
-            // Un nom hors liste ne consomme pas d'essai : on le dit et on laisse la saisie
-            setNotice(error.unknown ? error.message : t('beatboxdle.play.serverError'));
-        } finally {
-            setSending(false);
+    const badgeFor = (mode) => {
+        const state = played[mode];
+        const puzzle = modes[mode];
+        if (!state || !puzzle) return { badge: t('beatboxdle.home.toPlay'), tone: 'idle' };
+        if (!state.finished) {
+            return { badge: t('beatboxdle.home.inProgress', { count: state.attempts }), tone: 'idle' };
         }
-    }, [draft, sending, finished, puzzle, mode, guesses.length, t]);
-
-    const switchMode = (next) => {
-        if (next === mode) return;
-        setSearchParams(next === 'letters' ? {} : { mode: next }, { replace: true });
-    };
-
-    const modeLabel = t(`beatboxdle.modes.${mode}`);
-
-    const stateLabels = {
-        correct: t('beatboxdle.states.correct'),
-        present: t('beatboxdle.states.present'),
-        absent: t('beatboxdle.states.absent'),
+        return state.solved
+            ? { badge: t('beatboxdle.home.solved', { count: state.attempts, total: puzzle.maxAttempts }), tone: 'done' }
+            : { badge: t('beatboxdle.home.failed'), tone: 'failed' };
     };
 
     return (
@@ -166,163 +76,62 @@ function BeatboxdleContent() {
                 url="https://beatboxgames.com/beatboxdle"
             />
 
-            <div className="mx-auto flex max-w-xl flex-col gap-5 px-4 pb-16 pt-6 sm:px-6 sm:pt-10">
-                <header className="flex flex-wrap items-center justify-between gap-3">
-                    <h1 className="text-2xl font-bold leading-none tracking-tight text-site-ink sm:text-3xl">
+            <div className="mx-auto flex max-w-xl flex-col gap-6 px-4 pb-16 pt-8 sm:px-6 sm:pt-12">
+                <header className="flex flex-col gap-2 text-center">
+                    <h1 className="text-3xl font-bold leading-none tracking-tight text-site-ink sm:text-4xl">
                         {t('beatboxdle.title')}
                     </h1>
-                    {puzzle && (
-                        <span className="rounded-full border border-brand-yellow px-3 py-1 text-xs font-bold text-brand-yellow">
-                            {t('beatboxdle.number', { number: puzzle.puzzleNumber })}
-                        </span>
+                    <p className="text-sm leading-relaxed text-site-muted sm:text-base">
+                        {t('beatboxdle.home.intro')}
+                    </p>
+                    {status === 'ready' && modes.letters && (
+                        <p className="text-xs font-semibold uppercase tracking-wide text-brand-yellow">
+                            {t('beatboxdle.number', { number: modes.letters.puzzleNumber })}
+                        </p>
                     )}
                 </header>
-
-                {/* Onglets soulignés en jaune : l'accent des jeux de la plateforme.
-                    Sans lui la page n'avait aucune couleur et se lisait comme une
-                    fiche de documentation. */}
-                <div role="tablist" aria-label={t('beatboxdle.modeLabel')} className="flex gap-6 border-b border-site-line">
-                    {MODES.map((candidate) => (
-                        <button
-                            key={candidate}
-                            type="button"
-                            role="tab"
-                            aria-selected={candidate === mode}
-                            onClick={() => switchMode(candidate)}
-                            className={`-mb-px border-b-2 pb-2.5 text-base font-bold transition focus:outline-none focus-visible:ring-2 focus-visible:ring-site-ink ${
-                                candidate === mode
-                                    ? 'border-brand-yellow text-site-ink'
-                                    : 'border-transparent text-site-muted hover:text-site-ink'
-                            }`}
-                        >
-                            {t(`beatboxdle.modes.${candidate}`)}
-                        </button>
-                    ))}
-                </div>
-
-                {/* Les règles se replient : la grille doit être la première chose
-                    qu'on voit, pas un paragraphe explicatif. */}
-                <details className="group">
-                    <summary className="cursor-pointer list-none text-sm font-semibold text-site-muted transition hover:text-site-ink">
-                        {t('beatboxdle.howTo')}
-                    </summary>
-                    <p className="mt-2 text-sm leading-relaxed text-site-muted">
-                        {mode === 'letters' ? t('beatboxdle.introLetters') : t('beatboxdle.introClues')}
-                    </p>
-                </details>
 
                 {status === 'loading' && (
                     <p className="py-10 text-center text-sm text-site-muted">{t('common.loading')}</p>
                 )}
 
                 {status === 'error' && (
-                    <div className="flex flex-col gap-1 rounded-xl border border-site-line bg-site-surface p-5">
-                        <p className="text-sm text-site-muted">{t('beatboxdle.unavailable')}</p>
-                        {errorCode ? (
-                            <p className="text-xs text-site-soft">{t('beatboxdle.errorCode', { code: errorCode })}</p>
-                        ) : null}
+                    <p className="rounded-xl border border-site-line bg-site-surface p-5 text-sm text-site-muted">
+                        {t('beatboxdle.unavailable')}
+                    </p>
+                )}
+
+                {status === 'ready' && (
+                    <div className="flex flex-col gap-3">
+                        {MODES.filter((mode) => modes[mode]).map((mode) => {
+                            const { badge, tone } = badgeFor(mode);
+                            return (
+                                <ModeCard
+                                    key={mode}
+                                    mode={mode}
+                                    to={`/beatboxdle/${mode}`}
+                                    name={t(`beatboxdle.modes.${mode}`)}
+                                    description={t(`beatboxdle.home.${mode}`)}
+                                    badge={badge}
+                                    badgeTone={tone}
+                                />
+                            );
+                        })}
                     </div>
                 )}
 
-                {status === 'ready' && puzzle && (
-                    <>
-                        {/* Le plateau : un objet à part, pas du texte de page */}
-                        <section className="flex flex-col gap-4 rounded-2xl border border-site-line bg-site-surface p-4 sm:p-5">
-                            <div className="flex items-center justify-between gap-3">
-                                <span className="text-xs font-semibold uppercase tracking-wide text-site-muted">
-                                    {modeLabel}
-                                </span>
-                                <AttemptPips
-                                    used={guesses.length}
-                                    total={puzzle.maxAttempts}
-                                    label={t('beatboxdle.play.left', { count: Math.max(0, puzzle.maxAttempts - guesses.length) })}
-                                />
-                            </div>
-
-                            {mode === 'letters' ? (
-                                <LettersGrid
-                                    length={puzzle.length}
-                                    maxAttempts={puzzle.maxAttempts}
-                                    guesses={guesses}
-                                    stateLabels={stateLabels}
-                                    revealIndex={revealIndex}
-                                />
-                            ) : (
-                                <CluesGrid
-                                    language={language}
-                                    t={t}
-                                    guesses={guesses}
-                                    revealIndex={revealIndex}
-                                />
-                            )}
-
-                            {!finished ? (
-                                <div className="flex flex-col gap-2 border-t border-site-line pt-4">
-                                    <BeatboxdleInput
-                                        value={draft}
-                                        onChange={setDraft}
-                                        onSubmit={play}
-                                        candidates={candidates}
-                                        disabled={sending}
-                                        invalid={Boolean(notice)}
-                                        describedBy="beatboxdle-notice"
-                                        placeholder={mode === 'letters'
-                                            ? t('beatboxdle.play.placeholderLetters', { count: puzzle.length })
-                                            : t('beatboxdle.play.placeholderClues')}
-                                        listLabel={t('beatboxdle.play.listLabel')}
-                                        submitLabel={t('beatboxdle.play.submit')}
-                                    />
-                                    <p id="beatboxdle-notice" role="status" className="min-h-[1.25rem] text-sm text-site-danger">
-                                        {notice}
-                                    </p>
-                                </div>
-                            ) : (
-                                <div className="flex items-center justify-between gap-3 border-t border-site-line pt-4">
-                                    <span className="text-sm font-semibold text-site-ink">
-                                        {solved ? t('beatboxdle.play.solved') : t('beatboxdle.play.done')}
-                                    </span>
-                                    <button
-                                        type="button"
-                                        onClick={() => setModalOpen(true)}
-                                        className="rounded-lg bg-brand-yellow px-4 py-2.5 text-sm font-bold text-brand-ink transition hover:brightness-105 focus:outline-none focus-visible:ring-2 focus-visible:ring-site-ink"
-                                    >
-                                        {t('beatboxdle.play.seeAnswer')}
-                                    </button>
-                                </div>
-                            )}
-                        </section>
-
-                        {!finished && (
-                            <p className="text-center text-xs text-site-soft">
-                                {t('beatboxdle.play.pool', { count: candidates.length })}
-                            </p>
-                        )}
-                    </>
+                {status === 'ready' && (
+                    <p className="text-center text-xs text-site-soft">{t('beatboxdle.home.reset')}</p>
                 )}
             </div>
-
-            {modalOpen && finished && answer && puzzle && (
-                <ResultModal
-                    t={t}
-                    language={language}
-                    answer={answer}
-                    solved={solved}
-                    guesses={guesses}
-                    puzzle={puzzle}
-                    mode={mode}
-                    modeLabel={modeLabel}
-                    onClose={() => setModalOpen(false)}
-                />
-            )}
         </>
     );
 }
 
-/** Beatboxdle : l'énigme quotidienne. Page de « la chaîne », pas du plateau. */
 export default function Beatboxdle() {
     return (
         <SiteShell>
-            <BeatboxdleContent />
+            <BeatboxdleHome />
         </SiteShell>
     );
 }

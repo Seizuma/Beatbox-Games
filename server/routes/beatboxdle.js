@@ -17,14 +17,24 @@ const requireDataset = (req, res, next) => {
     next();
 };
 
-/** Compteur de relances du jour, posé par l'administration. 0 en temps normal. */
-const currentReroll = (mode) => {
+/**
+ * Compteurs de relances du jour, posés par l'administration. 0 en temps normal.
+ *
+ * Les deux modes sont lus ensemble : le tirage d'un mode doit connaître la
+ * réponse de l'autre pour ne jamais tomber dessus, et donc son reroll aussi.
+ */
+const currentRerolls = () => {
+    const date = daily.localDate();
     try {
-        return getDatabase().getBeatboxdleReroll(mode, daily.localDate());
+        const db = getDatabase();
+        return Object.keys(daily.MODES).reduce((all, mode) => {
+            all[mode] = db.getBeatboxdleReroll(mode, date);
+            return all;
+        }, {});
     } catch (error) {
-        // Une base indisponible ne doit pas empêcher de jouer : on retombe sur le tirage normal
-        console.error('❌ Lecture du reroll Beatboxdle:', error.message);
-        return 0;
+        // Une base indisponible ne doit pas empêcher de jouer : tirage normal
+        console.error('❌ Lecture des rerolls Beatboxdle:', error.message);
+        return {};
     }
 };
 
@@ -66,7 +76,7 @@ router.get('/daily/:mode', requireDataset, (req, res) => {
     }
 
     try {
-        const puzzle = daily.getPublicPuzzle(mode, new Date(), currentReroll(mode));
+        const puzzle = daily.getPublicPuzzle(mode, new Date(), currentRerolls());
         if (!puzzle) {
             return res.status(503).json({ success: false, error: `Aucun beatboxer jouable en mode ${mode}` });
         }
@@ -103,7 +113,7 @@ router.post('/guess', requireDataset, rateLimit(60, 60000), (req, res) => {
     }
 
     try {
-        const puzzle = daily.getPuzzle(mode, new Date(), currentReroll(mode));
+        const puzzle = daily.getPuzzle(mode, new Date(), currentRerolls());
         if (!puzzle) return res.status(503).json({ success: false, error: 'Énigme indisponible' });
 
         const proposed = dataset.findByName(guess);
@@ -160,7 +170,7 @@ router.post('/result', requireDataset, authenticateDiscord, (req, res) => {
     }
 
     try {
-        const puzzle = daily.getPuzzle(mode, new Date(), currentReroll(mode));
+        const puzzle = daily.getPuzzle(mode, new Date(), currentRerolls());
         if (!puzzle) return res.status(503).json({ success: false, error: 'Énigme indisponible' });
 
         const attemptCount = Math.min(Math.max(parseInt(attempts, 10) || 1, 1), puzzle.maxAttempts);
@@ -204,6 +214,30 @@ router.get('/stats/me', authenticateDiscord, (req, res) => {
         });
     } catch (error) {
         console.error('❌ Erreur Beatboxdle stats:', error);
+        res.status(500).json({ success: false, error: 'Erreur serveur' });
+    }
+});
+
+/**
+ * GET /api/beatboxdle/summary
+ * Les deux énigmes du jour, sans réponse ni liste de propositions. Sert
+ * l'écran de choix du mode : une requête au lieu de deux, et de quoi
+ * retrouver dans le navigateur les parties déjà jouées.
+ */
+router.get('/summary', requireDataset, (req, res) => {
+    try {
+        const rerolls = currentRerolls();
+        const modes = {};
+
+        Object.keys(daily.MODES).forEach((mode) => {
+            const puzzle = daily.getPublicPuzzle(mode, new Date(), rerolls);
+            if (puzzle) modes[mode] = puzzle;
+        });
+
+        res.set('Cache-Control', 'no-store');
+        res.json({ success: true, modes });
+    } catch (error) {
+        console.error('❌ Erreur Beatboxdle summary:', error);
         res.status(500).json({ success: false, error: 'Erreur serveur' });
     }
 });

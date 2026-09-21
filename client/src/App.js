@@ -3,6 +3,7 @@ import { Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import BlindTestOnline from './BlindTestOnline';
 import BuzzerBattle from './BuzzerBattle';
 import Beatboxdle from './Beatboxdle';
+import BeatboxdleGame from './BeatboxdleGame';
 import Hub from './components/Hub';
 import CreditsPage from './components/CreditsPage';
 import StatsPage from './components/StatsPage';
@@ -26,6 +27,7 @@ function App() {
         <Route path="/blindtest-online" element={<BlindTestOnline />} />
         <Route path="/buzzer-battle" element={<BuzzerBattle />} />
         <Route path="/beatboxdle" element={<Beatboxdle />} />
+        <Route path="/beatboxdle/:mode" element={<BeatboxdleGame />} />
         <Route path="/credits" element={<CreditsPage />} />
         <Route path="/stats" element={<StatsPage />} />
         <Route path="/profile" element={<ProfilePage />} />

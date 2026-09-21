@@ -86,7 +86,7 @@ const strings = {
             unavailable: 'Le Beatboxdle n’est pas disponible pour le moment. Reviens dans un instant.',
             errorCode: 'Code technique : {code}',
             modes: { letters: 'Lettres', clues: 'Indices' },
-                        states: { correct: 'trouvé', present: 'presque', absent: 'non' },
+            states: { correct: 'trouvé', present: 'presque', absent: 'non' },
             continents: {
                 EU: 'Europe',
                 AS: 'Asie',
@@ -144,6 +144,17 @@ const strings = {
             },
             number: 'N° {number}',
             howTo: 'Comment jouer ?',
+            backToModes: 'Les modes',
+            home: {
+                intro: 'Un beatboxer à trouver chaque jour. Deux façons de chercher, deux beatboxers différents.',
+                letters: 'Devine son nom lettre par lettre.',
+                clues: 'Recoupe quatre indices : pays, genre, première apparition, meilleur titre.',
+                toPlay: 'À jouer',
+                inProgress: 'En cours · {count}',
+                solved: 'Trouvé · {count}/{total}',
+                failed: 'Raté',
+                reset: 'Nouvelles énigmes chaque jour à minuit.',
+            },
             play: {
                 solved: 'Trouvé !',
                 seeAnswer: 'Voir la réponse',
@@ -527,7 +538,7 @@ const strings = {
             unavailable: 'Beatboxdle is unavailable right now. Come back in a moment.',
             errorCode: 'Technical code: {code}',
             modes: { letters: 'Letters', clues: 'Clues' },
-                        states: { correct: 'correct', present: 'close', absent: 'no' },
+            states: { correct: 'correct', present: 'close', absent: 'no' },
             continents: {
                 EU: 'Europe',
                 AS: 'Asia',
@@ -583,6 +594,17 @@ const strings = {
             },
             number: 'No. {number}',
             howTo: 'How to play',
+            backToModes: 'Modes',
+            home: {
+                intro: 'One beatboxer to find every day. Two ways to search, two different beatboxers.',
+                letters: 'Guess their name letter by letter.',
+                clues: 'Cross-reference four clues: country, gender, first appearance, best title.',
+                toPlay: 'To play',
+                inProgress: 'In progress · {count}',
+                solved: 'Solved · {count}/{total}',
+                failed: 'Missed',
+                reset: 'New puzzles every day at midnight.',
+            },
             play: {
                 solved: 'Solved!',
                 seeAnswer: 'See the answer',
@@ -874,7 +896,7 @@ const strings = {
             beatboxdleHelp: 'Testing tool',
             beatboxdleLetters: 'Reroll letters mode',
             beatboxdleClues: 'Reroll clues mode',
-            beatboxdleDone: 'New draw in place. {cleared} result(s) cleared.',            
+            beatboxdleDone: 'New draw in place. {cleared} result(s) cleared.',
         },
         notFound: {
             seoTitle: 'Page not found — BeatBox Games',
