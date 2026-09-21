@@ -19,6 +19,7 @@ function BeatboxdleContent() {
     const mode = readMode(searchParams.get('mode'));
 
     const [status, setStatus] = useState('loading');
+    const [errorCode, setErrorCode] = useState(null);
     const [puzzle, setPuzzle] = useState(null);
     const [candidates, setCandidates] = useState([]);
     const [guesses, setGuesses] = useState([]);
@@ -34,6 +35,7 @@ function BeatboxdleContent() {
         const controller = new AbortController();
         setStatus('loading');
         setNotice('');
+        setErrorCode(null);
         setDraft('');
         reportedRef.current = false;
 
@@ -48,7 +50,12 @@ function BeatboxdleContent() {
                 purgeOldGames(payload.puzzle.date);
             })
             .catch((error) => {
-                if (error.name !== 'AbortError') setStatus('error');
+                if (error.name === 'AbortError') return;
+                // Le code HTTP reste affiché : 503 = base absente du conteneur,
+                // 404 = route non montée (serveur pas redéployé). Sans lui, les
+                // deux pannes se ressemblent et on cherche au mauvais endroit.
+                setErrorCode(error.status || 0);
+                setStatus('error');
             });
 
         return () => controller.abort();
@@ -121,15 +128,18 @@ function BeatboxdleContent() {
 
             <div className="mx-auto flex max-w-xl flex-col gap-6 px-4 pb-16 pt-8 sm:px-6 sm:pt-12">
                 <header className="flex flex-col gap-2">
-                    <h1 className="text-[1.75rem] font-bold leading-tight tracking-tight text-site-ink sm:text-4xl">
+                    <h1 className="text-2xl font-bold leading-tight tracking-tight text-site-ink sm:text-3xl">
                         {t('beatboxdle.title')}
                     </h1>
-                    <p className="text-base leading-relaxed text-site-muted">
+                    <p className="text-sm leading-relaxed text-site-muted sm:text-base">
                         {mode === 'letters' ? t('beatboxdle.introLetters') : t('beatboxdle.introClues')}
                     </p>
                 </header>
 
-                <div role="tablist" aria-label={t('beatboxdle.modeLabel')} className="flex gap-1 rounded-lg border border-site-line p-1">
+                {/* Onglets soulignés plutôt qu'un sélecteur plein : sur une page de
+                    « la chaîne », un gros bouton blanc attire plus l'œil que la grille,
+                    alors que le choix du mode se fait une fois puis s'oublie. */}
+                <div role="tablist" aria-label={t('beatboxdle.modeLabel')} className="flex gap-6 border-b border-site-line">
                     {MODES.map((candidate) => (
                         <button
                             key={candidate}
@@ -137,10 +147,10 @@ function BeatboxdleContent() {
                             role="tab"
                             aria-selected={candidate === mode}
                             onClick={() => switchMode(candidate)}
-                            className={`flex-1 rounded-md px-4 py-2.5 text-sm font-semibold transition focus:outline-none focus-visible:ring-2 focus-visible:ring-site-ink ${
+                            className={`-mb-px border-b-2 pb-2.5 text-base font-semibold transition focus:outline-none focus-visible:ring-2 focus-visible:ring-site-ink ${
                                 candidate === mode
-                                    ? 'bg-site-button text-site-on-button'
-                                    : 'text-site-muted hover:text-site-ink'
+                                    ? 'border-site-ink text-site-ink'
+                                    : 'border-transparent text-site-muted hover:text-site-ink'
                             }`}
                         >
                             {t(`beatboxdle.modes.${candidate}`)}
@@ -153,14 +163,17 @@ function BeatboxdleContent() {
                 )}
 
                 {status === 'error' && (
-                    <p className="rounded-lg border border-site-line bg-site-surface p-5 text-sm text-site-muted">
-                        {t('beatboxdle.unavailable')}
-                    </p>
+                    <div className="flex flex-col gap-1 rounded-lg border border-site-line bg-site-surface p-5">
+                        <p className="text-sm text-site-muted">{t('beatboxdle.unavailable')}</p>
+                        {errorCode ? (
+                            <p className="text-xs text-site-soft">{t('beatboxdle.errorCode', { code: errorCode })}</p>
+                        ) : null}
+                    </div>
                 )}
 
                 {status === 'ready' && puzzle && (
                     <>
-                        <p className="flex flex-wrap items-baseline justify-between gap-2 border-b border-site-line pb-3 text-sm text-site-muted">
+                        <p className="flex flex-wrap items-baseline justify-between gap-2 text-sm text-site-muted">
                             <span>
                                 {t('beatboxdle.meta', { number: puzzle.puzzleNumber, mode: modeLabel })}
                             </span>

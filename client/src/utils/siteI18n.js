@@ -84,6 +84,7 @@ const strings = {
             modeLabel: 'Mode de jeu',
             meta: 'N° {number} · {mode}',
             unavailable: 'Le Beatboxdle n’est pas disponible pour le moment. Reviens dans un instant.',
+            errorCode: 'Code technique : {code}',
             modes: { letters: 'Lettres', clues: 'Indices' },
             states: { correct: 'trouvé', present: 'presque', absent: 'non' },
             clues: {
@@ -471,6 +472,7 @@ const strings = {
             modeLabel: 'Game mode',
             meta: 'No. {number} · {mode}',
             unavailable: 'Beatboxdle is unavailable right now. Come back in a moment.',
+            errorCode: 'Technical code: {code}',
             modes: { letters: 'Letters', clues: 'Clues' },
             states: { correct: 'correct', present: 'close', absent: 'no' },
             clues: {
