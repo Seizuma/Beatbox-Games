@@ -2,16 +2,18 @@
 //
 // Le pays est un indice à trois états : vert (même pays), orange (même
 // continent), gris (rien en commun). Il faut donc un code ISO et un continent.
-// Le nom affiché vient d'Intl : Node 20 embarque l'ICU complet, inutile de
-// maintenir une table de traductions.
+//
+// On ne stocke QUE des codes (FR, EU) : le site est bilingue, et un libellé
+// figé dans la base mentirait à la moitié des joueurs. Le nom affiché se
+// calcule côté client avec Intl.DisplayNames dans la langue courante.
 
 const GROUPS = {
-    Europe: 'AD AL AT AX BA BE BG BY CH CY CZ DE DK EE ES FI FO FR GB GG GI GR HR HU IE IM IS IT JE LI LT LU LV MC MD ME MK MT NL NO PL PT RO RS RU SE SI SK SM UA VA XK',
-    Asie: 'AE AF AM AZ BD BH BN BT CN GE HK ID IL IN IQ IR JO JP KG KH KP KR KW KZ LA LB LK MM MN MO MV MY NP OM PH PK PS QA SA SG SY TH TJ TM TR TW UZ VN YE',
-    Afrique: 'AO BF BI BJ BW CD CF CG CI CM CV DJ DZ EG EH ER ET GA GH GM GN GQ GW KE KM LR LS LY MA MG ML MR MU MW MZ NA NE NG RE RW SC SD SL SN SO SS ST SZ TD TG TN TZ UG ZA ZM ZW',
-    'Amérique du Nord': 'AG AI AW BB BL BM BS BZ CA CR CU CW DM DO GD GL GP GT HN HT JM KN KY LC MF MQ MS MX NI PA PR SV SX TC TT US VC VG VI',
-    'Amérique du Sud': 'AR BO BR CL CO EC FK GF GY PE PY SR UY VE',
-    Océanie: 'AS AU CK FJ FM GU KI MH MP NC NF NR NU NZ PF PG PW SB TO TV VU WF WS',
+    EU: 'AD AL AT AX BA BE BG BY CH CY CZ DE DK EE ES FI FO FR GB GG GI GR HR HU IE IM IS IT JE LI LT LU LV MC MD ME MK MT NL NO PL PT RO RS RU SE SI SK SM UA VA XK',
+    AS: 'AE AF AM AZ BD BH BN BT CN GE HK ID IL IN IQ IR JO JP KG KH KP KR KW KZ LA LB LK MM MN MO MV MY NP OM PH PK PS QA SA SG SY TH TJ TM TR TW UZ VN YE',
+    AF: 'AO BF BI BJ BW CD CF CG CI CM CV DJ DZ EG EH ER ET GA GH GM GN GQ GW KE KM LR LS LY MA MG ML MR MU MW MZ NA NE NG RE RW SC SD SL SN SO SS ST SZ TD TG TN TZ UG ZA ZM ZW',
+    NA: 'AG AI AW BB BL BM BS BZ CA CR CU CW DM DO GD GL GP GT HN HT JM KN KY LC MF MQ MS MX NI PA PR SV SX TC TT US VC VG VI',
+    SA: 'AR BO BR CL CO EC FK GF GY PE PY SR UY VE',
+    OC: 'AS AU CK FJ FM GU KI MH MP NC NF NR NU NZ PF PG PW SB TO TV VU WF WS',
 };
 
 const CONTINENT_BY_CODE = {};
@@ -63,7 +65,10 @@ function codeFromEnglishName(name) {
     return CODE_BY_ENGLISH_NAME[name.trim().toLowerCase()] || null;
 }
 
-/** Nom français du pays, pour l'affichage dans la grille d'indices. */
+/**
+ * Nom français du pays. Sert uniquement aux rapports CSV et aux journaux du
+ * pipeline : l'affichage du jeu passe par le code et Intl côté client.
+ */
 function frenchName(code) {
     if (!code) return null;
     try {
@@ -73,6 +78,7 @@ function frenchName(code) {
     }
 }
 
+/** Code de continent (EU, AS, AF, NA, SA, OC), traduit côté client. */
 const continentOf = (code) => (code ? CONTINENT_BY_CODE[code] || null : null);
 
 module.exports = { flagToCode, codeFromEnglishName, frenchName, continentOf };

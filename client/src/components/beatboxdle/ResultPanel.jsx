@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { continentName, countryName, categoryName, titleName } from '../../utils/beatboxdleLabels';
 
 const SQUARE = { correct: '\u{1F7E9}', present: '\u{1F7E7}', absent: '\u{2B1B}' };
 const CLUE_FIELDS = ['country', 'gender', 'firstYear', 'title'];
@@ -35,8 +36,21 @@ function useCountdown(isoTarget) {
     return `${pad(Math.floor(total / 3600))}:${pad(Math.floor((total % 3600) / 60))}:${pad(total % 60)}`;
 }
 
+/** Une ligne de la fiche de réponse. */
+function Fact({ label, value, hint }) {
+    return (
+        <div className="flex flex-col">
+            <dt className="text-xs text-site-muted">{label}</dt>
+            <dd className="font-medium text-site-ink">
+                {value || '—'}
+                {hint ? <span className="ml-1.5 text-xs font-normal text-site-muted">{hint}</span> : null}
+            </dd>
+        </div>
+    );
+}
+
 /** Écran de fin : la réponse, le partage, l'attente. */
-export default function ResultPanel({ t, answer, solved, guesses, puzzle, mode, modeLabel }) {
+export default function ResultPanel({ t, language, answer, solved, guesses, puzzle, mode, modeLabel }) {
     const [copied, setCopied] = useState(false);
     const countdown = useCountdown(puzzle.nextResetAt);
 
@@ -54,7 +68,7 @@ export default function ResultPanel({ t, answer, solved, guesses, puzzle, mode, 
             solved,
             maxAttempts: puzzle.maxAttempts,
             modeLabel,
-            url: 'https://beatboxgames.com/beatboxdle',
+            url: 'https://beatboxgames.com/#/beatboxdle',
         });
 
         // Partage natif sur mobile, presse-papiers ailleurs
@@ -70,6 +84,9 @@ export default function ResultPanel({ t, answer, solved, guesses, puzzle, mode, 
         }
     };
 
+    const title = answer.bestTitle ? titleName(t, answer.bestTitle.id) : null;
+    const discipline = answer.bestTitle ? categoryName(t, answer.bestTitle.discipline) : null;
+
     return (
         <section className="flex flex-col gap-4 rounded-xl border border-site-line bg-site-surface p-5">
             <div className="flex flex-col gap-1">
@@ -81,22 +98,17 @@ export default function ResultPanel({ t, answer, solved, guesses, puzzle, mode, 
                 <p className="text-sm text-site-muted">{t('beatboxdle.result.answerIntro')}</p>
             </div>
 
-            <div className="flex flex-col gap-2 border-t border-site-line pt-4">
+            <div className="flex flex-col gap-3 border-t border-site-line pt-4">
                 <span className="text-xl font-bold text-site-ink">{answer.name}</span>
-                <dl className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
-                    <div className="flex flex-col">
-                        <dt className="text-xs text-site-muted">{t('beatboxdle.clues.country')}</dt>
-                        <dd className="font-medium text-site-ink">{answer.country || '—'}</dd>
-                    </div>
-                    <div className="flex flex-col">
-                        <dt className="text-xs text-site-muted">{t('beatboxdle.clues.firstYear')}</dt>
-                        <dd className="font-medium text-site-ink">{answer.firstYear || '—'}</dd>
-                    </div>
-                    <div className="col-span-2 flex flex-col">
-                        <dt className="text-xs text-site-muted">{t('beatboxdle.clues.title')}</dt>
-                        <dd className="font-medium text-site-ink">
-                            {answer.bestTitle ? answer.bestTitle.label : '—'}
-                        </dd>
+                <dl className="grid grid-cols-2 gap-x-4 gap-y-3 text-sm">
+                    <Fact
+                        label={t('beatboxdle.clues.country')}
+                        value={countryName(language, answer.countryCode)}
+                        hint={continentName(t, answer.continent)}
+                    />
+                    <Fact label={t('beatboxdle.clues.firstYear')} value={answer.firstYear} />
+                    <div className="col-span-2">
+                        <Fact label={t('beatboxdle.clues.title')} value={title} hint={discipline} />
                     </div>
                 </dl>
                 {answer.source && (

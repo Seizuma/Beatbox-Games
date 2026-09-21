@@ -124,7 +124,10 @@ function parseCategoryBeatboxers(html) {
 function parseProfile(html, slug) {
     const $ = cheerio.load(html);
 
-    const name = clean($('h1').first().text());
+    // Les comptes revendiqués portent un badge dans le <h1> : « PACMax official
+    // account ». Sans ce nettoyage il finit dans le nom affiché et, en mode
+    // lettres, dans la longueur du mot à deviner.
+    const name = clean($('h1').first().text()).replace(/(\s*official account\s*)+$/i, '').trim();
     const description = $('meta[name="description"]').attr('content') || '';
 
     const countryEn = (description.match(/beatboxer from ([^:]+):/i) || [])[1] || null;

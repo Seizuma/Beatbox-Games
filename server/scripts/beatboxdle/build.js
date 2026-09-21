@@ -63,6 +63,9 @@ function bestTitle(entries) {
         label: config.TITLE_LABELS[id] || id,
         series: best.series,
         year: best.year,
+        // La discipline du titre voyage avec lui : « champion du monde » en crew
+        // et en solo ne racontent pas la même carrière, et la grille l'affiche.
+        discipline: best.discipline || null,
     };
 }
 

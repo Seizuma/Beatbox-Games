@@ -14,12 +14,13 @@ const MODES = ['letters', 'clues'];
 const readMode = (value) => (MODES.includes(value) ? value : 'letters');
 
 function BeatboxdleContent() {
-    const { t } = useSiteI18n();
+        const { t, language } = useSiteI18n();
     const [searchParams, setSearchParams] = useSearchParams();
     const mode = readMode(searchParams.get('mode'));
 
     const [status, setStatus] = useState('loading');
     const [errorCode, setErrorCode] = useState(null);
+    const [revealIndex, setRevealIndex] = useState(-1);
     const [puzzle, setPuzzle] = useState(null);
     const [candidates, setCandidates] = useState([]);
     const [guesses, setGuesses] = useState([]);
@@ -36,6 +37,7 @@ function BeatboxdleContent() {
         setStatus('loading');
         setNotice('');
         setErrorCode(null);
+        setRevealIndex(-1);
         setDraft('');
         reportedRef.current = false;
 
@@ -95,6 +97,9 @@ function BeatboxdleContent() {
 
         try {
             const payload = await submitGuess({ mode, guess: value, attempt: guesses.length + 1 });
+            // Seule la ligne qui arrive s'anime : au rechargement, les essais
+            // déjà joués se reposent sans rejouer toute la séquence.
+            setRevealIndex(guesses.length);
             setGuesses((previous) => [...previous, payload]);
             setDraft('');
         } catch (error) {
@@ -190,23 +195,14 @@ function BeatboxdleContent() {
                                 maxAttempts={puzzle.maxAttempts}
                                 guesses={guesses}
                                 stateLabels={stateLabels}
+                                revealIndex={revealIndex}
                             />
                         ) : (
                             <CluesGrid
+                                language={language}
+                                t={t}
                                 guesses={guesses}
-                                stateLabels={stateLabels}
-                                headings={{
-                                    guess: t('beatboxdle.clues.guess'),
-                                    country: t('beatboxdle.clues.country'),
-                                    gender: t('beatboxdle.clues.gender'),
-                                    firstYear: t('beatboxdle.clues.firstYear'),
-                                    title: t('beatboxdle.clues.title'),
-                                }}
-                                directionLabels={{
-                                    up: t('beatboxdle.clues.up'),
-                                    down: t('beatboxdle.clues.down'),
-                                }}
-                                genderLabels={{ M: t('beatboxdle.clues.male'), F: t('beatboxdle.clues.female') }}
+                                revealIndex={revealIndex}
                             />
                         )}
 
@@ -238,6 +234,7 @@ function BeatboxdleContent() {
                         {finished && answer && (
                             <ResultPanel
                                 t={t}
+                                language={language}
                                 answer={answer}
                                 solved={solved}
                                 guesses={guesses}

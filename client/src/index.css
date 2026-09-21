@@ -633,3 +633,47 @@
         transform: translateX(4px);
     }
 }
+
+@layer components {
+
+    /* Beatboxdle : les indices se posent un par un. C'est ce qui sépare une
+       grille qui s'affiche d'une grille qui se joue — et ça ne coûte que du CSS. */
+    .dle-reveal {
+        animation: dle-reveal 320ms cubic-bezier(0.2, 0.8, 0.3, 1) backwards;
+        animation-delay: calc(var(--dle-index, 0) * 90ms);
+    }
+
+    @keyframes dle-reveal {
+        from {
+            opacity: 0;
+            transform: translateY(-6px) scale(0.94);
+        }
+        to {
+            opacity: 1;
+            transform: none;
+        }
+    }
+
+    .dle-flip {
+        animation: dle-flip 420ms ease backwards;
+        animation-delay: calc(var(--dle-index, 0) * 110ms);
+    }
+
+    @keyframes dle-flip {
+        from {
+            transform: rotateX(-90deg);
+        }
+        to {
+            transform: rotateX(0);
+        }
+    }
+
+    /* Le mouvement est un plaisir, pas une obligation */
+    @media (prefers-reduced-motion: reduce) {
+
+        .dle-reveal,
+        .dle-flip {
+            animation: none;
+        }
+    }
+}
