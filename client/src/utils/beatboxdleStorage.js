@@ -12,15 +12,21 @@ const PREFIX = 'beatboxdle:v1';
 
 const keyFor = (mode, date) => `${PREFIX}:${mode}:${date}`;
 
-/** Partie sauvegardée pour ce mode et ce jour, ou null. */
-export function loadGame(mode, date, puzzleNumber) {
+/**
+ * Partie sauvegardée pour ce mode et ce jour, ou null.
+ *
+ * Le couple (numéro d'énigme, reroll) sert de garde-fou : si l'administration
+ * relance le tirage du jour, `reroll` change et la grille sauvegardée est
+ * jetée d'elle-même. C'est ce qui remet tout le monde à zéro sans avoir à
+ * prévenir les navigateurs.
+ */
+export function loadGame(mode, date, puzzleNumber, reroll = 0) {
     try {
         const raw = localStorage.getItem(keyFor(mode, date));
         if (!raw) return null;
         const saved = JSON.parse(raw);
-        // Garde-fou : si le numéro d'énigme a changé (graine modifiée, base
-        // régénérée), la sauvegarde ne correspond plus à ce qu'on affiche.
         if (saved.puzzleNumber !== puzzleNumber) return null;
+        if ((saved.reroll || 0) !== (reroll || 0)) return null;
         return saved;
     } catch (error) {
         return null;

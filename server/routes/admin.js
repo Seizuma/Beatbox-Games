@@ -14,6 +14,7 @@ const { authenticateDiscord } = require('../middleware/auth');
 const { roomManager } = require('../services/roomManager');
 const buzzerGameManager = require('../services/buzzer-gameManager');
 const rankingService = require('../services/rankingService');
+const beatboxdleDaily = require('../services/beatboxdle-daily');
 
 const router = express.Router();
 
@@ -274,6 +275,45 @@ router.post('/reset-stats', (req, res) => {
         res.json({ success: true, ...result });
     } catch (error) {
         console.error('❌ Erreur remise à zéro:', error);
+        res.status(500).json({ success: false, error: 'server_error' });
+    }
+});
+
+/**
+ * POST /api/admin/beatboxdle/reroll  { mode: "clues" }
+ * Retire l'énigme du jour. Outil de test : la graine n'est salée que pour
+ * cette date, les jours suivants gardent l'ordre du cycle.
+ */
+router.post('/beatboxdle/reroll', (req, res) => {
+    try {
+        const mode = req.body?.mode;
+        if (!beatboxdleDaily.isMode(mode)) {
+            return res.status(400).json({ success: false, error: 'mode_invalide' });
+        }
+
+        const db = getDatabase();
+        const date = beatboxdleDaily.localDate();
+        const before = beatboxdleDaily.getPuzzle(mode, new Date(), db.getBeatboxdleReroll(mode, date));
+
+        const reroll = db.bumpBeatboxdleReroll(mode, date);
+        // Les parties déjà jouées portaient sur une autre réponse : les garder
+        // fausserait les séries. Les navigateurs, eux, jettent leur grille en
+        // voyant le nouveau `reroll` dans la réponse de /daily.
+        const cleared = before ? db.clearBeatboxdleResults(mode, before.puzzleNumber) : 0;
+
+        db.logEvent({
+            level: 'warn',
+            type: 'admin',
+            message: `Tirage Beatboxdle (${mode}) relancé par ${req.user.username}`,
+            discordId: req.user.discordId,
+            context: { mode, date, reroll, cleared },
+        });
+
+        // La nouvelle réponse ne sort pas d'ici, même pour un administrateur :
+        // il jouera l'énigme comme tout le monde.
+        res.json({ success: true, mode, date, reroll, cleared });
+    } catch (error) {
+        console.error('❌ Erreur relance Beatboxdle:', error);
         res.status(500).json({ success: false, error: 'server_error' });
     }
 });

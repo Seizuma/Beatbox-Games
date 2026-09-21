@@ -250,6 +250,18 @@ class DatabaseService {
             )
         `);
 
+        // Relances du tirage, posées depuis l'administration. Une ligne par
+        // (mode, jour) : sans entrée, le tirage est celui du cycle.
+        this.db.exec(`
+            CREATE TABLE IF NOT EXISTS beatboxdle_rerolls (
+                mode TEXT NOT NULL,
+                puzzle_date TEXT NOT NULL,
+                reroll INTEGER NOT NULL DEFAULT 0,
+                updated_at INTEGER NOT NULL,
+                PRIMARY KEY (mode, puzzle_date)
+            )
+        `);
+
         // Index pour optimiser les requêtes
         this.db.exec(`
             CREATE INDEX IF NOT EXISTS idx_beatboxdle_user ON beatboxdle_results(discord_id, mode, puzzle_number DESC);
@@ -763,7 +775,7 @@ class DatabaseService {
     }
 
     getTableCounts() {
-        const tables = ['users', 'games', 'game_participations', 'round_performances', 'buzzer_performances', 'beatboxdle_results', 'activity_log'];
+        const tables = ['users', 'games', 'game_participations', 'round_performances', 'buzzer_performances', 'beatboxdle_results', 'beatboxdle_rerolls', 'activity_log'];
         return tables.map((table) => ({
             table,
             rows: this.db.prepare(`SELECT COUNT(*) AS n FROM ${table}`).get().n,
@@ -878,6 +890,38 @@ class DatabaseService {
             distribution,
             lastPuzzleNumber: previousNumber,
         };
+    }
+
+    /** Compteur de relances pour ce mode et ce jour. 0 si le tirage n'a jamais bougé. */
+    getBeatboxdleReroll(mode, puzzleDate) {
+        const row = this.db
+            .prepare('SELECT reroll FROM beatboxdle_rerolls WHERE mode = ? AND puzzle_date = ?')
+            .get(mode, puzzleDate);
+        return row ? row.reroll : 0;
+    }
+
+    /** Incrémente le compteur et renvoie sa nouvelle valeur. */
+    bumpBeatboxdleReroll(mode, puzzleDate) {
+        this.db.prepare(`
+            INSERT INTO beatboxdle_rerolls (mode, puzzle_date, reroll, updated_at)
+            VALUES (?, ?, 1, ?)
+            ON CONFLICT(mode, puzzle_date) DO UPDATE SET
+                reroll = reroll + 1,
+                updated_at = excluded.updated_at
+        `).run(mode, puzzleDate, Date.now());
+
+        return this.getBeatboxdleReroll(mode, puzzleDate);
+    }
+
+    /**
+     * Efface les résultats d'une énigme. Appelé avec une relance : les parties
+     * déjà jouées portaient sur une autre réponse, les garder fausserait les
+     * séries de tout le monde.
+     */
+    clearBeatboxdleResults(mode, puzzleNumber) {
+        return this.db
+            .prepare('DELETE FROM beatboxdle_results WHERE mode = ? AND puzzle_number = ?')
+            .run(mode, puzzleNumber).changes;
     }
 
     /** Statistiques collectives d'une énigme : « 62 % ont trouvé aujourd'hui ». */

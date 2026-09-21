@@ -441,6 +441,50 @@ function LogTab() {
     );
 }
 
+function BeatboxdleReroll() {
+    const { t } = useSiteI18n();
+    const [busy, setBusy] = useState(null);
+    const [done, setDone] = useState(null);
+
+    const reroll = async (mode) => {
+        setBusy(mode);
+        setDone(null);
+        try {
+            const response = await authFetch('/api/admin/beatboxdle/reroll', {
+                method: 'POST',
+                body: JSON.stringify({ mode }),
+            });
+            setDone(response.ok ? await response.json() : { error: true });
+        } catch (error) {
+            setDone({ error: true });
+        } finally {
+            setBusy(null);
+        }
+    };
+
+    return (
+        <div className="mt-12 max-w-2xl border-t border-site-line pt-8">
+            <SectionTitle aside={t('admin.beatboxdleHelp')}>{t('admin.beatboxdle')}</SectionTitle>
+
+            <div className="mt-5 flex flex-wrap gap-3">
+                <SiteButton onClick={() => reroll('letters')} disabled={busy !== null}>
+                    {busy === 'letters' ? t('admin.resetting') : t('admin.beatboxdleLetters')}
+                </SiteButton>
+                <SiteButton onClick={() => reroll('clues')} disabled={busy !== null}>
+                    {busy === 'clues' ? t('admin.resetting') : t('admin.beatboxdleClues')}
+                </SiteButton>
+            </div>
+
+            {done && !done.error && (
+                <div className="mt-5">
+                    <Notice tone="success">{t('admin.beatboxdleDone', { cleared: done.cleared })}</Notice>
+                </div>
+            )}
+            {done && done.error && <div className="mt-5"><Notice tone="error">{t('admin.resetError')}</Notice></div>}
+        </div>
+    );
+}
+
 function MaintenanceTab() {
     const { t } = useSiteI18n();
     const [confirm, setConfirm] = useState('');
@@ -504,10 +548,11 @@ function MaintenanceTab() {
             {status === 'error' && <div className="mt-5"><Notice tone="error">{t('admin.resetError')}</Notice></div>}
 
             <p className="mt-8 text-xs text-site-soft">{t('admin.resetScript')}</p>
+
+            <BeatboxdleReroll />
         </div>
     );
 }
-
 function AdminContent() {
     const { t } = useSiteI18n();
     const { isAuthenticated, login, loading } = useDiscordAuth();

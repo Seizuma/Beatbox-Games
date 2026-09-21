@@ -5,7 +5,7 @@ import SiteShell from './components/site/SiteShell';
 import BeatboxdleInput from './components/beatboxdle/BeatboxdleInput';
 import LettersGrid from './components/beatboxdle/LettersGrid';
 import CluesGrid from './components/beatboxdle/CluesGrid';
-import ResultPanel from './components/beatboxdle/ResultPanel';
+import ResultModal from './components/beatboxdle/ResultModal';
 import { useSiteI18n } from './utils/siteI18n';
 import { fetchDaily, submitGuess, reportResult } from './utils/beatboxdleApi';
 import { loadGame, saveGame, purgeOldGames } from './utils/beatboxdleStorage';
@@ -13,8 +13,26 @@ import { loadGame, saveGame, purgeOldGames } from './utils/beatboxdleStorage';
 const MODES = ['letters', 'clues'];
 const readMode = (value) => (MODES.includes(value) ? value : 'letters');
 
+// La fiche de réponse attend la fin de la révélation : quatre cases à 160 ms
+// d'écart plus 520 ms d'animation. L'ouvrir plus tôt masque le dernier essai.
+const REVEAL_TOTAL_MS = 1260;
+
+/** Jauge d'essais : des pastilles valent mieux qu'un « 5 essais restants » en gris. */
+function AttemptPips({ used, total, label }) {
+    return (
+        <span className="flex items-center gap-1.5" role="img" aria-label={label}>
+            {Array.from({ length: total }, (_, index) => (
+                <span
+                    key={index}
+                    className={`h-2 w-2 rounded-full ${index < used ? 'bg-site-line' : 'bg-brand-yellow'}`}
+                />
+            ))}
+        </span>
+    );
+}
+
 function BeatboxdleContent() {
-        const { t, language } = useSiteI18n();
+    const { t, language } = useSiteI18n();
     const [searchParams, setSearchParams] = useSearchParams();
     const mode = readMode(searchParams.get('mode'));
 
@@ -27,6 +45,7 @@ function BeatboxdleContent() {
     const [draft, setDraft] = useState('');
     const [notice, setNotice] = useState('');
     const [sending, setSending] = useState(false);
+    const [modalOpen, setModalOpen] = useState(false);
 
     // Le compte-rendu au serveur ne part qu'une fois par jour et par mode
     const reportedRef = useRef(false);
@@ -38,12 +57,13 @@ function BeatboxdleContent() {
         setNotice('');
         setErrorCode(null);
         setRevealIndex(-1);
+        setModalOpen(false);
         setDraft('');
         reportedRef.current = false;
 
         fetchDaily(mode, controller.signal)
             .then((payload) => {
-                const saved = loadGame(mode, payload.puzzle.date, payload.puzzle.puzzleNumber);
+                const saved = loadGame(mode, payload.puzzle.date, payload.puzzle.puzzleNumber, payload.puzzle.reroll);
                 setPuzzle(payload.puzzle);
                 setCandidates(payload.candidates || []);
                 setGuesses(saved ? saved.guesses : []);
@@ -75,6 +95,7 @@ function BeatboxdleContent() {
         if (!puzzle || guesses.length === 0) return;
         saveGame(mode, puzzle.date, {
             puzzleNumber: puzzle.puzzleNumber,
+            reroll: puzzle.reroll,
             guesses,
             reported: reportedRef.current,
         });
@@ -84,9 +105,23 @@ function BeatboxdleContent() {
     useEffect(() => {
         if (!finished || !puzzle || reportedRef.current) return;
         reportedRef.current = true;
-        saveGame(mode, puzzle.date, { puzzleNumber: puzzle.puzzleNumber, guesses, reported: true });
+        saveGame(mode, puzzle.date, {
+            puzzleNumber: puzzle.puzzleNumber,
+            reroll: puzzle.reroll,
+            guesses,
+            reported: true,
+        });
         reportResult({ mode, solved, attempts: guesses.length });
     }, [finished, solved, guesses, mode, puzzle]);
+
+    // --- Ouverture de la fiche, une fois la dernière ligne posée ------------
+    useEffect(() => {
+        if (!finished) return undefined;
+        // Reprise d'une partie déjà terminée : pas d'animation, donc pas d'attente
+        const delay = revealIndex >= 0 ? REVEAL_TOTAL_MS : 0;
+        const timer = setTimeout(() => setModalOpen(true), delay);
+        return () => clearTimeout(timer);
+    }, [finished, revealIndex]);
 
     const play = useCallback(async () => {
         const value = draft.trim();
@@ -131,19 +166,21 @@ function BeatboxdleContent() {
                 url="https://beatboxgames.com/beatboxdle"
             />
 
-            <div className="mx-auto flex max-w-xl flex-col gap-6 px-4 pb-16 pt-8 sm:px-6 sm:pt-12">
-                <header className="flex flex-col gap-2">
-                    <h1 className="text-2xl font-bold leading-tight tracking-tight text-site-ink sm:text-3xl">
+            <div className="mx-auto flex max-w-xl flex-col gap-5 px-4 pb-16 pt-6 sm:px-6 sm:pt-10">
+                <header className="flex flex-wrap items-center justify-between gap-3">
+                    <h1 className="text-2xl font-bold leading-none tracking-tight text-site-ink sm:text-3xl">
                         {t('beatboxdle.title')}
                     </h1>
-                    <p className="text-sm leading-relaxed text-site-muted sm:text-base">
-                        {mode === 'letters' ? t('beatboxdle.introLetters') : t('beatboxdle.introClues')}
-                    </p>
+                    {puzzle && (
+                        <span className="rounded-full border border-brand-yellow px-3 py-1 text-xs font-bold text-brand-yellow">
+                            {t('beatboxdle.number', { number: puzzle.puzzleNumber })}
+                        </span>
+                    )}
                 </header>
 
-                {/* Onglets soulignés plutôt qu'un sélecteur plein : sur une page de
-                    « la chaîne », un gros bouton blanc attire plus l'œil que la grille,
-                    alors que le choix du mode se fait une fois puis s'oublie. */}
+                {/* Onglets soulignés en jaune : l'accent des jeux de la plateforme.
+                    Sans lui la page n'avait aucune couleur et se lisait comme une
+                    fiche de documentation. */}
                 <div role="tablist" aria-label={t('beatboxdle.modeLabel')} className="flex gap-6 border-b border-site-line">
                     {MODES.map((candidate) => (
                         <button
@@ -152,9 +189,9 @@ function BeatboxdleContent() {
                             role="tab"
                             aria-selected={candidate === mode}
                             onClick={() => switchMode(candidate)}
-                            className={`-mb-px border-b-2 pb-2.5 text-base font-semibold transition focus:outline-none focus-visible:ring-2 focus-visible:ring-site-ink ${
+                            className={`-mb-px border-b-2 pb-2.5 text-base font-bold transition focus:outline-none focus-visible:ring-2 focus-visible:ring-site-ink ${
                                 candidate === mode
-                                    ? 'border-site-ink text-site-ink'
+                                    ? 'border-brand-yellow text-site-ink'
                                     : 'border-transparent text-site-muted hover:text-site-ink'
                             }`}
                         >
@@ -163,12 +200,23 @@ function BeatboxdleContent() {
                     ))}
                 </div>
 
+                {/* Les règles se replient : la grille doit être la première chose
+                    qu'on voit, pas un paragraphe explicatif. */}
+                <details className="group">
+                    <summary className="cursor-pointer list-none text-sm font-semibold text-site-muted transition hover:text-site-ink">
+                        {t('beatboxdle.howTo')}
+                    </summary>
+                    <p className="mt-2 text-sm leading-relaxed text-site-muted">
+                        {mode === 'letters' ? t('beatboxdle.introLetters') : t('beatboxdle.introClues')}
+                    </p>
+                </details>
+
                 {status === 'loading' && (
-                    <p className="py-8 text-center text-sm text-site-muted">{t('common.loading')}</p>
+                    <p className="py-10 text-center text-sm text-site-muted">{t('common.loading')}</p>
                 )}
 
                 {status === 'error' && (
-                    <div className="flex flex-col gap-1 rounded-lg border border-site-line bg-site-surface p-5">
+                    <div className="flex flex-col gap-1 rounded-xl border border-site-line bg-site-surface p-5">
                         <p className="text-sm text-site-muted">{t('beatboxdle.unavailable')}</p>
                         {errorCode ? (
                             <p className="text-xs text-site-soft">{t('beatboxdle.errorCode', { code: errorCode })}</p>
@@ -178,74 +226,94 @@ function BeatboxdleContent() {
 
                 {status === 'ready' && puzzle && (
                     <>
-                        <p className="flex flex-wrap items-baseline justify-between gap-2 text-sm text-site-muted">
-                            <span>
-                                {t('beatboxdle.meta', { number: puzzle.puzzleNumber, mode: modeLabel })}
-                            </span>
-                            <span>
-                                {finished
-                                    ? t('beatboxdle.play.done')
-                                    : t('beatboxdle.play.left', { count: puzzle.maxAttempts - guesses.length })}
-                            </span>
-                        </p>
+                        {/* Le plateau : un objet à part, pas du texte de page */}
+                        <section className="flex flex-col gap-4 rounded-2xl border border-site-line bg-site-surface p-4 sm:p-5">
+                            <div className="flex items-center justify-between gap-3">
+                                <span className="text-xs font-semibold uppercase tracking-wide text-site-muted">
+                                    {modeLabel}
+                                </span>
+                                <AttemptPips
+                                    used={guesses.length}
+                                    total={puzzle.maxAttempts}
+                                    label={t('beatboxdle.play.left', { count: Math.max(0, puzzle.maxAttempts - guesses.length) })}
+                                />
+                            </div>
 
-                        {mode === 'letters' ? (
-                            <LettersGrid
-                                length={puzzle.length}
-                                maxAttempts={puzzle.maxAttempts}
-                                guesses={guesses}
-                                stateLabels={stateLabels}
-                                revealIndex={revealIndex}
-                            />
-                        ) : (
-                            <CluesGrid
-                                language={language}
-                                t={t}
-                                guesses={guesses}
-                                revealIndex={revealIndex}
-                            />
-                        )}
+                            {mode === 'letters' ? (
+                                <LettersGrid
+                                    length={puzzle.length}
+                                    maxAttempts={puzzle.maxAttempts}
+                                    guesses={guesses}
+                                    stateLabels={stateLabels}
+                                    revealIndex={revealIndex}
+                                />
+                            ) : (
+                                <CluesGrid
+                                    language={language}
+                                    t={t}
+                                    guesses={guesses}
+                                    revealIndex={revealIndex}
+                                />
+                            )}
+
+                            {!finished ? (
+                                <div className="flex flex-col gap-2 border-t border-site-line pt-4">
+                                    <BeatboxdleInput
+                                        value={draft}
+                                        onChange={setDraft}
+                                        onSubmit={play}
+                                        candidates={candidates}
+                                        disabled={sending}
+                                        invalid={Boolean(notice)}
+                                        describedBy="beatboxdle-notice"
+                                        placeholder={mode === 'letters'
+                                            ? t('beatboxdle.play.placeholderLetters', { count: puzzle.length })
+                                            : t('beatboxdle.play.placeholderClues')}
+                                        listLabel={t('beatboxdle.play.listLabel')}
+                                        submitLabel={t('beatboxdle.play.submit')}
+                                    />
+                                    <p id="beatboxdle-notice" role="status" className="min-h-[1.25rem] text-sm text-site-danger">
+                                        {notice}
+                                    </p>
+                                </div>
+                            ) : (
+                                <div className="flex items-center justify-between gap-3 border-t border-site-line pt-4">
+                                    <span className="text-sm font-semibold text-site-ink">
+                                        {solved ? t('beatboxdle.play.solved') : t('beatboxdle.play.done')}
+                                    </span>
+                                    <button
+                                        type="button"
+                                        onClick={() => setModalOpen(true)}
+                                        className="rounded-lg bg-brand-yellow px-4 py-2.5 text-sm font-bold text-brand-ink transition hover:brightness-105 focus:outline-none focus-visible:ring-2 focus-visible:ring-site-ink"
+                                    >
+                                        {t('beatboxdle.play.seeAnswer')}
+                                    </button>
+                                </div>
+                            )}
+                        </section>
 
                         {!finished && (
-                            <div className="flex flex-col gap-2">
-                                <BeatboxdleInput
-                                    value={draft}
-                                    onChange={setDraft}
-                                    onSubmit={play}
-                                    candidates={candidates}
-                                    disabled={sending}
-                                    invalid={Boolean(notice)}
-                                    describedBy="beatboxdle-notice"
-                                    placeholder={mode === 'letters'
-                                        ? t('beatboxdle.play.placeholderLetters', { count: puzzle.length })
-                                        : t('beatboxdle.play.placeholderClues')}
-                                    listLabel={t('beatboxdle.play.listLabel')}
-                                    submitLabel={t('beatboxdle.play.submit')}
-                                />
-                                <p id="beatboxdle-notice" role="status" className="min-h-[1.25rem] text-sm text-site-danger">
-                                    {notice}
-                                </p>
-                                <p className="text-xs text-site-muted">
-                                    {t('beatboxdle.play.pool', { count: candidates.length })}
-                                </p>
-                            </div>
-                        )}
-
-                        {finished && answer && (
-                            <ResultPanel
-                                t={t}
-                                language={language}
-                                answer={answer}
-                                solved={solved}
-                                guesses={guesses}
-                                puzzle={puzzle}
-                                mode={mode}
-                                modeLabel={modeLabel}
-                            />
+                            <p className="text-center text-xs text-site-soft">
+                                {t('beatboxdle.play.pool', { count: candidates.length })}
+                            </p>
                         )}
                     </>
                 )}
             </div>
+
+            {modalOpen && finished && answer && puzzle && (
+                <ResultModal
+                    t={t}
+                    language={language}
+                    answer={answer}
+                    solved={solved}
+                    guesses={guesses}
+                    puzzle={puzzle}
+                    mode={mode}
+                    modeLabel={modeLabel}
+                    onClose={() => setModalOpen(false)}
+                />
+            )}
         </>
     );
 }

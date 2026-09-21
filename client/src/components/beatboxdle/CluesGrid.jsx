@@ -1,4 +1,5 @@
 import React from 'react';
+import GuessAvatar from './GuessAvatar';
 import { continentName, countryName, categoryName, genderName, titleShortName } from '../../utils/beatboxdleLabels';
 
 const STATE_CLASS = {
@@ -22,7 +23,8 @@ function Arrow({ direction, label }) {
 }
 
 /**
- * Grille du mode indices : une ligne par essai, le nom puis quatre cases.
+ * Grille du mode indices : une ligne par essai, le visage et le nom, puis
+ * quatre cases.
  *
  * Deux précisions se glissent sous la valeur principale, en plus petit :
  * - le continent quand le pays est orange, sinon le joueur voit « Royaume-Uni »
@@ -30,9 +32,9 @@ function Arrow({ direction, label }) {
  * - la discipline du titre, parce que « champion du monde » en crew et en solo
  *   ne racontent pas la même carrière.
  *
- * La ligne qui vient d'être jouée se pose case par case (`dle-reveal`, décalage
- * de 90 ms). C'est ce qui sépare une grille qui s'affiche d'une grille qui se
- * joue ; les lignes déjà là ne rejouent rien au rechargement.
+ * La ligne qui vient d'être jouée se pose case par case (`dle-reveal`) ; les
+ * lignes déjà là ne rejouent rien au rechargement. La ligne gagnante garde une
+ * respiration (`dle-win`) le temps que la fiche de réponse s'ouvre.
  */
 export default function CluesGrid({ language, t, guesses, revealIndex }) {
     if (guesses.length === 0) return null;
@@ -69,7 +71,7 @@ export default function CluesGrid({ language, t, guesses, revealIndex }) {
     const columns = 'minmax(0, 1fr) repeat(4, minmax(0, 4.25rem))';
 
     return (
-        <div className="flex flex-col gap-1.5">
+        <div className="flex flex-col gap-2">
             <div
                 className="grid items-end gap-1.5 border-b border-site-line pb-2"
                 style={{ gridTemplateColumns: columns }}
@@ -91,11 +93,14 @@ export default function CluesGrid({ language, t, guesses, revealIndex }) {
                 return (
                     <div
                         key={`${guess.guess.slug}-${index}`}
-                        className="grid items-stretch gap-1.5"
+                        className={`grid items-stretch gap-1.5 ${animate && guess.correct ? 'dle-win' : ''}`}
                         style={{ gridTemplateColumns: columns }}
                     >
-                        <span className="flex items-center break-words pr-1 text-sm font-semibold leading-tight text-site-ink">
-                            {guess.guess.name}
+                        <span className="flex items-center gap-2 pr-1">
+                            <GuessAvatar name={guess.guess.name} photo={guess.guess.photo} />
+                            <span className="min-w-0 break-words text-sm font-semibold leading-tight text-site-ink">
+                                {guess.guess.name}
+                            </span>
                         </span>
                         {FIELDS.map((field, cellIndex) => {
                             const cell = guess.result[field];
@@ -107,9 +112,9 @@ export default function CluesGrid({ language, t, guesses, revealIndex }) {
                                     key={field}
                                     aria-label={`${headings[field]} : ${main}${hint ? `, ${hint}` : ''}, ${stateLabels[cell.state]}${directionLabel ? `, ${directionLabel}` : ''}`}
                                     style={animate ? { '--dle-index': cellIndex } : undefined}
-                                    className={`flex min-h-[3.75rem] flex-col items-center justify-center gap-0.5 rounded-md px-1 py-1.5 text-center leading-tight ${STATE_CLASS[cell.state]} ${animate ? 'dle-reveal' : ''}`}
+                                    className={`flex min-h-[4rem] flex-col items-center justify-center gap-0.5 rounded-lg px-1 py-1.5 text-center leading-tight ${STATE_CLASS[cell.state]} ${animate ? 'dle-reveal' : ''}`}
                                 >
-                                    <span aria-hidden="true" className="text-[0.6875rem] font-semibold">{main}</span>
+                                    <span aria-hidden="true" className="text-[0.6875rem] font-bold">{main}</span>
                                     {hint ? (
                                         <span aria-hidden="true" className="text-[0.5625rem] font-medium opacity-75">{hint}</span>
                                     ) : null}

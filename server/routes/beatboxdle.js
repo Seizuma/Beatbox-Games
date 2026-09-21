@@ -17,6 +17,17 @@ const requireDataset = (req, res, next) => {
     next();
 };
 
+/** Compteur de relances du jour, posé par l'administration. 0 en temps normal. */
+const currentReroll = (mode) => {
+    try {
+        return getDatabase().getBeatboxdleReroll(mode, daily.localDate());
+    } catch (error) {
+        // Une base indisponible ne doit pas empêcher de jouer : on retombe sur le tirage normal
+        console.error('❌ Lecture du reroll Beatboxdle:', error.message);
+        return 0;
+    }
+};
+
 // Limiteur mémoire : une énigme par jour, personne n'a besoin de 200 essais
 // à la minute. Suffisant pour freiner un script sans peser sur le serveur.
 const hits = new Map();
@@ -55,7 +66,7 @@ router.get('/daily/:mode', requireDataset, (req, res) => {
     }
 
     try {
-        const puzzle = daily.getPublicPuzzle(mode);
+        const puzzle = daily.getPublicPuzzle(mode, new Date(), currentReroll(mode));
         if (!puzzle) {
             return res.status(503).json({ success: false, error: `Aucun beatboxer jouable en mode ${mode}` });
         }
@@ -92,7 +103,7 @@ router.post('/guess', requireDataset, rateLimit(60, 60000), (req, res) => {
     }
 
     try {
-        const puzzle = daily.getPuzzle(mode);
+        const puzzle = daily.getPuzzle(mode, new Date(), currentReroll(mode));
         if (!puzzle) return res.status(503).json({ success: false, error: 'Énigme indisponible' });
 
         const proposed = dataset.findByName(guess);
@@ -119,7 +130,10 @@ router.post('/guess', requireDataset, rateLimit(60, 60000), (req, res) => {
             success: true,
             mode,
             puzzleNumber: puzzle.puzzleNumber,
-            guess: { name: proposed.name, slug: proposed.slug },
+            reroll: puzzle.reroll,
+            // La photo voyage avec la proposition : la grille du mode indices
+            // affiche le visage à côté du nom, comme le Buzzer Battle.
+            guess: { name: proposed.name, slug: proposed.slug, photo: proposed.photo || null },
             correct,
             finished,
             result: mode === 'letters'
@@ -146,7 +160,7 @@ router.post('/result', requireDataset, authenticateDiscord, (req, res) => {
     }
 
     try {
-        const puzzle = daily.getPuzzle(mode);
+        const puzzle = daily.getPuzzle(mode, new Date(), currentReroll(mode));
         if (!puzzle) return res.status(503).json({ success: false, error: 'Énigme indisponible' });
 
         const attemptCount = Math.min(Math.max(parseInt(attempts, 10) || 1, 1), puzzle.maxAttempts);

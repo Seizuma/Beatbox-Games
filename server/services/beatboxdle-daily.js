@@ -11,6 +11,11 @@
 //   - aucun beatboxer ne repasse avant que toute la liste soit épuisée ;
 //   - le cycle suivant est dans un ordre différent ;
 //   - les deux modes ne proposent pas le même beatboxer le même jour.
+//
+// Le `reroll` est la seule entorse, et elle est réservée aux tests : il vient
+// de la base (l'administrateur l'incrémente) et ne sale la graine QUE pour la
+// date concernée. Les autres jours gardent l'ordre du cycle, donc relancer un
+// tirage aujourd'hui ne décale pas les semaines suivantes.
 
 const dataset = require('./beatboxdle-dataset');
 
@@ -102,7 +107,7 @@ function shuffle(list, seedString) {
 /** Instant du prochain minuit local, en tenant compte des changements d'heure. */
 function nextResetAt(from = new Date()) {
     const today = localDate(from);
-    let cursor = from.getTime();
+    const cursor = from.getTime();
     // Balayage à l'heure jusqu'au basculement de date, puis affinage à la minute.
     for (let hours = 1; hours <= 48; hours += 1) {
         const candidate = cursor + hours * 3600000;
@@ -119,8 +124,12 @@ function nextResetAt(from = new Date()) {
 
 /**
  * Énigme du jour, réponse comprise. Usage interne au serveur uniquement.
+ *
+ * @param {string} mode   'letters' ou 'clues'
+ * @param {Date}   date   instant de référence
+ * @param {number} reroll compteur de relances pour cette date (0 = tirage normal)
  */
-function getPuzzle(mode, date = new Date()) {
+function getPuzzle(mode, date = new Date(), reroll = 0) {
     if (!isMode(mode)) throw new Error(`Mode Beatboxdle inconnu : ${mode}`);
 
     const candidates = pool(mode);
@@ -130,12 +139,19 @@ function getPuzzle(mode, date = new Date()) {
     const index = dayIndex(dateString);
     const cycle = Math.floor(index / candidates.length);
     const position = ((index % candidates.length) + candidates.length) % candidates.length;
-    const order = shuffle(candidates, `${SEED}:${mode}:${cycle}`);
+
+    // Sans relance, l'ordre est celui du cycle. Avec, cette date seule reçoit
+    // son propre mélange : les autres jours ne bougent pas d'un cran.
+    const seed = reroll > 0
+        ? `${SEED}:${mode}:${cycle}:reroll-${reroll}:${dateString}`
+        : `${SEED}:${mode}:${cycle}`;
+    const order = shuffle(candidates, seed);
 
     return {
         mode,
         date: dateString,
         puzzleNumber: index + 1,
+        reroll,
         cycle: cycle + 1,
         answer: order[position],
         maxAttempts: MODES[mode].maxAttempts,
@@ -146,16 +162,18 @@ function getPuzzle(mode, date = new Date()) {
 
 /**
  * Version envoyée au client : tout sauf la réponse. La longueur du nom est
- * publique en mode lettres, c'est le gabarit de la grille.
+ * publique en mode lettres, c'est le gabarit de la grille. `reroll` l'est aussi :
+ * c'est lui qui fait jeter aux navigateurs la grille devenue caduque.
  */
-function getPublicPuzzle(mode, date = new Date()) {
-    const puzzle = getPuzzle(mode, date);
+function getPublicPuzzle(mode, date = new Date(), reroll = 0) {
+    const puzzle = getPuzzle(mode, date, reroll);
     if (!puzzle) return null;
 
     return {
         mode: puzzle.mode,
         date: puzzle.date,
         puzzleNumber: puzzle.puzzleNumber,
+        reroll: puzzle.reroll,
         maxAttempts: puzzle.maxAttempts,
         poolSize: puzzle.poolSize,
         nextResetAt: puzzle.nextResetAt,

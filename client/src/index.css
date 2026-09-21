@@ -639,14 +639,14 @@
     /* Beatboxdle : les indices se posent un par un. C'est ce qui sépare une
        grille qui s'affiche d'une grille qui se joue — et ça ne coûte que du CSS. */
     .dle-reveal {
-        animation: dle-reveal 320ms cubic-bezier(0.2, 0.8, 0.3, 1) backwards;
-        animation-delay: calc(var(--dle-index, 0) * 90ms);
+        animation: dle-reveal 520ms cubic-bezier(0.2, 0.8, 0.3, 1) backwards;
+        animation-delay: calc(var(--dle-index, 0) * 160ms);
     }
 
     @keyframes dle-reveal {
         from {
             opacity: 0;
-            transform: translateY(-6px) scale(0.94);
+            transform: translateY(-8px) scale(0.9);
         }
         to {
             opacity: 1;
@@ -655,8 +655,8 @@
     }
 
     .dle-flip {
-        animation: dle-flip 420ms ease backwards;
-        animation-delay: calc(var(--dle-index, 0) * 110ms);
+        animation: dle-flip 620ms ease backwards;
+        animation-delay: calc(var(--dle-index, 0) * 190ms);
     }
 
     @keyframes dle-flip {
@@ -668,11 +668,80 @@
         }
     }
 
+    /* La ligne gagnante respire, le temps que la fiche s'ouvre par-dessus */
+    .dle-win {
+        animation: dle-win 900ms ease 700ms both;
+    }
+
+    @keyframes dle-win {
+
+        0%,
+        100% {
+            transform: none;
+        }
+
+        30% {
+            transform: scale(1.04);
+        }
+
+        60% {
+            transform: scale(0.99);
+        }
+    }
+
+    .dle-pop {
+        animation: dle-pop 640ms cubic-bezier(0.2, 1.4, 0.4, 1) 120ms backwards;
+        display: inline-flex;
+    }
+
+    @keyframes dle-pop {
+        from {
+            opacity: 0;
+            transform: scale(0.4);
+        }
+        to {
+            opacity: 1;
+            transform: scale(1);
+        }
+    }
+
+    .dle-modal {
+        animation: dle-modal 380ms cubic-bezier(0.2, 0.9, 0.3, 1) backwards;
+    }
+
+    @keyframes dle-modal {
+        from {
+            opacity: 0;
+            transform: translateY(24px) scale(0.97);
+        }
+        to {
+            opacity: 1;
+            transform: none;
+        }
+    }
+
+    .dle-backdrop {
+        animation: dle-backdrop 320ms ease backwards;
+    }
+
+    @keyframes dle-backdrop {
+        from {
+            opacity: 0;
+        }
+        to {
+            opacity: 1;
+        }
+    }
+
     /* Le mouvement est un plaisir, pas une obligation */
     @media (prefers-reduced-motion: reduce) {
 
         .dle-reveal,
-        .dle-flip {
+        .dle-flip,
+        .dle-win,
+        .dle-pop,
+        .dle-modal,
+        .dle-backdrop {
             animation: none;
         }
     }
