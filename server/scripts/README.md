@@ -29,8 +29,13 @@ npm run photos:clean                   # (plus tard) libère la place des fiches
   plus des images au fil de la vidéo (yt-dlp + ffmpeg).
 - **Validation** : la photo est copiée dans `beatbox_artists/` sous le nom
   attendu par `scan_images.py`, `local_image` est renseigné et le Buzzer
-  Battle rechargé. Relancer ensuite `python scan_images.py` colorie le Sheet
-  en vert. Une validation s'annule depuis l'onglet « Validées ».
+  Battle rechargé. Une validation s'annule depuis l'onglet « Validées ».
+- **Google Sheet** : en production, chaque décision colore directement les
+  cellules du nom (validée = vert, rejetée = rouge, annulée = blanc, passée =
+  inchangée). Nécessite `SHEET_SYNC=true` et le compte de service dans
+  `/etc/beatbox-games/secrets/google-credentials.json` (voir
+  `docker-compose.yml`). Sans cela, `python scan_images.py` reste le moyen
+  de mettre le Sheet à jour.
 - **Duos et crews** : reconnus via beatbox.world (page d'équipe), le wiki
   (catégorie Groups) ou le nom (« A & B », « A x B »). La photo doit alors
   montrer tous les membres : `faces.py` produit des recadrages de groupe et

@@ -42,6 +42,11 @@ export default function PhotoReview() {
 
             {data && data.total === 0 && <Notice>{t('admin.review.photos.empty')}</Notice>}
             {data && data.pending > 0 && !data.facesChecked && <Notice>{t('admin.review.photos.facesHint')}</Notice>}
+            {data && (
+                <p className="text-xs text-site-soft">
+                    {t(data.sheetSync ? 'admin.review.photos.sheetOn' : 'admin.review.photos.sheetOff')}
+                </p>
+            )}
 
             {status === 'pending'
                 ? <PendingQueue onDecision={summary.reload} />
@@ -339,6 +344,10 @@ function PendingQueue({ onDecision }) {
             return;
         }
         setLastDecision({ key: current.key, name: current.name, action });
+        // La décision est enregistrée même si Google ne répond pas : on le signale seulement.
+        if (result.result?.sheet === 'failed') {
+            setMessage({ tone: 'error', text: t('admin.review.photos.sheetFailed', { name: current.name }) });
+        }
         setTotal((value) => (value === null ? value : value - 1));
         advance();
         onDecision();

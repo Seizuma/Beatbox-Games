@@ -17,6 +17,42 @@ const path = require('path');
 const crypto = require('crypto');
 const { normalizeName, titleToFilename } = require('../scripts/shared/names');
 const { imageSize } = require('../scripts/shared/http');
+const { colorNameCells } = require('../scripts/shared/sheet');
+const photosConfig = require('../scripts/photos/config');
+
+// --- Google Sheet ------------------------------------------------------------
+// Validée = vert, rejetée = rouge, rouverte = blanc : le Sheet reste le
+// tableau de bord de l'équipe sans relancer scan_images.py.
+// Activé explicitement (SHEET_SYNC=true) : seule la production doit écrire
+// dans le vrai Sheet, pas la préprod ni un serveur de dev.
+const sheetSyncEnabled = () =>
+    process.env.SHEET_SYNC === 'true' && fs.existsSync(photosConfig.CREDENTIALS_FILE);
+
+/** @returns {Promise<'updated'|'not_found'|'disabled'|'failed'>} */
+async function syncSheet(name, color) {
+    if (!sheetSyncEnabled()) return 'disabled';
+    try {
+        const cells = await colorNameCells({
+            credentialsFile: photosConfig.CREDENTIALS_FILE,
+            spreadsheetId: photosConfig.SPREADSHEET_ID,
+            sheetNames: photosConfig.SHEET_NAMES,
+            name,
+            color,
+        });
+        return cells > 0 ? 'updated' : 'not_found';
+    } catch (error) {
+        // La décision est déjà enregistrée : le Sheet se rattrapera au
+        // prochain scan_images.py, on ne fait pas échouer le clic pour lui.
+        console.error(`❌ Google Sheet (${name} → ${color}) :`, error.message);
+        return 'failed';
+    }
+}
+
+/** Applique la couleur une fois l'action terminée, hors du verrou des écritures. */
+const withSheet = (color) => (action) => async (...args) => {
+    const result = await action(...args);
+    return { ...result, sheet: await syncSheet(result.name, color) };
+};
 
 const ARTISTS_DIR = path.join(__dirname, '..', 'beatbox_artists');
 const DATA_FILE = path.join(ARTISTS_DIR, 'beatboxers.json');
@@ -129,6 +165,7 @@ function summary() {
         pendingWithCandidates: pending.filter((entry) => visibleCandidates(entry).length > 0).length,
         pendingEmpty: pending.filter((entry) => visibleCandidates(entry).length === 0).length,
         facesChecked: pending.some((entry) => (entry.candidates || []).some((candidate) => candidate.faceChecked)),
+        sheetSync: sheetSyncEnabled(),
     };
 }
 
@@ -524,8 +561,8 @@ module.exports = {
     get,
     setGroup,
     requestTextCleaning,
-    approve,
-    reject,
-    reopen,
+    approve: withSheet('green')(approve),
+    reject: withSheet('red')(reject),
+    reopen: withSheet('white')(reopen),
     addCandidateFromUrl,
 };
