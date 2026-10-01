@@ -15,6 +15,7 @@ npm run photos:collect                 # 1. cherche les photos manquantes
 pip install -r scripts/photos/requirements.txt
 python scripts/photos/faces.py         # 2. visages : tri, recadrage, doublons
 # 3. /admin → Données → Photos Buzzer
+npm run photos:check                   # contrôle des fiches tranchées (--sheet : recolore le Sheet)
 npm run photos:clean                   # (plus tard) libère la place des fiches traitées
 ```
 

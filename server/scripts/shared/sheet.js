@@ -152,16 +152,33 @@ async function readGrid(token, spreadsheetId, sheetNames) {
  * @returns {Promise<number>} nombre de cellules colorées (0 si le nom est absent du Sheet)
  */
 async function colorNameCells({ credentialsFile, spreadsheetId, sheetNames, name, color }) {
+    const { cells } = await colorNames({ credentialsFile, spreadsheetId, sheetNames, colors: new Map([[name, color]]) });
+    return cells;
+}
+
+/**
+ * Version groupée : une seule lecture du Sheet et des écritures par lots de
+ * 500 cellules. Indispensable pour repasser des centaines de noms sans
+ * dépasser le quota d'écriture de Google (environ 60 requêtes par minute).
+ *
+ * @param {Map<string, 'green'|'red'|'white'>} colors nom -> couleur
+ * @returns {Promise<{ cells: number, missing: string[] }>} noms absents du Sheet compris
+ */
+async function colorNames({ credentialsFile, spreadsheetId, sheetNames, colors }) {
     const token = await getAccessToken(credentialsFile, 'https://www.googleapis.com/auth/spreadsheets');
     const sheets = await readGrid(token, spreadsheetId, sheetNames);
-    const target = sheetName(name);
+    const wanted = new Map([...colors].map(([name, color]) => [sheetName(name), { name, color }]));
+    const found = new Set();
 
     const requests = [];
     sheets.forEach((sheet) => {
         sheet.values.forEach((row, rowIndex) => {
             if (rowIndex === 0) return;
             row.forEach((cell, columnIndex) => {
-                if (sheetName(cell) !== target) return;
+                const target = wanted.get(sheetName(cell));
+                if (!target) return;
+                found.add(target.name);
+                const { color } = target;
                 requests.push({
                     repeatCell: {
                         range: {
@@ -178,15 +195,16 @@ async function colorNameCells({ credentialsFile, spreadsheetId, sheetNames, name
             });
         });
     });
-    if (requests.length === 0) return 0;
+    for (let start = 0; start < requests.length; start += 500) {
+        const response = await fetch(`${SHEETS_URL}/${spreadsheetId}:batchUpdate`, {
+            method: 'POST',
+            headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+            body: JSON.stringify({ requests: requests.slice(start, start + 500) }),
+        });
+        if (!response.ok) throw new Error(`Écriture dans le Sheet refusée (HTTP ${response.status})`);
+    }
 
-    const response = await fetch(`${SHEETS_URL}/${spreadsheetId}:batchUpdate`, {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ requests }),
-    });
-    if (!response.ok) throw new Error(`Écriture dans le Sheet refusée (HTTP ${response.status})`);
-    return requests.length;
+    return { cells: requests.length, missing: [...colors.keys()].filter((name) => !found.has(name)) };
 }
 
-module.exports = { readBattleSheet, colorNameCells };
+module.exports = { readBattleSheet, colorNameCells, colorNames };

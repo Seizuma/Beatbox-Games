@@ -16,6 +16,7 @@
     "beatboxdle:enrich": "node scripts/beatboxdle/enrich.js",
     "beatboxdle:all": "npm run beatboxdle:crawl && npm run beatboxdle:profiles && npm run beatboxdle:wiki && npm run beatboxdle:build && npm run beatboxdle:validate && npm run beatboxdle:enrich",
     "photos:collect": "node scripts/photos/collect.js",
+    "photos:check": "node scripts/photos/check.js",
     "photos:clean": "node scripts/photos/collect.js --clean"
   },
   "keywords": [
