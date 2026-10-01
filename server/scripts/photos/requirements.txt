@@ -1,0 +1,5 @@
+# Détection de visage (faces.py)
+opencv-python>=4.8
+numpy>=1.24
+# Facultatif : faces.py --deep (images extraites des vidéos, nécessite aussi ffmpeg)
+# yt-dlp>=2024.1

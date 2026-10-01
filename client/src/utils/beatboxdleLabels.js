@@ -18,14 +18,43 @@ export function countryName(language, code) {
 
 export const continentName = (t, code) => (code ? t(`beatboxdle.continents.${code}`) : null);
 
-export const titleName = (t, id) => (id ? t(`beatboxdle.titles.${id}`) : null);
+// Un titre arrive soit sous forme d'objet ({ id, region, count… }), soit, dans
+// les anciennes bases, réduit à son identifiant.
+const titleId = (title) => (typeof title === 'string' ? title : title?.id || null);
+const withCount = (label, title) => (label && title?.count > 1 ? `${label} ×${title.count}` : label);
+
+/**
+ * Où le titre a été gagné : pays (champion national), continent (champion
+ * d'Europe) ou nom de l'événement (grands battles internationaux). Rien pour
+ * le GBB et le championnat du monde, dont le nom dit déjà tout.
+ */
+export function titlePlace(t, language, title) {
+    if (!title || typeof title === 'string') return null;
+    if (title.regionType === 'country') return countryName(language, title.region);
+    if (title.regionType === 'continent') return continentName(t, title.region);
+    if (title.regionType === 'event') return title.event || null;
+    return null;
+}
+
+/** Forme longue, pour la fiche de réponse : « Champion national — Bulgarie ×3 ». */
+export function titleName(t, title, language) {
+    const id = titleId(title);
+    if (!id) return null;
+    const place = titlePlace(t, language, title);
+    const label = t(`beatboxdle.titles.${id}`);
+    return withCount(place ? `${label} — ${place}` : label, title);
+}
 
 /**
  * Forme courte, pour la case de la grille : « Quart de finaliste au
  * championnat du monde » tient sur cinq lignes dans 68 px de large. La forme
- * longue reste sur la fiche de réponse, où la place ne manque pas.
+ * longue reste sur la fiche de réponse, où la place ne manque pas. Le lieu
+ * part en précision sous la valeur (voir titlePlace).
  */
-export const titleShortName = (t, id) => (id ? t(`beatboxdle.titlesShort.${id}`) : null);
+export const titleShortName = (t, title) => {
+    const id = titleId(title);
+    return id ? withCount(t(`beatboxdle.titlesShort.${id}`), title) : null;
+};
 
 export const categoryName = (t, id) => (id ? t(`beatboxdle.categories.${id}`) : null);
 

@@ -10,9 +10,13 @@
     "beatboxdle:inspect": "node scripts/beatboxdle/inspect.js",
     "beatboxdle:crawl": "node scripts/beatboxdle/crawl.js",
     "beatboxdle:profiles": "node scripts/beatboxdle/profiles.js",
+    "beatboxdle:wiki": "node scripts/beatboxdle/wiki.js",
     "beatboxdle:build": "node scripts/beatboxdle/build.js",
     "beatboxdle:validate": "node scripts/beatboxdle/validate.js",
-    "beatboxdle:all": "npm run beatboxdle:crawl && npm run beatboxdle:profiles && npm run beatboxdle:build && npm run beatboxdle:validate"
+    "beatboxdle:enrich": "node scripts/beatboxdle/enrich.js",
+    "beatboxdle:all": "npm run beatboxdle:crawl && npm run beatboxdle:profiles && npm run beatboxdle:wiki && npm run beatboxdle:build && npm run beatboxdle:validate && npm run beatboxdle:enrich",
+    "photos:collect": "node scripts/photos/collect.js",
+    "photos:clean": "node scripts/photos/collect.js --clean"
   },
   "keywords": [
     "beatbox",
@@ -28,6 +32,7 @@
   "dependencies": {
     "axios": "^1.11.0",
     "better-sqlite3": "^12.4.1",
+    "cheerio": "^1.2.0",
     "cors": "^2.8.5",
     "discord.js": "^14.23.2",
     "dotenv": "^17.2.1",

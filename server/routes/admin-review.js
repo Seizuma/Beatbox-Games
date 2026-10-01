@@ -1,0 +1,162 @@
+/**
+ * Revue des données collectées automatiquement : photos du Buzzer Battle et
+ * titres du Beatboxdle. Monté sous /api/admin/review.
+ *
+ * C'est la dernière étape des pipelines : les scripts proposent, un
+ * administrateur dispose. Rien de ce que les robots ramènent n'atteint les
+ * jeux sans passer par ici.
+ */
+
+const express = require('express');
+const crypto = require('crypto');
+const fs = require('fs');
+const { requireAdmin } = require('../middleware/adminAuth');
+const { getDatabase } = require('../services/database');
+const photoReview = require('../services/photo-review');
+const titleReview = require('../services/title-review');
+
+const router = express.Router();
+
+// --- Images signées ------------------------------------------------------------
+// Une balise <img> n'envoie pas l'en-tête Authorization. Plutôt que de passer
+// le jeton Discord dans l'URL (il finirait dans les journaux), la liste
+// renvoie des URL signées valables une heure. La clé change à chaque
+// démarrage : une page restée ouverte pendant un redéploiement se recharge.
+const SIGNING_KEY = crypto.randomBytes(32);
+const URL_TTL_MS = 60 * 60 * 1000;
+
+const signature = (key, file, expires) =>
+    crypto.createHmac('sha256', SIGNING_KEY).update(`${key}/${file}/${expires}`).digest('base64url');
+
+function signedFileUrl(key, file) {
+    const expires = Date.now() + URL_TTL_MS;
+    const query = new URLSearchParams({ exp: String(expires), sig: signature(key, file, expires) });
+    return `/api/admin/review/photos/${encodeURIComponent(key)}/files/${encodeURIComponent(file)}?${query}`;
+}
+
+router.get('/photos/:key/files/:file', (req, res) => {
+    const { key, file } = req.params;
+    const expires = Number(req.query.exp);
+    const expected = signature(key, file, expires);
+    const given = String(req.query.sig || '');
+
+    const valid = expires > Date.now()
+        && given.length === expected.length
+        && crypto.timingSafeEqual(Buffer.from(given), Buffer.from(expected));
+    if (!valid) return res.status(404).end();
+
+    try {
+        const filePath = photoReview.candidatePath(key, file);
+        if (!fs.existsSync(filePath)) return res.status(404).end();
+        res.setHeader('Cache-Control', 'private, max-age=3600');
+        return res.sendFile(filePath);
+    } catch (error) {
+        return res.status(404).end();
+    }
+});
+
+// Tout le reste exige un administrateur.
+router.use(requireAdmin);
+
+const reviewer = (req) => req.user?.username || req.user?.discordId || 'admin';
+
+function logAdmin(req, message, context) {
+    try {
+        getDatabase().logEvent({ level: 'info', type: 'admin', message, discordId: req.user?.discordId, context });
+    } catch (error) {
+        // Le journal est un plus : une écriture ratée ne doit pas annuler l'action.
+    }
+}
+
+/** Enveloppe commune : erreurs métier en 4xx, le reste en 500. */
+const handle = (label, action) => async (req, res) => {
+    try {
+        res.json({ success: true, ...(await action(req)) });
+    } catch (error) {
+        if (error instanceof photoReview.HttpError) {
+            return res.status(error.status).json({ success: false, error: error.code });
+        }
+        console.error(`❌ ${label}:`, error);
+        return res.status(500).json({ success: false, error: 'server_error' });
+    }
+};
+
+const pageParams = (req) => ({
+    offset: Math.max(0, parseInt(req.query.offset, 10) || 0),
+    limit: Math.min(Math.max(1, parseInt(req.query.limit, 10) || 20), 50),
+    query: String(req.query.q || '').slice(0, 60),
+});
+
+// --- Photos du Buzzer Battle -------------------------------------------------------
+
+router.get('/photos/summary', handle('Résumé photos', () => ({ summary: photoReview.summary() })));
+
+router.get('/photos', handle('Liste photos', (req) => {
+    const page = photoReview.list({ status: String(req.query.status || 'pending'), ...pageParams(req) });
+    return {
+        ...page,
+        items: page.items.map((item) => ({
+            ...item,
+            candidates: item.candidates.map((candidate) => ({ ...candidate, src: signedFileUrl(item.key, candidate.file) })),
+        })),
+    };
+}));
+
+router.post('/photos/:key/approve', handle('Validation photo', async (req) => {
+    const result = await photoReview.approve(req.params.key, String(req.body?.candidateId || ''), reviewer(req));
+    logAdmin(req, `Photo Buzzer validée pour ${result.name} par ${reviewer(req)}`, result);
+    return { result };
+}));
+
+router.post('/photos/:key/reject', handle('Rejet photo', async (req) => {
+    const result = await photoReview.reject(req.params.key, reviewer(req));
+    logAdmin(req, `Photos Buzzer rejetées pour ${result.name} par ${reviewer(req)}`, result);
+    return { result };
+}));
+
+router.post('/photos/:key/reopen', handle('Réouverture photo', async (req) => {
+    const result = await photoReview.reopen(req.params.key, reviewer(req));
+    logAdmin(req, `Revue photo de ${result.name} rouverte par ${reviewer(req)}`, result);
+    return { result };
+}));
+
+router.post('/photos/:key/candidates', handle('Ajout photo', async (req) => {
+    const { candidate } = await photoReview.addCandidateFromUrl(req.params.key, String(req.body?.url || ''));
+    return { candidate: { ...candidate, src: signedFileUrl(req.params.key, candidate.file) } };
+}));
+
+// --- Titres du Beatboxdle --------------------------------------------------------
+
+router.get('/titles/summary', handle('Résumé titres', () => ({ summary: titleReview.summary() })));
+
+router.get('/titles', handle('Liste titres', (req) => titleReview.list({
+    filter: String(req.query.filter || 'todo'),
+    ...pageParams(req),
+})));
+
+router.post('/titles/bulk', handle('Validation groupée', (req) => {
+    const results = titleReview.decideMany(req.body?.slugs, reviewer(req));
+    logAdmin(req, `${results.length} titres Beatboxdle validés par ${reviewer(req)}`, { slugs: results.map((r) => r.slug) });
+    return { results };
+}));
+
+router.post('/titles/rebuild', handle('Reconstruction Beatboxdle', (req) => {
+    const result = titleReview.rebuild({ force: req.body?.force === true });
+    if (result.ok) {
+        logAdmin(req, `Base Beatboxdle reconstruite par ${reviewer(req)} (${result.changedTitles} titres modifiés)`, {
+            count: result.count,
+            reviewedCount: result.reviewedCount,
+            drawChanged: result.drawChanged,
+        });
+    }
+    return { result };
+}));
+
+router.post('/titles/:slug/decision', handle('Décision titre', (req) => {
+    const result = titleReview.decide(req.params.slug, String(req.body?.choice || ''), reviewer(req));
+    return { result };
+}));
+
+router.delete('/titles/:slug/decision', handle('Annulation décision', (req) => ({ result: titleReview.undo(req.params.slug) })));
+
+module.exports = router;

@@ -71,16 +71,22 @@ const directionOf = (guessValue, targetValue) => {
  * Première apparition : vert si même année, orange à ±2 ans, flèche vers la
  *            réponse. Cette colonne a remplacé « catégorie principale », qui
  *            répondait « solo » pour 89 % de la base et n'apprenait rien.
- * Meilleur titre : vert si exactement le même titre, orange si titre de rang
- *            équivalent (champion GBB vs champion du monde), gris sinon, avec
- *            une flèche vers le rang cherché. La discipline du titre voyage
- *            avec lui : « champion du monde » en crew et en solo ne veut pas
+ * Meilleur titre : vert si exactement le même titre (champion national de
+ *            Bulgarie = champion national de Bulgarie), orange si titre de
+ *            prestige équivalent (champion GBB vs champion du monde, champion
+ *            de Bulgarie vs champion de France), gris sinon, avec une flèche
+ *            vers le prestige cherché. La discipline et le lieu voyagent avec
+ *            le titre : « champion du monde » en crew et en solo ne veut pas
  *            dire la même chose pour qui cherche la réponse.
  */
+// `key` distingue les titres régionaux (national-champion:BG) ; les bases
+// construites avant le palmarès élargi n'ont que `id`.
+const titleKey = (title) => (title ? title.key || title.id : null);
+
 function compareClues(guess, target) {
     const titleState = (() => {
         if (!guess.bestTitle || !target.bestTitle) return 'absent';
-        if (guess.bestTitle.id === target.bestTitle.id) return 'correct';
+        if (titleKey(guess.bestTitle) === titleKey(target.bestTitle)) return 'correct';
         return guess.bestTitle.tier === target.bestTitle.tier ? 'present' : 'absent';
     })();
 
@@ -109,6 +115,11 @@ function compareClues(guess, target) {
         title: {
             id: guess.bestTitle ? guess.bestTitle.id : null,
             discipline: guess.bestTitle ? guess.bestTitle.discipline || null : null,
+            // Codes et nom propre seulement : le libellé se fait côté client.
+            region: guess.bestTitle ? guess.bestTitle.region || null : null,
+            regionType: guess.bestTitle ? guess.bestTitle.regionType || null : null,
+            event: guess.bestTitle ? guess.bestTitle.event || null : null,
+            count: guess.bestTitle ? guess.bestTitle.count || 1 : null,
             state: titleState,
             direction: guess.bestTitle && target.bestTitle
                 ? directionOf(guess.bestTitle.tier, target.bestTitle.tier)

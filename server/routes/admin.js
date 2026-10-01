@@ -35,6 +35,12 @@ router.get('/session', authenticateDiscord, (req, res) => {
     res.json({ success: true, isAdmin: isAdmin(discordId), discordId });
 });
 
+// Revue des données collectées (photos Buzzer, titres Beatboxdle). Montée
+// avant le contrôle global : ses images passent par des URL signées, que
+// les balises <img> peuvent charger sans en-tête. Toutes ses autres routes
+// appliquent requireAdmin elles-mêmes.
+router.use('/review', require('./admin-review'));
+
 // Tout ce qui suit est réservé aux administrateurs
 router.use(requireAdmin);
 
