@@ -55,6 +55,7 @@ DUPLICATE_DISTANCE = 6     # distance de Hamming max entre deux dHash « identiq
 MAX_YOUTUBE_VISIBLE = 6    # au-delà, la revue devient du bruit
 CROP_MAX_SIDE = 800
 DEEP_FRAMES = 6            # images extraites par vidéo en mode --deep
+CROP_KINDS = ("face-crop", "group-crop")  # produits ici, refaits à chaque --force
 
 
 # ---------------------------------------------------------------- détection
@@ -139,6 +140,54 @@ def crop_portrait(image, face):
     return crop
 
 
+def group_faces(faces, expected):
+    """
+    Visages des membres : les plus grands, jusqu'au nombre attendu. Un visage
+    deux fois plus petit que le plus grand est le public ou un juge, pas un
+    membre du groupe.
+    """
+    largest = faces[0][2]
+    members = [face for face in faces if face[2] >= largest * 0.45]
+    return members[:expected] if expected else members[:6]
+
+
+def crop_group(image, faces):
+    """Cadre paysage englobant tous les membres, têtes et bustes compris."""
+    height, width = image.shape[:2]
+    face_w = sum(face[2] for face in faces) / len(faces)
+    face_h = sum(face[3] for face in faces) / len(faces)
+    left = min(face[0] for face in faces) - face_w * 0.8
+    right = max(face[0] + face[2] for face in faces) + face_w * 0.8
+    top = min(face[1] for face in faces) - face_h * 0.7
+    bottom = max(face[1] + face[3] for face in faces) + face_h * 1.8
+
+    # Au moins du 4:3 : le jeu affiche les photos en paysage.
+    box_w, box_h = right - left, bottom - top
+    if box_w < box_h * 4 / 3:
+        grow = (box_h * 4 / 3 - box_w) / 2
+        left, right = left - grow, right + grow
+
+    left, top = int(max(0, left)), int(max(0, top))
+    right, bottom = int(min(width, right)), int(min(height, bottom))
+    crop = image[top:bottom, left:right]
+    longest = max(crop.shape[:2])
+    if longest > 1000:
+        scale = 1000 / longest
+        crop = cv2.resize(crop, (int(crop.shape[1] * scale), int(crop.shape[0] * scale)), interpolation=cv2.INTER_AREA)
+    return crop
+
+
+def expected_people(entry):
+    """
+    0 pour un beatboxer seul, sinon le nombre de membres (2 par défaut).
+    Le choix fait dans l'administration (groupOverride) l'emporte sur la détection.
+    """
+    override = entry.get("groupOverride")
+    is_group = override if override is not None else bool(entry.get("group"))
+    if not is_group:
+        return 0
+    return max(2, len((entry.get("group") or {}).get("members") or []))
+
 # ---------------------------------------------------------------- entrées
 
 def load_entry(path):
@@ -161,7 +210,7 @@ def discard(entry_dir, candidate, reason):
         file.unlink()
 
 
-def analyse_candidate(entry_dir, candidate, detector, added):
+def analyse_candidate(entry_dir, candidate, detector, added, group_size=0):
     image = read_image(entry_dir / candidate["file"])
     if image is None:
         discard(entry_dir, candidate, "unreadable")
@@ -186,11 +235,46 @@ def analyse_candidate(entry_dir, candidate, detector, added):
     if not faces:
         confidence -= 0.2
         notes.append("aucun visage détecté")
+    elif group_size and len(faces) < 2:
+        # Duo ou crew : un portrait seul ne montre qu'un des membres.
+        confidence -= 0.25
+        notes.append(f"un seul visage, {group_size} personnes attendues")
+    elif group_size:
+        notes.append(f"{len(faces)} visages")
     elif len(faces) > 1:
         confidence -= 0.1
         notes.append(f"{len(faces)} visages")
     candidate["confidence"] = round(confidence, 2)
     candidate["note"] = " · ".join(notes) or None
+
+    # Groupe : un seul cadre englobant les membres, jamais un visage isolé.
+    if from_video and group_size:
+        members = group_faces(faces, group_size)
+        if len(members) < 2:
+            return
+        crop_id = f"{candidate['id']}-group"
+        crop = crop_group(image, members)
+        if write_jpeg(entry_dir / f"{crop_id}.jpg", crop):
+            score = sum(face[4] for face in members) / len(members)
+            # Tous les membres présents : la meilleure configuration possible.
+            complete = len(members) >= group_size
+            added.append({
+                "id": crop_id,
+                "source": "youtube",
+                "kind": "group-crop",
+                "parent": candidate["id"],
+                "file": f"{crop_id}.jpg",
+                "url": candidate.get("url"),
+                "page": candidate.get("page"),
+                "width": int(crop.shape[1]),
+                "height": int(crop.shape[0]),
+                "confidence": round(0.45 + 0.15 * score + (0.05 if complete else -0.1), 2),
+                "faceChecked": True,
+                "faces": len(members),
+                "faceScore": round(score, 3),
+                "note": f"recadrage groupe · {len(members)}/{group_size} visages",
+            })
+        return
 
     # Recadrage : seulement pour les images vidéo, où le beatboxer n'occupe
     # souvent qu'un tiers du cadre. Les photos de profil sont déjà cadrées.
@@ -321,18 +405,19 @@ def main():
             continue
         entry_dir = entry_path.parent
         candidates = entry.get("candidates", [])
+        group_size = expected_people(entry)
         if args.force:
             # Les recadrages vont être refaits à partir des images d'origine.
             for candidate in candidates:
-                if candidate.get("kind") == "face-crop" and not candidate.get("discarded"):
+                if candidate.get("kind") in CROP_KINDS and not candidate.get("discarded"):
                     discard(entry_dir, candidate, "replaced")
             candidates = [c for c in candidates if c.get("discarded") != "replaced"]
         todo = [
             c for c in candidates
-            if not c.get("discarded") and c.get("kind") != "face-crop" and (args.force or not c.get("faceChecked"))
+            if not c.get("discarded") and c.get("kind") not in CROP_KINDS and (args.force or not c.get("faceChecked"))
         ]
 
-        if args.deep and not any(c.get("kind") == "face-crop" and not c.get("discarded") for c in candidates):
+        if args.deep and not any(c.get("kind") in CROP_KINDS and not c.get("discarded") for c in candidates):
             extra = deep_frames(entry_dir, entry)
             candidates.extend(extra)
             todo.extend(extra)
@@ -342,7 +427,7 @@ def main():
 
         added = []
         for candidate in todo:
-            analyse_candidate(entry_dir, candidate, detector, added)
+            analyse_candidate(entry_dir, candidate, detector, added, group_size)
             totals["analysed"] += 1
             totals["no_face"] += candidate.get("discarded") == "no-face"
 
@@ -355,6 +440,9 @@ def main():
 
         candidates.sort(key=lambda item: item.get("confidence", 0), reverse=True)
         entry["candidates"] = candidates
+        # Le serveur compare cette valeur au réglage courant : si quelqu'un a
+        # marqué la fiche comme groupe depuis, il réordonne en attendant un --force.
+        entry["facesGroupSize"] = group_size
         save_entry(entry_path, entry)
 
         visible = sum(1 for c in candidates if not c.get("discarded"))

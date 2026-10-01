@@ -164,8 +164,66 @@ function get(key) {
     return toListItem(entry);
 }
 
-function toListItem(entry) {
+/**
+ * Duo, tag team ou crew : plusieurs visages attendus sur la photo.
+ * Détecté par collect.js (beatbox.world, wiki, nom « A & B »), corrigeable
+ * dans l'administration (groupOverride).
+ */
+function groupInfo(entry) {
+    const override = typeof entry.groupOverride === 'boolean' ? entry.groupOverride : null;
+    const active = override !== null ? override : Boolean(entry.group);
+    const size = active ? Math.max(2, (entry.group?.members || []).length) : 0;
+    // Les fiches analysées avant la prise en compte des groupes l'ont été en solo.
+    const analysed = (entry.candidates || []).some((candidate) => candidate.faceChecked);
+    const analysedSize = analysed ? entry.facesGroupSize ?? 0 : size;
     return {
+        active,
+        size,
+        override,
+        kind: entry.group?.kind || null,
+        members: entry.group?.members || [],
+        detectedBy: entry.group?.source || null,
+        // faces.py a tourné avec un autre réglage : ses recadrages ne collent plus.
+        needsRecheck: analysedSize !== size,
+    };
+}
+
+/**
+ * Candidates à montrer, dans l'ordre. Quand faces.py a analysé la fiche
+ * comme un solo alors que c'est un groupe (ou l'inverse), on corrige ici en
+ * attendant une réanalyse : recadrages du mauvais type masqués, photos à
+ * plusieurs visages remontées.
+ */
+function rankedCandidates(entry, group) {
+    const candidates = visibleCandidates(entry);
+    if (!group.needsRecheck) return candidates;
+
+    const hiddenKind = group.active ? 'face-crop' : 'group-crop';
+    const adjust = (candidate) => {
+        if (!group.active || candidate.faces == null) return 0;
+        if (candidate.faces >= 2) return 0.2;
+        return candidate.faces === 1 ? -0.25 : 0;
+    };
+    return candidates
+        .filter((candidate) => candidate.kind !== hiddenKind)
+        .map((candidate) => ({ ...candidate, confidence: Math.round(((candidate.confidence || 0) + adjust(candidate)) * 100) / 100 }))
+        .sort((a, b) => b.confidence - a.confidence);
+}
+
+/** Marque une fiche comme groupe (true), solo (false), ou revient à la détection (null). */
+function setGroup(key, value) {
+    const entry = readEntry(key);
+    if (!entry) throw new HttpError(404, 'entry_not_found');
+    if (value === null) delete entry.groupOverride;
+    else entry.groupOverride = Boolean(value);
+    writeEntry(entry);
+    return toListItem(entry);
+}
+
+function toListItem(entry) {
+    const group = groupInfo(entry);
+    return {
+        group,
         key: entry.key,
         name: entry.name,
         nationality: entry.nationality || null,
@@ -177,7 +235,7 @@ function toListItem(entry) {
         reviewedBy: entry.reviewedBy || null,
         approvedCandidate: entry.approvedCandidate || null,
         approvedFile: entry.approvedFile || null,
-        candidates: visibleCandidates(entry).map((candidate) => ({
+        candidates: rankedCandidates(entry, group).map((candidate) => ({
             id: candidate.id,
             source: candidate.source,
             kind: candidate.kind,
@@ -464,6 +522,7 @@ module.exports = {
     summary,
     list,
     get,
+    setGroup,
     requestTextCleaning,
     approve,
     reject,

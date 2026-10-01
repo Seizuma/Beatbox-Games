@@ -212,7 +212,8 @@ function parseProfileMedia($) {
 }
 
 /**
- * Page /search?q=… -> [{ slug, name, code, hasPhoto }]
+ * Page /search?q=… -> [{ type, slug, name, code, hasPhoto }]
+ * `type` vaut 'beatboxer' ou 'team' (duo, tag team, crew : /teams/<slug>).
  * Le nom est le texte du lien, débarrassé de l'initiale d'avatar (« M Max 🇷🇺 »
  * quand il n'y a pas de photo) et du drapeau.
  */
@@ -222,23 +223,75 @@ function parseSearchResults(html) {
 
     $('a[href]').each((_, element) => {
         const href = $(element).attr('href') || '';
-        const match = href.match(/^(?:https:\/\/beatbox\.world)?\/beatboxers\/([a-z0-9][a-z0-9-]*)\/?$/i);
-        if (!match || results.has(match[1])) return;
+        const match = href.match(/^(?:https:\/\/beatbox\.world)?\/(beatboxers|teams)\/([a-z0-9][a-z0-9-]*)\/?$/i);
+        if (!match) return;
+        const type = match[1].toLowerCase() === 'teams' ? 'team' : 'beatboxer';
+        const id = `${type}:${match[2]}`;
+        if (results.has(id)) return;
 
         const link = $(element).clone();
         link.find('[aria-hidden="true"]').remove(); // l'initiale de l'avatar
         const text = clean(link.text());
         const flag = (text.match(FLAG_RE) || [])[0] || null;
 
-        results.set(match[1], {
-            slug: match[1],
+        results.set(id, {
+            type,
+            slug: match[2],
             name: clean(text.replace(FLAG_RE_ALL, '')).replace(/(\s*official account\s*)+$/i, '').trim(),
             code: flagToCode(flag),
-            hasPhoto: $(element).find('img[src*="/beatboxers/"]').length > 0,
+            hasPhoto: $(element).find('img[src*="/beatboxers/"], img[src*="/teams/"]').length > 0,
         });
     });
 
     return [...results.values()];
+}
+
+/**
+ * Page /teams/<slug> -> duo, tag team ou crew.
+ * La meta description dit tout en une phrase : « 84 Funeral, France beatbox
+ * tag team formed by Dol & Era: 3 competition entries. » Les membres sont les
+ * liens /beatboxers/ ; la photo d'équipe, quand elle existe, est la seule
+ * image /teams/ affichée en grand.
+ */
+function parseTeamPage(html, slug) {
+    const $ = cheerio.load(html);
+    const description = $('meta[name="description"]').attr('content') || '';
+
+    const kindText = (description.match(/beatbox\s+(tag team|crew|duo|trio|team|group)\b/i) || [])[1] || 'team';
+    const kind = /crew|group|trio/i.test(kindText) ? 'crew' : 'tag-team';
+
+    const members = new Map();
+    $('a[href^="/beatboxers/"]').each((_, element) => {
+        const memberSlug = (($(element).attr('href') || '').match(/^\/beatboxers\/([a-z0-9-]+)\/?$/i) || [])[1];
+        if (memberSlug && !members.has(memberSlug)) {
+            members.set(memberSlug, { slug: memberSlug, name: clean($(element).text().replace(FLAG_RE_ALL, '')) || memberSlug });
+        }
+    });
+    // Les noms de la description font foi : les liens peuvent inclure d'anciens membres.
+    const formedBy = (description.match(/formed by ([^:]+):/i) || [])[1];
+    const memberNames = formedBy ? formedBy.split(/\s*(?:,|&|\band\b)\s*/).map(clean).filter(Boolean) : [];
+
+    let photo = null;
+    $('img[src]').each((_, element) => {
+        const src = $(element).attr('src') || '';
+        if (!photo && /\/teams\/\d+\//.test(src) && (Number($(element).attr('width')) || 0) >= 100) photo = src;
+    });
+
+    const videos = [];
+    $('img[src*="i.ytimg.com/vi/"]').each((_, element) => {
+        const id = (($(element).attr('src') || '').match(/\/vi\/([\w-]{11})\//) || [])[1];
+        if (id && !videos.includes(id)) videos.push(id);
+    });
+
+    return {
+        slug,
+        name: clean($('h1').first().text()) || slug,
+        kind,
+        countryEn: (description.match(/^[^,]+,\s*([^,]+?)\s+beatbox\b/i) || [])[1] || null,
+        members: memberNames.length ? memberNames : [...members.values()].map((member) => member.name),
+        photo,
+        videos,
+    };
 }
 
 module.exports = {
@@ -252,4 +305,5 @@ module.exports = {
     parseProfile,
     parseProfileMedia,
     parseSearchResults,
+    parseTeamPage,
 };

@@ -5,7 +5,7 @@
 // Le parsing HTML reste dans beatboxdle/parse.js, seul endroit à reprendre
 // le jour où le site change de gabarit.
 
-const { parseProfile, parseSearchResults } = require('../beatboxdle/parse');
+const { parseProfile, parseSearchResults, parseTeamPage } = require('../beatboxdle/parse');
 const { normalizeName, looseName, guessSlug } = require('../shared/names');
 
 const BASE_URL = 'https://beatbox.world';
@@ -25,7 +25,7 @@ const BASE_URL = 'https://beatbox.world';
  */
 async function findBeatboxer(client, name, countryCode = null) {
     const html = await client.fetchText(`${BASE_URL}/search?${new URLSearchParams({ q: name })}`);
-    const results = html ? parseSearchResults(html) : [];
+    const results = html ? parseSearchResults(html).filter((result) => result.type === 'beatboxer') : [];
 
     const pick = (candidates, match) => {
         if (candidates.length === 0) return null;
@@ -64,4 +64,23 @@ async function fetchProfile(client, slug) {
     return { ...parseProfile(html, slug), url };
 }
 
-module.exports = { BASE_URL, findBeatboxer, fetchProfile };
+/**
+ * Retrouve un duo, une tag team ou un crew portant exactement ce nom
+ * (à 0/O et 1/l près). Même recherche que pour les beatboxers : la page est
+ * en cache, la question ne coûte pas de requête supplémentaire.
+ * @returns {Promise<object|null>} page d'équipe analysée, avec son url
+ */
+async function findTeam(client, name) {
+    const html = await client.fetchText(`${BASE_URL}/search?${new URLSearchParams({ q: name })}`);
+    if (!html) return null;
+    const team = parseSearchResults(html)
+        .filter((result) => result.type === 'team')
+        .find((result) => normalizeName(result.name) === normalizeName(name) || looseName(result.name) === looseName(name));
+    if (!team) return null;
+
+    const url = `${BASE_URL}/teams/${team.slug}`;
+    const page = await client.fetchText(url);
+    return page ? { ...parseTeamPage(page, team.slug), url } : null;
+}
+
+module.exports = { BASE_URL, findBeatboxer, fetchProfile, findTeam };

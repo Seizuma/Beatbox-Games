@@ -35,7 +35,7 @@ function countryFromCategories(categories = []) {
  * Cherche les pages de plusieurs beatboxers d'un coup (50 par requête).
  * Suit les redirections et la normalisation de casse du wiki.
  *
- * @returns {Promise<Map<string, { title, url, image, isBeatboxer, countryCode }>>}
+ * @returns {Promise<Map<string, { title, url, image, isBeatboxer, isGroup, countryCode }>>}
  *          clé = nom demandé, absent si la page n'existe pas
  */
 async function lookupPages(client, names) {
@@ -73,6 +73,8 @@ async function lookupPages(client, names) {
                 url: pageUrl(page.title),
                 image: page.original ? { url: page.original.source, width: page.original.width, height: page.original.height } : null,
                 isBeatboxer: categories.some((category) => /beatboxers|loopers/i.test(category)),
+                // Duos, tag teams et crews : « Category:Groups » sur ce wiki.
+                isGroup: categories.some((category) => /groups|crews|tag teams/i.test(category)),
                 countryCode: countryFromCategories(categories),
             });
         });

@@ -62,6 +62,14 @@ const client = createClient({
 
 const countryCodeOf = (nationality) => (nationality ? codeFromEnglishName(nationality) || codeFromPlaceWord(nationality) : null);
 
+// « Andre & Ballistic », « Abdiel x Zerpa », « Black and White » : deux noms
+// réunis, c'est un duo. Les noms de groupe sans séparateur (« 84 Funeral »)
+// sont reconnus par beatbox.world ou le wiki, ou signalés dans l'administration.
+const GROUP_NAME_RE = /\s(?:x|&|and|\+|feat\.?)\s/i;
+const groupFromName = (name) => (GROUP_NAME_RE.test(name)
+    ? { kind: 'tag-team', members: name.split(GROUP_NAME_RE).map((part) => part.trim()).filter(Boolean), source: 'name' }
+    : null);
+
 const IMAGE_EXTENSIONS = ['.jpg', '.jpeg', '.png', '.webp', '.gif'];
 const hasImageOnDisk = (name) =>
     IMAGE_EXTENSIONS.some((extension) => fs.existsSync(path.join(config.ARTISTS_DIR, `${titleToFilename(name)}${extension}`)));
@@ -157,6 +165,27 @@ async function addCandidate(entry, seenHashes, { id, source, kind, urls, page, c
 }
 
 async function collectBeatboxWorld(entry, seen) {
+    // Duo, tag team ou crew d'abord : sa page d'équipe donne les membres, la
+    // photo de groupe et des vidéos où ils jouent ensemble. Prendre la fiche
+    // d'un des membres donnerait un portrait individuel, inutilisable ici.
+    const team = await beatboxWorld.findTeam(client, entry.name);
+    if (team) {
+        entry.group = { kind: team.kind, members: team.members, source: 'beatboxworld' };
+        entry.sources.beatboxworld = { slug: team.slug, url: team.url, match: 'team', countryMatch: null };
+        if (!entry.countryCode && team.countryEn) entry.countryCode = codeFromEnglishName(team.countryEn);
+        if (team.photo) {
+            await addCandidate(entry, seen, {
+                id: 'bbw-team-photo',
+                source: 'beatboxworld',
+                kind: 'team-photo',
+                urls: [team.photo],
+                page: team.url,
+                confidence: config.CONFIDENCE.beatboxworld,
+            });
+        }
+        return { videos: team.videos, youtubeChannel: null };
+    }
+
     const found = await beatboxWorld.findBeatboxer(client, entry.name, entry.countryCode);
     if (!found) return null;
     const profile = await beatboxWorld.fetchProfile(client, found.slug);
@@ -191,11 +220,12 @@ async function collectWiki(entry, seen, page) {
         if (!page) return;
     }
     entry.sources.wiki = { title: page.title, url: page.url };
+    if (page.isGroup && !entry.group) entry.group = { kind: 'group', members: [], source: 'wiki' };
     if (!page.image) return;
 
     let confidence = config.CONFIDENCE.wiki;
     const notes = [];
-    if (!page.isBeatboxer) { confidence -= 0.3; notes.push('page hors catégorie beatboxers'); }
+    if (!page.isBeatboxer && !page.isGroup) { confidence -= 0.3; notes.push('page hors catégorie beatboxers'); }
     if (entry.countryCode && page.countryCode && page.countryCode !== entry.countryCode) {
         confidence -= 0.35;
         notes.push(`pays du wiki : ${page.countryCode}`);
@@ -328,6 +358,8 @@ async function main() {
             countryCode: countryCodeOf(target.nationality),
             events: target.events,
             inDataFile: target.inDataFile,
+            // Duo ou crew : plusieurs visages attendus sur la photo (voir faces.py).
+            group: groupFromName(target.name),
             status: 'pending',
             collectedAt: new Date().toISOString(),
             sources: {},
@@ -360,6 +392,7 @@ async function main() {
         console.log(
             `   [${index + 1}/${todo.length}] ${target.name.padEnd(28)} `
             + `bbw ${bySource[0]} · wiki ${bySource[1]} · yt ${bySource[2]}`
+            + (entry.group ? `  [${entry.group.kind}${entry.group.members.length ? ` : ${entry.group.members.join(', ')}` : ''}]` : '')
             + (entry.errors.length ? `  ⚠️  ${entry.errors.join(' | ')}` : ''),
         );
     }

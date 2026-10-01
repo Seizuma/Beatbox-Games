@@ -104,6 +104,12 @@ router.get('/photos', handle('Liste photos', (req) => {
 // Après summary : sinon « summary » serait pris pour une clé de fiche.
 router.get('/photos/:key', handle('Fiche photo', (req) => ({ item: withSignedUrls(photoReview.get(req.params.key)) })));
 
+router.post('/photos/:key/group', handle('Groupe', (req) => {
+    const value = req.body?.group;
+    if (![true, false, null].includes(value)) throw new photoReview.HttpError(400, 'invalid_choice');
+    return { item: withSignedUrls(photoReview.setGroup(req.params.key, value)) };
+}));
+
 router.post('/photos/:key/candidates/:candidateId/clean', handle('Effacement du texte', (req) => {
     const result = photoReview.requestTextCleaning(req.params.key, req.params.candidateId, {
         auto: req.body?.auto !== false,

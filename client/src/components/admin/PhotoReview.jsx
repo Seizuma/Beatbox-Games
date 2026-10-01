@@ -140,6 +140,43 @@ function CandidateTile({ candidate, index, selected, onSelect, onApprove, onEras
 }
 
 /**
+ * Solo ou groupe. Un duo doit apparaître au complet sur la photo : la
+ * détection automatique (beatbox.world, wiki, nom « A & B ») se corrige ici.
+ */
+function GroupControl({ item, onChange, busy, t }) {
+    const group = item.group || {};
+    const kind = group.kind === 'crew' ? t('admin.review.photos.groupCrew') : t('admin.review.photos.groupDuo');
+
+    return (
+        <div className="mt-2 flex flex-col gap-1.5">
+            <div className="flex flex-wrap items-center gap-2 text-xs">
+                {group.active ? (
+                    <span className="rounded-full bg-site-tint px-2.5 py-1 font-bold text-site-ink">
+                        {t('admin.review.photos.groupBadge', { kind, count: group.size })}
+                        {group.members?.length > 0 && <span className="font-normal text-site-muted"> · {group.members.join(', ')}</span>}
+                    </span>
+                ) : (
+                    <span className="rounded-full bg-site-tint px-2.5 py-1 font-bold text-site-muted">{t('admin.review.photos.solo')}</span>
+                )}
+                <SiteButton variant="ghost" size="sm" disabled={busy} onClick={() => onChange(!group.active)}>
+                    {group.active ? t('admin.review.photos.markSolo') : t('admin.review.photos.markGroup')}
+                </SiteButton>
+                {group.override !== null && group.override !== undefined && (
+                    <SiteButton variant="ghost" size="sm" disabled={busy} onClick={() => onChange(null)}>
+                        {t('admin.review.photos.groupAuto')}
+                    </SiteButton>
+                )}
+            </div>
+            {group.needsRecheck && (
+                <p className="text-[11px] text-site-soft">
+                    {t('admin.review.photos.groupRecheck', { command: `faces.py --force --keys ${item.key}` })}
+                </p>
+            )}
+        </div>
+    );
+}
+
+/**
  * Choix des zones à effacer : on trace des rectangles sur l'image, et/ou on
  * s'en remet à la détection automatique du texte. Les coordonnées partent en
  * relatif (0-1) : le script les rapporte à la taille réelle de l'image.
@@ -354,6 +391,20 @@ function PendingQueue({ onDecision }) {
     const [erasing, setErasing] = useState(null);
     const isCleaning = Boolean(current?.candidates.some((candidate) => candidate.cleaning?.status === 'queued'));
 
+    // Duo / crew : la fiche revient triée pour plusieurs visages attendus.
+    const setGroup = async (value) => {
+        if (!current) return;
+        setBusy(true);
+        const result = await postJson(`/api/admin/review/photos/${encodeURIComponent(current.key)}/group`, { group: value });
+        setBusy(false);
+        if (!result.ok) {
+            setMessage({ tone: 'error', text: errorText(t, result.error) });
+            return;
+        }
+        setQueue((previous) => (previous[0]?.key === result.item.key ? [result.item, ...previous.slice(1)] : previous));
+        setSelected(0);
+    };
+
     const submitErase = async ({ auto, boxes }) => {
         const candidate = erasing;
         setErasing(null);
@@ -468,6 +519,7 @@ function PendingQueue({ onDecision }) {
                                 <p className="mt-1 text-sm text-site-muted">
                                     {[current.nationality, ...(current.events || []).slice(0, 4)].filter(Boolean).join(' · ')}
                                 </p>
+                                <GroupControl item={current} onChange={setGroup} busy={busy} t={t} />
                             </div>
                             <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs">
                                 {sources.beatboxworld?.url && (
