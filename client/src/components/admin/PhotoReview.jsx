@@ -73,6 +73,35 @@ function kindLabel(t, candidate) {
 // Au-delà, la demande d'effacement n'a manifestement pas été prise en charge.
 const CLEANING_STALE_MS = 30000;
 
+// Le proxy devant l'API peut refuser les envois de plus de 1 Mo (valeur par
+// défaut de nginx) : au-delà de ces seuils, l'image est réduite avant l'envoi.
+// 1920 px suffisent largement pour le jeu.
+const UPLOAD_MAX_BYTES = 900 * 1024;
+const UPLOAD_MAX_SIDE = 1920;
+
+/** Réduit une image trop lourde ou trop grande en JPEG ; renvoie l'original sinon. */
+async function prepareUpload(file) {
+    const bitmap = await createImageBitmap(file).catch(() => null);
+    if (!bitmap) return file; // format que le navigateur ne décode pas : le serveur tranchera
+    const scale = Math.min(1, UPLOAD_MAX_SIDE / Math.max(bitmap.width, bitmap.height));
+    if (file.size <= UPLOAD_MAX_BYTES && scale === 1) return file;
+
+    const canvas = document.createElement('canvas');
+    canvas.width = Math.round(bitmap.width * scale);
+    canvas.height = Math.round(bitmap.height * scale);
+    const context = canvas.getContext('2d');
+    context.fillStyle = '#000'; // fond des PNG transparents, comme l'affichage du jeu
+    context.fillRect(0, 0, canvas.width, canvas.height);
+    context.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+
+    for (const quality of [0.9, 0.8, 0.7, 0.6]) {
+        // eslint-disable-next-line no-await-in-loop
+        const blob = await new Promise((resolve) => canvas.toBlob(resolve, 'image/jpeg', quality));
+        if (blob && (blob.size <= UPLOAD_MAX_BYTES || quality === 0.6)) return blob;
+    }
+    return file;
+}
+
 function CleaningStatus({ cleaning, t }) {
     if (!cleaning) return null;
     if (cleaning.status === 'error') {
@@ -394,10 +423,76 @@ function PendingQueue({ onDecision }) {
         setUrl('');
     };
 
+    // --- Image depuis le disque (bouton, glisser-déposer, Ctrl+V) -------------
+    const fileInput = useRef(null);
+    const erasingRef = useRef(null); // la fenêtre d'effacement a son propre usage du collage
+    const [dragging, setDragging] = useState(false);
+
+    const uploadFile = useCallback(async (file) => {
+        if (!current || !file) return;
+        if (!file.type.startsWith('image/')) {
+            setMessage({ tone: 'error', text: errorText(t, 'not_an_image') });
+            return;
+        }
+        setBusy(true);
+        setMessage(null);
+        try {
+            const blob = await prepareUpload(file);
+            const response = await authFetch(`/api/admin/review/photos/${encodeURIComponent(current.key)}/upload`, {
+                method: 'POST',
+                body: blob,
+                headers: { 'Content-Type': blob.type, 'X-Filename': encodeURIComponent(file.name || 'collage') },
+            });
+            const data = await response.json().catch(() => ({}));
+            if (!response.ok) {
+                setMessage({ tone: 'error', text: errorText(t, response.status === 413 ? 'image_too_large' : data.error) });
+                return;
+            }
+            setQueue((previous) => previous.map((item, index) => (index === 0 && item.key === current.key
+                ? { ...item, candidates: [data.candidate, ...item.candidates] }
+                : item)));
+            setSelected(0);
+        } catch (error) {
+            setMessage({ tone: 'error', text: errorText(t, 'generic') });
+        } finally {
+            setBusy(false);
+        }
+    }, [current, t]);
+
+    // Coller une image copiée (capture d'écran, « Copier l'image » d'un site)
+    useEffect(() => {
+        const onPaste = (event) => {
+            if (erasingRef.current || event.target.closest?.('input, textarea')) return;
+            const item = [...(event.clipboardData?.items || [])].find((entry) => entry.type.startsWith('image/'));
+            if (!item) return;
+            event.preventDefault();
+            uploadFile(item.getAsFile());
+        };
+        window.addEventListener('paste', onPaste);
+        return () => window.removeEventListener('paste', onPaste);
+    }, [uploadFile]);
+
+    const dropProps = {
+        onDragOver: (event) => {
+            if (![...event.dataTransfer.types].includes('Files')) return;
+            event.preventDefault();
+            setDragging(true);
+        },
+        onDragLeave: (event) => {
+            if (!event.currentTarget.contains(event.relatedTarget)) setDragging(false);
+        },
+        onDrop: (event) => {
+            event.preventDefault();
+            setDragging(false);
+            uploadFile(event.dataTransfer.files?.[0]);
+        },
+    };
+
     // --- Effacement du texte -----------------------------------------------
     // La demande est traitée par clean_text.py sur l'hôte : on relit la fiche
     // toutes les quelques secondes jusqu'à l'arrivée de l'image nettoyée.
     const [erasing, setErasing] = useState(null);
+    erasingRef.current = erasing;
     const isCleaning = Boolean(current?.candidates.some((candidate) => candidate.cleaning?.status === 'queued'));
 
     // Duo / crew : la fiche revient triée pour plusieurs visages attendus.
@@ -518,7 +613,11 @@ function PendingQueue({ onDecision }) {
                 emptyText={t('admin.review.photos.done')}
             >
                 {current && (
-                    <section aria-labelledby="photo-review-name" className="flex flex-col gap-4">
+                    <section
+                        aria-labelledby="photo-review-name"
+                        {...dropProps}
+                        className={`flex flex-col gap-4 rounded-lg ${dragging ? 'outline-dashed outline-2 outline-offset-4 outline-site-ink' : ''}`}
+                    >
                         <div className="flex flex-wrap items-end justify-between gap-3 border-b border-site-line pb-3">
                             <div className="min-w-0">
                                 <p className="text-xs text-site-soft">
@@ -586,7 +685,22 @@ function PendingQueue({ onDecision }) {
                             <SiteButton type="submit" variant="secondary" size="sm" disabled={busy || !url.trim()}>
                                 {t('admin.review.photos.addUrlButton')}
                             </SiteButton>
+                            <span className="text-xs text-site-soft">{t('admin.review.photos.or')}</span>
+                            <SiteButton variant="secondary" size="sm" disabled={busy} onClick={() => fileInput.current?.click()}>
+                                {t('admin.review.photos.addFile')}
+                            </SiteButton>
+                            <input
+                                ref={fileInput}
+                                type="file"
+                                accept="image/jpeg,image/png,image/webp,image/gif"
+                                className="hidden"
+                                onChange={(event) => {
+                                    uploadFile(event.target.files?.[0]);
+                                    event.target.value = '';
+                                }}
+                            />
                         </form>
+                        <p className="-mt-2 text-[11px] text-site-soft">{t('admin.review.photos.addFileHint')}</p>
 
                         <div className="sticky bottom-0 -mx-1 flex flex-wrap items-center gap-2 border-t border-site-line bg-site-paper px-1 py-3">
                             <SiteButton

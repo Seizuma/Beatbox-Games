@@ -104,6 +104,19 @@ router.get('/photos', handle('Liste photos', (req) => {
 // Après summary : sinon « summary » serait pris pour une clé de fiche.
 router.get('/photos/:key', handle('Fiche photo', (req) => ({ item: withSignedUrls(photoReview.get(req.params.key)) })));
 
+// Image envoyée depuis le disque : corps binaire brut (Content-Type image/*),
+// le nom d'origine en en-tête. Pas de multipart, donc pas de dépendance.
+router.post(
+    '/photos/:key/upload',
+    express.raw({ type: 'image/*', limit: '15mb' }),
+    handle('Envoi de photo', async (req) => {
+        let filename = String(req.headers['x-filename'] || '');
+        try { filename = decodeURIComponent(filename); } catch (error) { /* nom illisible : gardé tel quel */ }
+        const { candidate } = await photoReview.addCandidateFromUpload(req.params.key, req.body, filename);
+        return { candidate: { ...candidate, src: signedFileUrl(req.params.key, candidate.file) } };
+    }),
+);
+
 router.post('/photos/:key/group', handle('Groupe', (req) => {
     const value = req.body?.group;
     if (![true, false, null].includes(value)) throw new photoReview.HttpError(400, 'invalid_choice');

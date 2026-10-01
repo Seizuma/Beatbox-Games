@@ -516,6 +516,20 @@ async function addCandidateFromUrl(key, url) {
     if (!response || !response.ok) throw new HttpError(502, 'download_failed');
 
     const buffer = Buffer.from(await response.arrayBuffer());
+    return storeManualCandidate(key, buffer, { kind: 'url', url: parsed.toString() });
+}
+
+/** Ajoute une image envoyée depuis le disque de l'administrateur. */
+const addCandidateFromUpload = (key, buffer, filename) =>
+    storeManualCandidate(key, buffer, { kind: 'upload', note: filename ? String(filename).slice(0, 120) : null });
+
+/**
+ * Enregistre une image ajoutée à la main (lien ou fichier) en tête de fiche.
+ * Le contenu est vérifié par sa signature, pas par l'extension ou le type
+ * annoncés : seuls JPEG, PNG, WebP et GIF passent.
+ */
+function storeManualCandidate(key, buffer, { kind, url = null, note = null }) {
+    if (!Buffer.isBuffer(buffer) || buffer.length === 0) throw new HttpError(415, 'not_an_image');
     if (buffer.length > 15 * 1024 * 1024) throw new HttpError(413, 'image_too_large');
     const size = imageSize(buffer);
     if (!size) throw new HttpError(415, 'not_an_image');
@@ -523,6 +537,7 @@ async function addCandidateFromUrl(key, url) {
     return exclusive(() => {
         const entry = readEntry(key);
         if (!entry) throw new HttpError(404, 'entry_not_found');
+        if (entry.status !== 'pending') throw new HttpError(409, 'already_reviewed');
 
         const id = `manual-${Date.now().toString(36)}`;
         const file = `${id}.${size.type === 'jpeg' ? 'jpg' : size.type}`;
@@ -531,14 +546,15 @@ async function addCandidateFromUrl(key, url) {
             {
                 id,
                 source: 'manual',
-                kind: 'url',
+                kind,
                 file,
-                url: parsed.toString(),
-                page: parsed.toString(),
+                url,
+                page: url,
                 width: size.width,
                 height: size.height,
                 bytes: buffer.length,
                 confidence: 1,
+                note,
             },
             ...(entry.candidates || []),
         ];
@@ -565,4 +581,5 @@ module.exports = {
     reject: withSheet('red')(reject),
     reopen: withSheet('white')(reopen),
     addCandidateFromUrl,
+    addCandidateFromUpload,
 };
