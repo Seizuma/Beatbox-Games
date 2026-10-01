@@ -91,15 +91,25 @@ const pageParams = (req) => ({
 
 router.get('/photos/summary', handle('Résumé photos', () => ({ summary: photoReview.summary() })));
 
+const withSignedUrls = (item) => ({
+    ...item,
+    candidates: item.candidates.map((candidate) => ({ ...candidate, src: signedFileUrl(item.key, candidate.file) })),
+});
+
 router.get('/photos', handle('Liste photos', (req) => {
     const page = photoReview.list({ status: String(req.query.status || 'pending'), ...pageParams(req) });
-    return {
-        ...page,
-        items: page.items.map((item) => ({
-            ...item,
-            candidates: item.candidates.map((candidate) => ({ ...candidate, src: signedFileUrl(item.key, candidate.file) })),
-        })),
-    };
+    return { ...page, items: page.items.map(withSignedUrls) };
+}));
+
+// Après summary : sinon « summary » serait pris pour une clé de fiche.
+router.get('/photos/:key', handle('Fiche photo', (req) => ({ item: withSignedUrls(photoReview.get(req.params.key)) })));
+
+router.post('/photos/:key/candidates/:candidateId/clean', handle('Effacement du texte', (req) => {
+    const result = photoReview.requestTextCleaning(req.params.key, req.params.candidateId, {
+        auto: req.body?.auto !== false,
+        boxes: req.body?.boxes,
+    }, reviewer(req));
+    return { result };
 }));
 
 router.post('/photos/:key/approve', handle('Validation photo', async (req) => {

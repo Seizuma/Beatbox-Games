@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { DataState, Notice, Segmented, SectionTitle, SiteButton } from '../site/SiteUI';
+import { DataState, Notice, Segmented, SectionTitle, SiteButton, SiteModal } from '../site/SiteUI';
 import Icon from '../icons/Icon';
 import { useSiteI18n, formatDay, formatNumber } from '../../utils/siteI18n';
 import { API_BASE_URL, useApi } from '../../utils/useApi';
@@ -65,7 +65,23 @@ function kindLabel(t, candidate) {
     return t(`admin.review.photos.kinds.${candidate.kind}`);
 }
 
-function CandidateTile({ candidate, index, selected, onSelect, onApprove, t }) {
+// Au-delà, la demande d'effacement n'a manifestement pas été prise en charge.
+const CLEANING_STALE_MS = 30000;
+
+function CleaningStatus({ cleaning, t }) {
+    if (!cleaning) return null;
+    if (cleaning.status === 'error') {
+        return <span className="px-2 text-[11px] font-semibold text-site-danger">{cleaning.error || t('admin.review.errors.generic')}</span>;
+    }
+    const stale = cleaning.requestedAt && Date.now() - new Date(cleaning.requestedAt).getTime() > CLEANING_STALE_MS;
+    return (
+        <span role="status" className="px-2 text-[11px] font-semibold text-site-muted">
+            {stale ? t('admin.review.photos.cleaningStale') : t('admin.review.photos.cleaning')}
+        </span>
+    );
+}
+
+function CandidateTile({ candidate, index, selected, onSelect, onApprove, onErase, t }) {
     const confidence = Math.round((candidate.confidence || 0) * 100);
     return (
         <li className="flex flex-col">
@@ -97,18 +113,114 @@ function CandidateTile({ candidate, index, selected, onSelect, onApprove, t }) {
                 </span>
                 {candidate.note && <span className="line-clamp-2 px-0.5 text-[11px] text-site-muted">{candidate.note}</span>}
             </button>
-            {candidate.page && (
-                <a
-                    href={candidate.page}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="mt-1 inline-flex items-center gap-1 self-start px-2 text-[11px] text-site-soft hover:text-site-ink"
+            <span className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1">
+                <button
+                    type="button"
+                    onClick={() => onErase(candidate)}
+                    disabled={candidate.cleaning?.status === 'queued'}
+                    className="px-2 text-[11px] font-semibold text-site-muted hover:text-site-ink disabled:opacity-50"
                 >
-                    {t('admin.review.openSource')}
-                    <Icon name="external" size={11} />
-                </a>
-            )}
+                    {t('admin.review.photos.erase')}
+                </button>
+                {candidate.page && (
+                    <a
+                        href={candidate.page}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="inline-flex items-center gap-1 px-2 text-[11px] text-site-soft hover:text-site-ink"
+                    >
+                        {t('admin.review.openSource')}
+                        <Icon name="external" size={11} />
+                    </a>
+                )}
+            </span>
+            <CleaningStatus cleaning={candidate.cleaning} t={t} />
         </li>
+    );
+}
+
+/**
+ * Choix des zones à effacer : on trace des rectangles sur l'image, et/ou on
+ * s'en remet à la détection automatique du texte. Les coordonnées partent en
+ * relatif (0-1) : le script les rapporte à la taille réelle de l'image.
+ */
+function EraseTextModal({ candidate, onClose, onSubmit, t }) {
+    const [boxes, setBoxes] = useState([]);
+    const [draft, setDraft] = useState(null);
+    const [auto, setAuto] = useState(true);
+    const surface = useRef(null);
+    const start = useRef(null);
+
+    const point = (event) => {
+        const rect = surface.current.getBoundingClientRect();
+        const clamp = (value) => Math.min(1, Math.max(0, value));
+        return { x: clamp((event.clientX - rect.left) / rect.width), y: clamp((event.clientY - rect.top) / rect.height) };
+    };
+    const toBox = (a, b) => ({ x: Math.min(a.x, b.x), y: Math.min(a.y, b.y), w: Math.abs(a.x - b.x), h: Math.abs(a.y - b.y) });
+
+    const onPointerDown = (event) => {
+        event.preventDefault();
+        event.currentTarget.setPointerCapture(event.pointerId);
+        start.current = point(event);
+        setDraft(toBox(start.current, start.current));
+    };
+    const onPointerMove = (event) => {
+        if (start.current) setDraft(toBox(start.current, point(event)));
+    };
+    const onPointerUp = (event) => {
+        if (!start.current) return;
+        const box = toBox(start.current, point(event));
+        start.current = null;
+        setDraft(null);
+        // Un simple clic ne fait pas une zone
+        if (box.w > 0.01 && box.h > 0.01) setBoxes((previous) => [...previous, box]);
+    };
+
+    const style = (box) => ({ left: `${box.x * 100}%`, top: `${box.y * 100}%`, width: `${box.w * 100}%`, height: `${box.h * 100}%` });
+
+    return (
+        <SiteModal
+            open
+            onClose={onClose}
+            title={t('admin.review.photos.eraseTitle')}
+            closeLabel={t('common.close')}
+            footer={(
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                    <label className="flex items-center gap-2 text-sm">
+                        <input type="checkbox" checked={auto} onChange={(event) => setAuto(event.target.checked)} className="h-4 w-4" />
+                        {t('admin.review.photos.eraseAuto')}
+                    </label>
+                    <div className="flex gap-2">
+                        {boxes.length > 0 && (
+                            <SiteButton variant="ghost" size="sm" onClick={() => setBoxes([])}>{t('admin.review.photos.eraseClear')}</SiteButton>
+                        )}
+                        <SiteButton size="sm" onClick={() => onSubmit({ auto, boxes })} disabled={!auto && boxes.length === 0}>
+                            {t('admin.review.photos.eraseSubmit')}
+                        </SiteButton>
+                    </div>
+                </div>
+            )}
+        >
+            <p className="mb-3 text-sm text-site-muted">{t('admin.review.photos.eraseHelp')}</p>
+            <div
+                ref={surface}
+                onPointerDown={onPointerDown}
+                onPointerMove={onPointerMove}
+                onPointerUp={onPointerUp}
+                className="relative cursor-crosshair touch-none select-none overflow-hidden rounded-md bg-black"
+            >
+                <img src={reviewImageUrl(candidate.src)} alt="" draggable={false} className="block h-auto w-full" />
+                {[...boxes, ...(draft ? [draft] : [])].map((box, index) => (
+                    <span
+                        key={index}
+                        aria-hidden="true"
+                        style={style(box)}
+                        className="pointer-events-none absolute border-2 border-brand-yellow bg-brand-yellow/30"
+                    />
+                ))}
+            </div>
+            <p className="mt-2 text-xs text-site-soft">{t('admin.review.photos.eraseBoxes', { count: boxes.length })}</p>
+        </SiteModal>
     );
 }
 
@@ -236,10 +348,62 @@ function PendingQueue({ onDecision }) {
         setUrl('');
     };
 
-    // Raccourcis clavier, hors des champs de saisie
+    // --- Effacement du texte -----------------------------------------------
+    // La demande est traitée par clean_text.py sur l'hôte : on relit la fiche
+    // toutes les quelques secondes jusqu'à l'arrivée de l'image nettoyée.
+    const [erasing, setErasing] = useState(null);
+    const isCleaning = Boolean(current?.candidates.some((candidate) => candidate.cleaning?.status === 'queued'));
+
+    const submitErase = async ({ auto, boxes }) => {
+        const candidate = erasing;
+        setErasing(null);
+        if (!current || !candidate) return;
+        const result = await postJson(
+            `/api/admin/review/photos/${encodeURIComponent(current.key)}/candidates/${encodeURIComponent(candidate.id)}/clean`,
+            { auto, boxes },
+        );
+        if (!result.ok) {
+            setMessage({ tone: 'error', text: errorText(t, result.error) });
+            return;
+        }
+        setQueue((previous) => previous.map((item, index) => (index === 0
+            ? {
+                ...item,
+                candidates: item.candidates.map((other) => (other.id === candidate.id ? { ...other, cleaning: result.result.cleaning } : other)),
+            }
+            : item)));
+    };
+
+    const queueRef = useRef(queue);
+    queueRef.current = queue;
+    const currentKey = current?.key;
+
+    useEffect(() => {
+        if (!isCleaning || !currentKey) return undefined;
+        const timer = setInterval(async () => {
+            try {
+                const response = await authFetch(`/api/admin/review/photos/${encodeURIComponent(currentKey)}`);
+                if (!response.ok) return;
+                const { item } = await response.json();
+                const shown = queueRef.current[0];
+                if (!shown || shown.key !== currentKey) return;
+
+                const before = new Set(shown.candidates.map((candidate) => candidate.id));
+                const fresh = item.candidates.findIndex((candidate) => !before.has(candidate.id));
+                setQueue((previous) => (previous[0]?.key === currentKey ? [item, ...previous.slice(1)] : previous));
+                // L'image nettoyée arrive : on la sélectionne, c'est elle qu'on veut valider.
+                if (fresh >= 0) setSelected(fresh);
+            } catch (error) {
+                // Réseau capricieux : on retentera au prochain tour.
+            }
+        }, 3000);
+        return () => clearInterval(timer);
+    }, [currentKey, isCleaning]);
+
+    // Raccourcis clavier, hors des champs de saisie et de la fenêtre d'effacement
     useEffect(() => {
         const onKey = (event) => {
-            if (event.target.closest('input, textarea, select') || event.altKey) return;
+            if (erasing || event.target.closest('input, textarea, select') || event.altKey) return;
             const candidates = current?.candidates || [];
             if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'z') {
                 event.preventDefault();
@@ -263,7 +427,7 @@ function PendingQueue({ onDecision }) {
         };
         window.addEventListener('keydown', onKey);
         return () => window.removeEventListener('keydown', onKey);
-    }, [approve, current, reject, selected, skip, undo]);
+    }, [approve, current, erasing, reject, selected, skip, undo]);
 
     const sources = current?.sources || {};
 
@@ -325,6 +489,10 @@ function PendingQueue({ onDecision }) {
 
                         <Notice>{t('admin.review.photos.spoilerHint')}</Notice>
 
+                        {erasing && (
+                            <EraseTextModal candidate={erasing} onClose={() => setErasing(null)} onSubmit={submitErase} t={t} />
+                        )}
+
                         {current.candidates.length === 0 ? (
                             <p className="py-6 text-sm text-site-muted">{t('admin.review.photos.noCandidate')}</p>
                         ) : (
@@ -337,6 +505,7 @@ function PendingQueue({ onDecision }) {
                                         selected={index === selected}
                                         onSelect={setSelected}
                                         onApprove={approve}
+                                        onErase={setErasing}
                                         t={t}
                                     />
                                 ))}

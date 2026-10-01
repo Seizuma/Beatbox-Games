@@ -31,6 +31,12 @@ npm run photos:clean                   # (plus tard) libère la place des fiches
   attendu par `scan_images.py`, `local_image` est renseigné et le Buzzer
   Battle rechargé. Relancer ensuite `python scan_images.py` colorie le Sheet
   en vert. Une validation s'annule depuis l'onglet « Validées ».
+- **Texte sur la photo** (nom du beatboxer sur une miniature) : bouton
+  « Effacer le texte » sous la photo. Les demandes sont traitées par
+  `python scripts/photos/clean_text.py --watch`, à laisser tourner sur
+  l'hôte pendant la revue ; l'image nettoyée apparaît dans la fiche quelques
+  secondes plus tard. Détection automatique avec EasyOCR, remplissage avec
+  LaMa s'ils sont installés, sinon zones tracées à la main + OpenCV.
 - Fichiers de travail : `beatbox_artists/review/photos/<clé>/`.
 
 ## Titres du Beatboxdle

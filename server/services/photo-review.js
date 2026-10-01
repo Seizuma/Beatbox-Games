@@ -153,32 +153,104 @@ function list({ status = 'pending', offset = 0, limit = 20, query = '' } = {}) {
     return {
         total: entries.length,
         offset,
-        items: entries.slice(offset, offset + limit).map((entry) => ({
-            key: entry.key,
-            name: entry.name,
-            nationality: entry.nationality || null,
-            countryCode: entry.countryCode || null,
-            events: (entry.events || []).slice(0, 6),
-            status: entry.status,
-            sources: entry.sources || {},
-            reviewedAt: entry.reviewedAt || null,
-            reviewedBy: entry.reviewedBy || null,
-            approvedCandidate: entry.approvedCandidate || null,
-            approvedFile: entry.approvedFile || null,
-            candidates: visibleCandidates(entry).map((candidate) => ({
-                id: candidate.id,
-                source: candidate.source,
-                kind: candidate.kind,
-                file: candidate.file,
-                page: candidate.page || null,
-                width: candidate.width || null,
-                height: candidate.height || null,
-                confidence: candidate.confidence || 0,
-                faces: candidate.faces ?? null,
-                note: candidate.note || null,
-            })),
+        items: entries.slice(offset, offset + limit).map(toListItem),
+    };
+}
+
+/** Une fiche, dans le même format que list() : sert au rafraîchissement pendant un nettoyage. */
+function get(key) {
+    const entry = readEntry(key);
+    if (!entry) throw new HttpError(404, 'entry_not_found');
+    return toListItem(entry);
+}
+
+function toListItem(entry) {
+    return {
+        key: entry.key,
+        name: entry.name,
+        nationality: entry.nationality || null,
+        countryCode: entry.countryCode || null,
+        events: (entry.events || []).slice(0, 6),
+        status: entry.status,
+        sources: entry.sources || {},
+        reviewedAt: entry.reviewedAt || null,
+        reviewedBy: entry.reviewedBy || null,
+        approvedCandidate: entry.approvedCandidate || null,
+        approvedFile: entry.approvedFile || null,
+        candidates: visibleCandidates(entry).map((candidate) => ({
+            id: candidate.id,
+            source: candidate.source,
+            kind: candidate.kind,
+            parent: candidate.parent || null,
+            file: candidate.file,
+            page: candidate.page || null,
+            width: candidate.width || null,
+            height: candidate.height || null,
+            confidence: candidate.confidence || 0,
+            faces: candidate.faces ?? null,
+            note: candidate.note || null,
+            cleaning: cleaningState(entry.key, candidate.id),
         })),
     };
+}
+
+// --- Effacement du texte ---------------------------------------------------------
+// Le serveur ne fait que déposer la demande : scripts/photos/clean_text.py,
+// lancé sur l'hôte en mode veille, la traite et ajoute l'image nettoyée.
+
+const CANDIDATE_ID_RE = /^[\w-]{1,100}$/;
+const cleanRequestFile = (candidateId) => `clean-${candidateId}.request.json`;
+const cleanErrorFile = (candidateId) => `clean-${candidateId}.error.json`;
+
+/** null, { status: 'queued', requestedAt } ou { status: 'error', error }. */
+function cleaningState(key, candidateId) {
+    if (!CANDIDATE_ID_RE.test(String(candidateId || ''))) return null;
+    const dir = entryDir(key);
+    const request = path.join(dir, cleanRequestFile(candidateId));
+    if (fs.existsSync(request)) {
+        try {
+            return { status: 'queued', requestedAt: JSON.parse(fs.readFileSync(request, 'utf8')).requestedAt || null };
+        } catch (error) {
+            return { status: 'queued', requestedAt: null };
+        }
+    }
+    const failure = path.join(dir, cleanErrorFile(candidateId));
+    if (fs.existsSync(failure)) {
+        try {
+            return { status: 'error', error: JSON.parse(fs.readFileSync(failure, 'utf8')).error || null };
+        } catch (error) {
+            return { status: 'error', error: null };
+        }
+    }
+    return null;
+}
+
+/**
+ * Demande l'effacement du texte d'une candidate.
+ * @param {{ auto?: boolean, boxes?: Array<{x,y,w,h}> }} options zones en coordonnées relatives (0-1)
+ */
+function requestTextCleaning(key, candidateId, { auto = true, boxes = [] } = {}, reviewer) {
+    if (!CANDIDATE_ID_RE.test(String(candidateId || ''))) throw new HttpError(400, 'invalid_candidate');
+    const entry = readEntry(key);
+    if (!entry) throw new HttpError(404, 'entry_not_found');
+    if (entry.status !== 'pending') throw new HttpError(409, 'already_reviewed');
+    if (!visibleCandidates(entry).some((candidate) => candidate.id === candidateId)) {
+        throw new HttpError(404, 'candidate_not_found');
+    }
+
+    const inUnit = (value) => typeof value === 'number' && Number.isFinite(value) && value >= 0 && value <= 1;
+    const cleanBoxes = (Array.isArray(boxes) ? boxes : [])
+        .slice(0, 30)
+        .filter((box) => box && inUnit(box.x) && inUnit(box.y) && inUnit(box.w) && inUnit(box.h) && box.w > 0 && box.h > 0)
+        .map(({ x, y, w, h }) => ({ x, y, w, h }));
+    if (!auto && cleanBoxes.length === 0) throw new HttpError(400, 'nothing_to_clean');
+
+    const dir = entryDir(key);
+    const failure = path.join(dir, cleanErrorFile(candidateId));
+    if (fs.existsSync(failure)) fs.unlinkSync(failure);
+    const request = { candidateId, auto: Boolean(auto), boxes: cleanBoxes, requestedAt: new Date().toISOString(), requestedBy: reviewer };
+    writeJsonAtomic(path.join(dir, cleanRequestFile(candidateId)), request);
+    return { key, candidateId, cleaning: { status: 'queued', requestedAt: request.requestedAt } };
 }
 
 // --- beatboxers.json ---------------------------------------------------------
@@ -391,6 +463,8 @@ module.exports = {
     candidatePath,
     summary,
     list,
+    get,
+    requestTextCleaning,
     approve,
     reject,
     reopen,
