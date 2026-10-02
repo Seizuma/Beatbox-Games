@@ -15,6 +15,8 @@ class BuzzerGameManager {
             mode: config.mode,
             filter: config.filter,
             totalRounds: config.totalRounds,
+            // Beatboxers retirés du tirage par l'hôte (ceux que les joueurs ne connaissent pas)
+            excludedBeatboxers: config.excludedBeatboxers || [],
             currentRound: 0,
             currentBeatboxer: null,
             players: {},
@@ -82,16 +84,11 @@ class BuzzerGameManager {
             console.log(`🎮 Partie démarrée: ${roomCode} - Status: ${game.status}`);
         }
 
-        // ✅ Obtenir TOUS les beatboxers selon le mode
-        let allBeatboxers;
-        if (game.mode === 'buzzer_country') {
-            allBeatboxers = buzzerBeatboxerManager.getBeatboxersByCountry(game.filter);
-        } else if (game.mode === 'buzzer_event') {
-            allBeatboxers = buzzerBeatboxerManager.getBeatboxersByEvent(game.filter);
-        } else {
-            // Mode par défaut : tous les beatboxers
-            allBeatboxers = buzzerBeatboxerManager.beatboxersData;
-        }
+        // Beatboxers du mode, sans ceux que l'hôte a retirés
+        const modeBeatboxers = buzzerBeatboxerManager.getBeatboxersForMode(game.mode, game.filter);
+        const excluded = new Set(game.excludedBeatboxers || []);
+        const selectedBeatboxers = modeBeatboxers.filter((bb) => !excluded.has(bb.title));
+        const allBeatboxers = selectedBeatboxers.length > 0 ? selectedBeatboxers : modeBeatboxers;
 
         if (!allBeatboxers || allBeatboxers.length === 0) {
             throw new Error('Aucun beatboxer disponible pour ce mode');

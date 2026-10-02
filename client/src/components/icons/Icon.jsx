@@ -73,6 +73,8 @@ const STROKE_ICONS = {
         </>
     ),
     menu: <path d="M4 7h16M4 12h16M4 17h16" />,
+    minus: <path d="M5 12h14" />,
+    plus: <path d="M12 5v14M5 12h14" />,
     mic: (
         <>
             <rect x="9" y="3" width="6" height="11" rx="3" />

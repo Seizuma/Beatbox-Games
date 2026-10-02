@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useId, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
 import GameShell from '../show/GameShell';
 import ShowButton from '../show/ShowButton';
 import BulbRing from '../show/BulbRing';
@@ -61,6 +61,7 @@ const GameView = ({
     scores,
     pseudo,
     answerFeedback,
+    excludedArtists,
     setAnswer,
     handleSubmitAnswer,
     volumeControlProps,
@@ -75,7 +76,15 @@ const GameView = ({
     const [showArtistSheet, setShowArtistSheet] = useState(false);
     const answerInputRef = useRef(null);
     const answerHelpId = useId();
-    const { artists, status: artistsStatus } = useBlindTestArtists();
+    const { artists: allArtists, status: artistsStatus } = useBlindTestArtists();
+
+    // Seuls les artistes gardés par l'hôte peuvent passer : la liste et les suggestions s'y limitent
+    const artists = useMemo(() => {
+        if (!excludedArtists || excludedArtists.length === 0) return allArtists;
+        const excluded = new Set(excludedArtists);
+        const kept = allArtists.filter((artist) => !excluded.has(artist));
+        return kept.length > 0 ? kept : allArtists;
+    }, [allArtists, excludedArtists]);
 
     // Clavier ouvert sur mobile : on replie le tableau et les pupitres pour garder chronomètre et réponse visibles
     const compact = touch && answerFocused;

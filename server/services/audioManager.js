@@ -110,9 +110,33 @@ class AudioManager {
     /**
      * ✅ CORRIGÉ : Sélectionne un morceau aléatoire pour une room
      */
+    /**
+     * Morceaux encore au tirage pour une room (sans les artistes exclus par l'hôte)
+     */
+    getRoomFiles(room) {
+        const allFiles = this.audioCache.get('all_level1_files') || [];
+        const excluded = room.excludedArtists;
+        if (!excluded || excluded.size === 0) return allFiles;
+
+        const pool = allFiles.filter((file) => !excluded.has(this.extractArtistFromFilename(file).trim()));
+        return pool.length > 0 ? pool : allFiles;
+    }
+
+    /**
+     * Prépare le tirage au lancement d'une partie : nouvelle sélection rapide, et remise à zéro
+     * des morceaux déjà joués s'il n'en reste pas assez pour éviter les doublons dans la partie
+     */
+    prepareRoomForGame(room) {
+        room.quickModeSelection = null;
+        const remaining = this.getRoomFiles(room).filter((file) => !room.playedSongs.has(file));
+        if (remaining.length < room.maxRounds) {
+            room.playedSongs.clear();
+        }
+    }
+
     selectRandomSong(room) {
         try {
-            const allFiles = this.audioCache.get('all_level1_files') || [];
+            const allFiles = this.getRoomFiles(room);
 
             if (allFiles.length === 0) {
                 console.error('❌ Aucun fichier audio disponible');

@@ -163,6 +163,23 @@ class BeatboxerManager {
     }
 
     /**
+     * Beatboxers d'une partie selon le mode (pays, événement ou tous)
+     */
+    getBeatboxersForMode(mode, filter) {
+        if (mode === 'buzzer_country') return this.getBeatboxersByCountry(filter);
+        if (mode === 'buzzer_event') return this.getBeatboxersByEvent(filter);
+        return this.beatboxersData;
+    }
+
+    /**
+     * Noms triés des beatboxers d'une partie, sans photo pour ne rien dévoiler
+     */
+    getBeatboxerNames(mode, filter) {
+        const names = new Set(this.getBeatboxersForMode(mode, filter).map((beatboxer) => beatboxer.title));
+        return Array.from(names).sort((a, b) => a.localeCompare(b, 'fr', { sensitivity: 'base' }));
+    }
+
+    /**
      * Obtient un beatboxer aléatoire selon les filtres
      */
     getRandomBeatboxer(filters = {}) {

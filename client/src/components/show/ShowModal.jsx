@@ -1,8 +1,14 @@
 import React, { useEffect, useId, useRef } from 'react';
 import Icon from '../icons/Icon';
 
-// Fenêtre du plateau : panneau qui monte du bas sur mobile, centré sur PC
-export default function ShowModal({ open, onClose, title, closeLabel, children, footer }) {
+const SIZES = {
+    md: 'max-w-lg',
+    lg: 'max-w-2xl',
+};
+
+// Fenêtre du plateau : panneau qui monte du bas sur mobile, centré sur PC.
+// toolbar : zone fixe sous le titre (onglets, recherche) qui ne défile pas avec le contenu.
+export default function ShowModal({ open, onClose, title, closeLabel, children, footer, toolbar, size = 'md' }) {
     const titleId = useId();
     const panelRef = useRef(null);
     const onCloseRef = useRef(onClose);
@@ -43,7 +49,7 @@ export default function ShowModal({ open, onClose, title, closeLabel, children, 
                 role="dialog"
                 aria-modal="true"
                 aria-labelledby={titleId}
-                className="flex max-h-[90dvh] w-full max-w-lg flex-col rounded-t-2xl bg-show-stage-2 font-show text-show-white outline-none sm:rounded-2xl"
+                className={`flex max-h-[90dvh] w-full ${SIZES[size] || SIZES.md} flex-col rounded-t-2xl bg-show-stage-2 font-show text-show-white outline-none sm:rounded-2xl`}
             >
                 <div className="flex items-center justify-between gap-4 px-5 pt-5">
                     <h2 id={titleId} className="font-brand text-xl leading-none">{title}</h2>
@@ -55,7 +61,8 @@ export default function ShowModal({ open, onClose, title, closeLabel, children, 
                         <Icon name="close" title={closeLabel} />
                     </button>
                 </div>
-                <div className="overflow-y-auto px-5 py-4">{children}</div>
+                {toolbar && <div className="px-5 pt-4">{toolbar}</div>}
+                <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4">{children}</div>
                 {footer && <div className="px-5 pb-[max(1.25rem,env(safe-area-inset-bottom))]">{footer}</div>}
             </div>
         </div>

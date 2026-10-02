@@ -1,12 +1,12 @@
 import React, { useId, useState } from 'react';
 import GameShell from '../show/GameShell';
 import ShowButton from '../show/ShowButton';
-import ShowModal from '../show/ShowModal';
 import Lectern from '../show/Lectern';
 import { LecternRow } from '../show/GameHud';
 import { RoomPanel, RulesBrief, SettingsSummary, StatusScreen, useRoomSharing } from '../show/LobbyParts';
 import Icon from '../icons/Icon';
 import BlindTestRulesModal from './BlindTestRulesModal';
+import BlindTestSettingsModal from './BlindTestSettingsModal';
 import { createShowT, MAX_PLAYERS } from '../../utils/showI18n';
 
 // Nombre de pupitres affichés au minimum, les places vides invitent à partager la salle
@@ -27,6 +27,7 @@ const LobbyView = ({
     localAnswerTime,
     artistCountRange,
     answerTimeSettings,
+    artistPool,
     shareLink,
     socketMethods,
     setEditingPseudo,
@@ -60,11 +61,6 @@ const LobbyView = ({
     const canEditPseudo = !(currentPlayer?.isDiscordUser && currentPlayer?.discordId);
     const otherPlayers = playerList.filter((player) => player.pseudo !== pseudo);
     const emptySeats = Math.max(0, Math.min(MAX_PLAYERS, Math.max(MIN_SEATS, playerCount + 1)) - playerCount);
-
-    const artistMin = artistCountRange?.min || 10;
-    const artistMax = artistCountRange?.max || 50;
-    const timeMin = answerTimeSettings?.min || 5;
-    const timeMax = answerTimeSettings?.max || 60;
 
     const canStart = isCreator && allPlayersReady;
 
@@ -236,6 +232,10 @@ const LobbyView = ({
                             onEdit={isCreator ? () => setShowSettings(true) : undefined}
                             rows={[
                                 { label: st('lobby.artistsLabel'), value: localArtistCount },
+                                ...(artistPool?.total ? [{
+                                    label: st('lobby.selectionLabel'),
+                                    value: st('lobby.selectionValue', { count: artistPool.available, total: artistPool.total }),
+                                }] : []),
                                 { label: st('lobby.timeLabel'), value: st('lobby.seconds', { seconds: localAnswerTime }) },
                                 ...(GameModeBadge ? [{ label: st('lobby.modeLabel'), value: <GameModeBadge /> }] : []),
                             ]}
@@ -260,91 +260,24 @@ const LobbyView = ({
             </div>
 
             {isCreator && (
-                <ShowModal
+                <BlindTestSettingsModal
                     open={showSettings}
                     onClose={() => setShowSettings(false)}
-                    title={st('settings.title')}
-                    closeLabel={st('common.close')}
-                >
-                    <div className="flex flex-col gap-6">
-                        <div>
-                            <div className="flex items-baseline justify-between">
-                                <label htmlFor="lobby-artist-count" className="text-sm font-extrabold">{st('settings.artistCount')}</label>
-                                <span className="font-brand text-2xl text-show-yellow">{localArtistCount}</span>
-                            </div>
-                            <input
-                                id="lobby-artist-count"
-                                type="range"
-                                min={artistMin}
-                                max={artistMax}
-                                value={localArtistCount}
-                                onChange={(event) => {
-                                    const value = parseInt(event.target.value, 10);
-                                    setLocalArtistCount(value);
-                                    socketMethods.updateArtistCount(value);
-                                }}
-                                className="mt-2 w-full accent-show-yellow"
-                            />
-                            <p className="mt-1 text-xs text-show-muted">{st('settings.artistHelp', { min: artistMin, max: artistMax })}</p>
-                        </div>
-
-                        <div>
-                            <div className="flex items-baseline justify-between">
-                                <label htmlFor="lobby-answer-time" className="text-sm font-extrabold">{st('settings.answerTime')}</label>
-                                <span className="font-brand text-2xl text-show-yellow">{localAnswerTime} s</span>
-                            </div>
-                            <input
-                                id="lobby-answer-time"
-                                type="range"
-                                min={timeMin}
-                                max={timeMax}
-                                value={localAnswerTime}
-                                onChange={(event) => {
-                                    const value = parseInt(event.target.value, 10);
-                                    setLocalAnswerTime(value);
-                                    socketMethods.updateAnswerTime(value);
-                                }}
-                                className="mt-2 w-full accent-show-yellow"
-                            />
-                            <p className="mt-1 text-xs text-show-muted">{st('settings.answerHelp', { min: timeMin, max: timeMax })}</p>
-                        </div>
-
-                        <div>
-                            <h3 className="text-sm font-extrabold">{st('settings.players')}</h3>
-                            {otherPlayers.length === 0 ? (
-                                <p className="mt-2 text-sm text-show-muted">{st('settings.noOthers')}</p>
-                            ) : (
-                                <ul className="mt-2 flex flex-col divide-y divide-show-desk">
-                                    {otherPlayers.map((player) => (
-                                        <li key={player.pseudo} className="flex items-center gap-2 py-2.5">
-                                            <span className={`min-w-0 flex-1 truncate font-semibold ${player.connected ? '' : 'text-show-muted'}`}>
-                                                {player.pseudo}
-                                            </span>
-                                            <ShowButton
-                                                variant="white"
-                                                size="sm"
-                                                aria-label={st('settings.makeHostLabel', { name: player.pseudo })}
-                                                onClick={() => handleTransferHost(player.pseudo)}
-                                            >
-                                                <Icon name="crown" size={14} />
-                                                <span className="hidden sm:inline">{st('settings.makeHost')}</span>
-                                            </ShowButton>
-                                            <ShowButton
-                                                variant="buzz"
-                                                size="sm"
-                                                aria-label={st('settings.kickLabel', { name: player.pseudo })}
-                                                onClick={() => handleKickPlayer(player.pseudo)}
-                                            >
-                                                <Icon name="close" size={14} />
-                                                <span className="hidden sm:inline">{st('settings.kick')}</span>
-                                            </ShowButton>
-                                        </li>
-                                    ))}
-                                </ul>
-                            )}
-                        </div>
-                    </div>
-                </ShowModal>
+                    st={st}
+                    artistCount={localArtistCount}
+                    answerTime={localAnswerTime}
+                    artistCountRange={artistCountRange}
+                    answerTimeSettings={answerTimeSettings}
+                    artistPool={artistPool}
+                    otherPlayers={otherPlayers}
+                    onSave={async (settings) => {
+                        const result = await socketMethods.updateRoomSettings(settings);
+                        setLocalArtistCount(result.artistCount);
+                        setLocalAnswerTime(result.answerTime);
+                    }}
+                    onTransferHost={handleTransferHost}
+                    onKickPlayer={handleKickPlayer}
+                />
             )}
 
             <BlindTestRulesModal open={showRules} onClose={() => setShowRules(false)} st={st} />

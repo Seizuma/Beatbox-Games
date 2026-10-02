@@ -13,7 +13,7 @@ export const useSocket = ({
     setPlayers, setScores, setEditingPseudo, setNewPseudo, setArtistCountRange, setLocalArtistCount,
     setAnswerTimeSettings, setLocalAnswerTime, setHasAnswered, setAnswer, setRoundResults, setCanAnswer,
     setTimerStarted, setGameState, setAnswerFeedback, setArtistRevealState, setTimeLeft, setFinalRanking,
-    setCountdown, setShowSettings, setIsReady, discordToken,
+    setCountdown, setShowSettings, setIsReady, setArtistPool, discordToken,
     discordUser,
     updateDiscordStats,
 
@@ -254,6 +254,9 @@ export const useSocket = ({
                 if (!isCreator) {
                     setLocalArtistCount(data.artistCountRange.current);
                 }
+            }
+            if (data.artistPool) {
+                setArtistPool(data.artistPool);
             }
             if (data.answerTimeSettings) {
                 setAnswerTimeSettings(data.answerTimeSettings);
@@ -687,6 +690,19 @@ export const useSocket = ({
         updateAnswerTime: (seconds) => {
             if (socketOnline.connected) socketOnline.emit('update-answer-time', { seconds });
         },
+
+        // Réglages du panneau en un seul envoi ; la promesse rend les valeurs retenues par le serveur
+        updateRoomSettings: (settings) => new Promise((resolve, reject) => {
+            if (!socketOnline.connected) {
+                reject(new Error('Non connecté'));
+                return;
+            }
+            socketOnline.timeout(5000).emit('update-room-settings', settings, (error, result) => {
+                if (error) reject(error);
+                else if (!result?.success) reject(Object.assign(new Error(result?.error || ''), { fromServer: Boolean(result?.error) }));
+                else resolve(result);
+            });
+        }),
 
         submitAnswer: (answer) => {
             if (socketOnline.connected) {

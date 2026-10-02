@@ -219,7 +219,8 @@ function BuzzerBattle() {
                 ...prevState,
                 mode: data.mode,
                 filter: data.filter,
-                totalRounds: data.totalRounds
+                totalRounds: data.totalRounds,
+                excludedBeatboxers: data.excludedBeatboxers || []
             }));
             setTotalRounds(data.totalRounds);
         };

@@ -124,6 +124,8 @@ function BlindTestOnline() {
     const [answerTimeSettings, setAnswerTimeSettings] = useState({ min: 5, max: 60, current: 30 });
     const [localAnswerTime, setLocalAnswerTime] = useState(30);
     const [localArtistCount, setLocalArtistCount] = useState(10);
+    // Artistes retirés du tirage par l'hôte
+    const [artistPool, setArtistPool] = useState({ total: 0, available: 0, minSelected: 5, excluded: [] });
 
     // ✅ SYNCHRONISATION PSEUDO DISCORD
     useEffect(() => {
@@ -197,7 +199,7 @@ function BlindTestOnline() {
         setPlayers, setScores, setEditingPseudo, setNewPseudo, setArtistCountRange, setLocalArtistCount,
         setAnswerTimeSettings, setLocalAnswerTime, setHasAnswered, setAnswer, setRoundResults, setCanAnswer,
         setTimerStarted, setGameState, setAnswerFeedback, setArtistRevealState, setTimeLeft, setFinalRanking,
-        setCountdown, setShowSettings, setIsReady,
+        setCountdown, setShowSettings, setIsReady, setArtistPool,
 
         // Current state values
         pseudo, room, gameState, view, players, isCreator, artistCountRange, answerTimeSettings, audioVolume, audioRef, gameMode,
@@ -424,6 +426,7 @@ function BlindTestOnline() {
                     localAnswerTime={localAnswerTime}
                     artistCountRange={artistCountRange}
                     answerTimeSettings={answerTimeSettings}
+                    artistPool={artistPool}
                     shareLink={shareLink}
                     error={error}
                     setEditingPseudo={setEditingPseudo}
@@ -457,6 +460,7 @@ function BlindTestOnline() {
                     scores={scores}
                     pseudo={pseudo}
                     answerFeedback={answerFeedback}
+                    excludedArtists={artistPool.excluded}
                     isFirefox={isFirefox}
                     setAnswer={setAnswer}
                     handleSubmitAnswer={handleSubmitAnswer}

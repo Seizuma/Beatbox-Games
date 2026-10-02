@@ -2,6 +2,9 @@ const buzzerGameManager = require('./services/buzzer-gameManager');
 const buzzerBeatboxerManager = require('./services/buzzer-beatboxerManager');
 const { BUZZER_CONFIG } = require('./constants');
 
+// Nombre minimum de beatboxers à garder cochés (c'est aussi le nombre minimum de manches)
+const MIN_BEATBOXER_POOL = 5;
+
 /**
  * Gère les connexions Socket.IO pour Buzzer Battle
  */
@@ -50,23 +53,15 @@ function handleBuzzerSocketConnection(socket, io) {
     });
 
     // ==================== OBTENIR LE NOMBRE MAX DE BEATBOXERS ====================
+    // Renvoie aussi les noms (jamais les photos) pour la sélection dans les réglages
     socket.on('buzzer:getMaxBeatboxers', ({ mode, filter }, callback) => {
         try {
-            let beatboxers;
-
-            if (mode === 'buzzer_country') {
-                beatboxers = buzzerBeatboxerManager.getBeatboxersByCountry(filter);
-            } else if (mode === 'buzzer_event') {
-                beatboxers = buzzerBeatboxerManager.getBeatboxersByEvent(filter);
-            } else {
-                beatboxers = buzzerBeatboxerManager.beatboxersData;
-            }
-
-            const maxBeatboxers = beatboxers ? beatboxers.length : 0;
+            const names = buzzerBeatboxerManager.getBeatboxerNames(mode, filter);
 
             callback({
                 success: true,
-                maxBeatboxers
+                maxBeatboxers: names.length,
+                names
             });
         } catch (error) {
             console.error('❌ Erreur getMaxBeatboxers:', error);
@@ -92,7 +87,8 @@ function handleBuzzerSocketConnection(socket, io) {
             const game = buzzerGameManager.createGame(roomCode, socket.id, {
                 mode: config.mode,
                 filter: config.filter,
-                totalRounds: config.totalRounds || 10
+                totalRounds: config.totalRounds || 10,
+                excludedBeatboxers: []
             });
 
             // ✅ AJOUT : Logs Discord
@@ -221,7 +217,7 @@ function handleBuzzerSocketConnection(socket, io) {
     });
 
     // ==================== METTRE À JOUR LA CONFIGURATION ====================
-    socket.on('buzzer:updateConfig', ({ roomCode, mode, filter, totalRounds }, callback) => {
+    socket.on('buzzer:updateConfig', ({ roomCode, mode, filter, totalRounds, excludedBeatboxers }, callback) => {
         try {
             const game = buzzerGameManager.getGame(roomCode);
 
@@ -229,23 +225,49 @@ function handleBuzzerSocketConnection(socket, io) {
                 return callback({ success: false, error: 'Room introuvable' });
             }
 
+            if (socket.id !== game.creatorId) {
+                return callback({ success: false, error: 'Seul le créateur peut modifier la configuration' });
+            }
+
             if (game.status !== 'waiting') {
                 return callback({ success: false, error: 'Impossible de modifier pendant la partie' });
             }
 
+            // Sélection : il doit rester assez de beatboxers à deviner
+            const excluded = Array.isArray(excludedBeatboxers)
+                ? Array.from(new Set(excludedBeatboxers.filter((name) => typeof name === 'string')))
+                : (game.excludedBeatboxers || []);
+            const excludedSet = new Set(excluded);
+            const names = buzzerBeatboxerManager.getBeatboxerNames(mode, filter);
+            const available = names.filter((name) => !excludedSet.has(name)).length;
+            const minSelected = Math.min(MIN_BEATBOXER_POOL, names.length);
+
+            if (names.length === 0) {
+                return callback({ success: false, error: 'Aucun beatboxer pour cette sélection' });
+            }
+            if (available < minSelected) {
+                return callback({ success: false, error: `Sélectionne au moins ${minSelected} beatboxers` });
+            }
+
+            // Pas plus de manches que de beatboxers sélectionnés
+            const requestedRounds = Number.isInteger(totalRounds) ? totalRounds : game.totalRounds;
+            const rounds = Math.max(Math.min(MIN_BEATBOXER_POOL, available), Math.min(requestedRounds, available));
+
             // Mettre à jour la configuration
             game.mode = mode;
             game.filter = filter;
-            game.totalRounds = totalRounds;
+            game.totalRounds = rounds;
+            game.excludedBeatboxers = excluded;
 
             // Notifier tous les joueurs
             io.to(roomCode).emit('buzzer:configUpdated', {
                 mode,
                 filter,
-                totalRounds
+                totalRounds: rounds,
+                excludedBeatboxers: excluded
             });
 
-            callback({ success: true });
+            callback({ success: true, totalRounds: rounds });
             console.log(`⚙️ Configuration mise à jour pour ${roomCode}: ${mode} - ${filter}`);
         } catch (error) {
             console.error('❌ Erreur updateConfig:', error);
@@ -709,6 +731,7 @@ function handleBuzzerSocketConnection(socket, io) {
                 mode: game.mode,
                 filter: game.filter,
                 totalRounds: game.totalRounds,
+                excludedBeatboxers: game.excludedBeatboxers || [],
                 currentRound: game.currentRound,
                 status: game.status,
                 players: game.players,

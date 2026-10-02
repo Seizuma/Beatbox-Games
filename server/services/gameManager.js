@@ -59,6 +59,7 @@ class GameManager {
 
         setTimeout(() => {
             const audioManager = require('./audioManager');
+            audioManager.prepareRoomForGame(room);
             const songData = audioManager.selectRandomSong(room);
 
             if (!songData) {
@@ -537,6 +538,7 @@ class GameManager {
         if (options.includeSettings) {
             baseData.artistCountRange = room.getArtistCountRange();
             baseData.answerTimeSettings = room.getAnswerTimeSettings();
+            baseData.artistPool = room.getArtistPool();
         }
 
         io.to(room.code).emit('room-updated', baseData);
@@ -548,7 +550,8 @@ class GameManager {
     static emitSettingsUpdate(room, io) {
         io.to(room.code).emit('settings-updated', {
             artistCountRange: room.getArtistCountRange(),
-            answerTimeSettings: room.getAnswerTimeSettings()
+            answerTimeSettings: room.getAnswerTimeSettings(),
+            artistPool: room.getArtistPool()
         });
     }
 }

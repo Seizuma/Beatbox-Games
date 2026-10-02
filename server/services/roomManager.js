@@ -5,6 +5,9 @@
 
 const { CONFIG, ROOM_STATES, GAME_MODES } = require('../constants');
 
+// Nombre minimum d'artistes à garder cochés dans la sélection de la salle
+const MIN_ARTIST_POOL = 5;
+
 class RoomManager {
     constructor() {
         this.rooms = new Map();
@@ -249,6 +252,9 @@ class OnlineRoom {
         // Configuration du nombre d'artistes
         this.customArtistCount = null;
 
+        // Artistes retirés du tirage par l'hôte (ceux que les joueurs ne connaissent pas)
+        this.excludedArtists = new Set();
+
         // ✅ CORRECTION : Utiliser DEFAULT_ROUNDS défini dans constants.js
         const modeSettings = CONFIG.GAME_MODE_SETTINGS || {};
         const gameSettings = modeSettings[gameMode] || modeSettings[GAME_MODES.NORMAL];
@@ -307,16 +313,95 @@ class OnlineRoom {
     }
 
     getArtistCountRange() {
-        const audioManager = require('./audioManager');
         const modeSettings = CONFIG.GAME_MODE_SETTINGS || {};
         const gameSettings = modeSettings[this.gameMode] || modeSettings[GAME_MODES.NORMAL];
 
-        const maxPossible = audioManager.getTotalArtistsCount(GAME_MODES.NORMAL);
+        // Le nombre de manches ne peut pas dépasser le nombre d'artistes sélectionnés
+        const available = this.getArtistPool().available;
+        const modeMin = gameSettings?.MIN_ARTISTS || 5;
+        const modeMax = gameSettings?.MAX_ARTISTS || null;
+        const max = Math.min(modeMax || available, available);
+        const min = Math.min(modeMin, max);
 
         return {
-            min: gameSettings?.MIN_ARTISTS || 5,
-            max: gameSettings?.MAX_ARTISTS || maxPossible,
+            min,
+            max,
+            // Bornes du mode, pour recalculer la plage côté client pendant la sélection
+            modeMin,
+            modeMax,
             current: this.maxRounds
+        };
+    }
+
+    // Sélection d'artistes de la salle : total, nombre restant au tirage, noms exclus
+    getArtistPool() {
+        const audioManager = require('./audioManager');
+        const names = audioManager.getArtistNames();
+        const excluded = names.filter((name) => this.excludedArtists.has(name));
+
+        return {
+            total: names.length,
+            available: names.length - excluded.length,
+            minSelected: Math.min(MIN_ARTIST_POOL, names.length),
+            excluded
+        };
+    }
+
+    /**
+     * Applique les réglages du panneau en une fois : sélection d'artistes, nombre de manches, temps.
+     * Le nombre de manches est ramené dans les bornes de la nouvelle sélection.
+     */
+    applySettings({ artistCount, answerTime, excludedArtists }) {
+        if (this.state !== ROOM_STATES.WAITING) {
+            return { success: false, error: 'Impossible de modifier pendant une partie' };
+        }
+
+        let nextExcluded = this.excludedArtists;
+        if (excludedArtists !== undefined) {
+            if (!Array.isArray(excludedArtists)) {
+                return { success: false, error: 'Sélection d\'artistes invalide' };
+            }
+            const audioManager = require('./audioManager');
+            const known = new Set(audioManager.getArtistNames());
+            nextExcluded = new Set(
+                excludedArtists
+                    .filter((name) => typeof name === 'string')
+                    .map((name) => name.trim())
+                    .filter((name) => known.has(name))
+            );
+            const available = known.size - nextExcluded.size;
+            const minSelected = Math.min(MIN_ARTIST_POOL, known.size);
+            if (available < minSelected) {
+                return { success: false, error: `Sélectionne au moins ${minSelected} artistes` };
+            }
+        }
+
+        if (answerTime !== undefined) {
+            const seconds = answerTime;
+            if (!Number.isInteger(seconds) || seconds < this.answerTimeSettings.min || seconds > this.answerTimeSettings.max) {
+                return {
+                    success: false,
+                    error: `Temps invalide (${this.answerTimeSettings.min}-${this.answerTimeSettings.max}s)`
+                };
+            }
+        }
+
+        this.excludedArtists = nextExcluded;
+        if (answerTime !== undefined) {
+            this.answerTimeSettings.current = answerTime;
+        }
+
+        const range = this.getArtistCountRange();
+        const requested = Number.isInteger(artistCount) ? artistCount : this.maxRounds;
+        this.maxRounds = Math.max(range.min, Math.min(range.max, requested));
+        this.customArtistCount = this.maxRounds;
+        this.updateActivity();
+
+        console.log(`⚙️ Room ${this.code}: réglages appliqués (${this.maxRounds} manches, ${this.answerTimeSettings.current}s, ${this.excludedArtists.size} artistes exclus)`);
+        return {
+            success: true,
+            artistCount: this.maxRounds,
+            answerTime: this.answerTimeSettings.current
         };
     }
 

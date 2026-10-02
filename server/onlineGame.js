@@ -627,6 +627,34 @@ function handleOnlineSocketConnection(socket, io) {
         }
     });
 
+    // Réglages du panneau appliqués en une fois : sélection d'artistes, nombre de manches, temps
+    socket.on('update-room-settings', (settings, callback) => {
+        const reply = typeof callback === 'function' ? callback : () => {};
+        const { onlineRoom, onlinePseudo } = socket.data;
+        const room = roomManager.getRoom(onlineRoom);
+
+        if (!room || !onlinePseudo) {
+            reply({ success: false, error: 'Room introuvable' });
+            return;
+        }
+
+        if (!room.isCreator(onlinePseudo)) {
+            reply({ success: false, error: 'Seul le créateur peut modifier les réglages' });
+            return;
+        }
+
+        const { artistCount, answerTime, excludedArtists } = settings || {};
+        const result = room.applySettings({ artistCount, answerTime, excludedArtists });
+
+        if (result.success) {
+            reply({ ...result, artistPool: room.getArtistPool() });
+            GameManager.emitSettingsUpdate(room, io);
+            logger.info(`Réglages mis à jour dans room ${room.code}`);
+        } else {
+            reply(result);
+        }
+    });
+
     // Exclusion de joueur
     socket.on('kick-player', ({ targetPseudo }) => {
         const { onlineRoom, onlinePseudo } = socket.data;
