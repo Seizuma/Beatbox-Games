@@ -85,11 +85,19 @@ const pageParams = (req) => ({
     offset: Math.max(0, parseInt(req.query.offset, 10) || 0),
     limit: Math.min(Math.max(1, parseInt(req.query.limit, 10) || 20), 50),
     query: String(req.query.q || '').slice(0, 60),
+    nationality: String(req.query.nationality || '').slice(0, 120),
+    event: String(req.query.event || '').slice(0, 200),
 });
 
 // --- Photos du Buzzer Battle -------------------------------------------------------
 
 router.get('/photos/summary', handle('Résumé photos', () => ({ summary: photoReview.summary() })));
+
+// Nations et événements disponibles comme filtres, pour un statut donné
+router.get('/photos/facets', handle('Filtres photos', (req) => {
+    const { nationality, event } = pageParams(req);
+    return { facets: photoReview.facets({ status: String(req.query.status || 'pending'), nationality, event }) };
+}));
 
 const withSignedUrls = (item) => ({
     ...item,

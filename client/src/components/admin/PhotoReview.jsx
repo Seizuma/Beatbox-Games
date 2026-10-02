@@ -8,6 +8,30 @@ import { authFetch, postJson, reviewImageUrl } from './adminApi';
 const STATUSES = ['pending', 'approved', 'rejected'];
 const PAGE = 30;
 
+// Filtres nation / événement, gardés d'une visite à l'autre pour reprendre la revue là où on l'a laissée
+const FILTERS_STORAGE_KEY = 'admin.photoReview.filters';
+const NO_FILTERS = { nationality: '', event: '' };
+const NO_NATIONALITY = '__none__'; // même valeur que le serveur
+
+function loadFilters() {
+    try {
+        const saved = JSON.parse(localStorage.getItem(FILTERS_STORAGE_KEY) || 'null');
+        return {
+            nationality: typeof saved?.nationality === 'string' ? saved.nationality : '',
+            event: typeof saved?.event === 'string' ? saved.event : '',
+        };
+    } catch (error) {
+        return NO_FILTERS;
+    }
+}
+
+const filterParams = (filters) => {
+    const params = new URLSearchParams();
+    if (filters.nationality) params.set('nationality', filters.nationality);
+    if (filters.event) params.set('event', filters.event);
+    return params;
+};
+
 /**
  * Revue des photos du Buzzer Battle collectées par scripts/photos/collect.js.
  *
@@ -18,8 +42,26 @@ const PAGE = 30;
 export default function PhotoReview() {
     const { t, language } = useSiteI18n();
     const [status, setStatus] = useState('pending');
+    const [filters, setFilters] = useState(loadFilters);
     const summary = useApi('/api/admin/review/photos/summary', { auth: true });
     const data = summary.data?.summary;
+
+    const facetParams = filterParams(filters);
+    facetParams.set('status', status);
+    const facets = useApi(`/api/admin/review/photos/facets?${facetParams}`, { auth: true });
+
+    useEffect(() => {
+        try {
+            localStorage.setItem(FILTERS_STORAGE_KEY, JSON.stringify(filters));
+        } catch (error) {
+            // Stockage indisponible : les filtres valent pour cette visite seulement
+        }
+    }, [filters]);
+
+    const reloadCounts = useCallback(() => {
+        summary.reload();
+        facets.reload();
+    }, [summary.reload, facets.reload]);
 
     return (
         <div className="flex flex-col gap-6">
@@ -48,9 +90,70 @@ export default function PhotoReview() {
                 </p>
             )}
 
+            <FacetFilters facets={facets.data?.facets} filters={filters} onChange={setFilters} />
+
             {status === 'pending'
-                ? <PendingQueue onDecision={summary.reload} />
-                : <ReviewedList status={status} onChange={summary.reload} />}
+                ? <PendingQueue filters={filters} onDecision={reloadCounts} />
+                : <ReviewedList status={status} filters={filters} onChange={reloadCounts} />}
+        </div>
+    );
+}
+
+/**
+ * Choix d'une nation et/ou d'un événement : on revoit par exemple tous les
+ * beatboxers français, ou ceux du French Beatbox Championship, d'une traite.
+ */
+function FacetFilters({ facets, filters, onChange }) {
+    const { t } = useSiteI18n();
+    const selectClass = 'min-h-[2.75rem] w-full rounded-lg border border-site-line bg-site-surface px-3 py-2 text-sm font-semibold text-site-ink focus:outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-site-ink';
+
+    // Le choix en cours reste proposé même quand il n'a plus de fiche (tout vient d'être revu)
+    const options = (list, selected) => {
+        const values = list || [];
+        return selected && !values.some((option) => option.value === selected)
+            ? [{ value: selected, count: 0 }, ...values]
+            : values;
+    };
+    const nationalityName = (value) => (value === NO_NATIONALITY ? t('admin.review.photos.noNationality') : value);
+    const active = Boolean(filters.nationality || filters.event);
+
+    return (
+        <div className="flex flex-wrap items-end gap-3">
+            <label className="flex min-w-[12rem] flex-1 flex-col gap-1 text-xs font-semibold text-site-muted sm:max-w-xs">
+                {t('admin.review.photos.filterNationality')}
+                <select
+                    value={filters.nationality}
+                    onChange={(event) => onChange({ ...filters, nationality: event.target.value })}
+                    className={selectClass}
+                >
+                    <option value="">{t('admin.review.photos.allNationalities')}</option>
+                    {options(facets?.nationalities, filters.nationality).map((option) => (
+                        <option key={option.value} value={option.value}>
+                            {t('admin.review.photos.filterOption', { name: nationalityName(option.value), count: option.count })}
+                        </option>
+                    ))}
+                </select>
+            </label>
+            <label className="flex min-w-[12rem] flex-1 flex-col gap-1 text-xs font-semibold text-site-muted sm:max-w-sm">
+                {t('admin.review.photos.filterEvent')}
+                <select
+                    value={filters.event}
+                    onChange={(event) => onChange({ ...filters, event: event.target.value })}
+                    className={selectClass}
+                >
+                    <option value="">{t('admin.review.photos.allEvents')}</option>
+                    {options(facets?.events, filters.event).map((option) => (
+                        <option key={option.value} value={option.value}>
+                            {t('admin.review.photos.filterOption', { name: option.value, count: option.count })}
+                        </option>
+                    ))}
+                </select>
+            </label>
+            {active && (
+                <SiteButton variant="ghost" size="sm" onClick={() => onChange(NO_FILTERS)}>
+                    {t('admin.review.photos.clearFilters')}
+                </SiteButton>
+            )}
         </div>
     );
 }
@@ -295,7 +398,7 @@ function EraseTextModal({ candidate, onClose, onSubmit, t }) {
     );
 }
 
-function PendingQueue({ onDecision }) {
+function PendingQueue({ filters, onDecision }) {
     const { t } = useSiteI18n();
     const [queue, setQueue] = useState([]);
     const [skipped, setSkipped] = useState(0);
@@ -321,7 +424,11 @@ function PendingQueue({ onDecision }) {
     const fetchPage = useCallback(async (offset, reset) => {
         setLoading(true);
         try {
-            const params = new URLSearchParams({ status: 'pending', limit: String(PAGE), offset: String(offset), q: debounced });
+            const params = filterParams(filters);
+            params.set('status', 'pending');
+            params.set('limit', String(PAGE));
+            params.set('offset', String(offset));
+            params.set('q', debounced);
             const response = await authFetch(`/api/admin/review/photos?${params}`);
             if (!response.ok) throw new Error(String(response.status));
             const data = await response.json();
@@ -338,7 +445,7 @@ function PendingQueue({ onDecision }) {
         } finally {
             setLoading(false);
         }
-    }, [debounced]);
+    }, [debounced, filters]);
 
     useEffect(() => {
         setSkipped(0);
@@ -729,13 +836,17 @@ function PendingQueue({ onDecision }) {
     );
 }
 
-function ReviewedList({ status, onChange }) {
+function ReviewedList({ status, filters, onChange }) {
     const { t, language } = useSiteI18n();
     const [offset, setOffset] = useState(0);
-    const list = useApi(`/api/admin/review/photos?status=${status}&limit=${PAGE}&offset=${offset}`, { auth: true });
+    const params = filterParams(filters);
+    params.set('status', status);
+    params.set('limit', String(PAGE));
+    params.set('offset', String(offset));
+    const list = useApi(`/api/admin/review/photos?${params}`, { auth: true });
     const [busyKey, setBusyKey] = useState(null);
 
-    useEffect(() => setOffset(0), [status]);
+    useEffect(() => setOffset(0), [status, filters]);
 
     const reopen = async (key) => {
         setBusyKey(key);

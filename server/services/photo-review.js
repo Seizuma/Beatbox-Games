@@ -169,12 +169,53 @@ function summary() {
     };
 }
 
+// Valeur du filtre « nation » pour les fiches sans nationalité connue
+const NO_NATIONALITY = '__none__';
+
+/** Filtre par nation et/ou par événement : revue pays par pays ou compétition par compétition. */
+function matchesFacets(entry, { nationality = '', event = '' } = {}) {
+    if (nationality) {
+        const own = entry.nationality || '';
+        if (nationality === NO_NATIONALITY ? own !== '' : own !== nationality) return false;
+    }
+    if (event && !(entry.events || []).includes(event)) return false;
+    return true;
+}
+
+/**
+ * Nations et événements présents parmi les fiches d'un statut, avec leur nombre,
+ * pour proposer les filtres de l'écran de revue. Le décompte d'une liste tient
+ * compte du filtre choisi dans l'autre (ex. : événements des beatboxers français).
+ */
+function facets({ status = 'pending', nationality = '', event = '' } = {}) {
+    const wanted = STATUSES.includes(status) ? status : 'pending';
+    const entries = listEntries().filter((entry) => entry.status === wanted);
+
+    const tally = (list, valuesOf) => {
+        const counts = new Map();
+        list.forEach((entry) => valuesOf(entry).forEach((value) => counts.set(value, (counts.get(value) || 0) + 1)));
+        return Array.from(counts, ([value, count]) => ({ value, count }))
+            .sort((a, b) => a.value.localeCompare(b.value, 'fr', { sensitivity: 'base' }));
+    };
+
+    return {
+        nationalities: tally(
+            entries.filter((entry) => matchesFacets(entry, { event })),
+            (entry) => [entry.nationality || NO_NATIONALITY],
+        ),
+        events: tally(
+            entries.filter((entry) => matchesFacets(entry, { nationality })),
+            (entry) => [...new Set(entry.events || [])],
+        ),
+    };
+}
+
 /**
  * Page d'entrées pour l'écran de revue.
  * Ordre : celles qui ont le plus de chances d'être validées d'un clic d'abord
  * (meilleure confiance), les entrées sans candidate en dernier.
  */
-function list({ status = 'pending', offset = 0, limit = 20, query = '' } = {}) {
+function list({ status = 'pending', offset = 0, limit = 20, query = '', nationality = '', event = '' } = {}) {
     const wanted = STATUSES.includes(status) ? status : 'pending';
     const needle = normalizeName(query);
     const best = (entry) => Math.max(0, ...visibleCandidates(entry).map((candidate) => candidate.confidence || 0));
@@ -182,6 +223,7 @@ function list({ status = 'pending', offset = 0, limit = 20, query = '' } = {}) {
     const entries = listEntries()
         .filter((entry) => entry.status === wanted)
         .filter((entry) => !needle || normalizeName(entry.name).includes(needle))
+        .filter((entry) => matchesFacets(entry, { nationality, event }))
         .sort((a, b) => {
             if (wanted !== 'pending') return String(b.reviewedAt || '').localeCompare(String(a.reviewedAt || ''));
             return best(b) - best(a) || a.name.localeCompare(b.name);
@@ -573,6 +615,7 @@ module.exports = {
     listEntries,
     candidatePath,
     summary,
+    facets,
     list,
     get,
     setGroup,
