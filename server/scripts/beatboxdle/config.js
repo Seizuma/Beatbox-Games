@@ -69,6 +69,52 @@ module.exports = {
         'gbb-entrant': 'Participant au GBB',
     },
 
+    // ----- Palmarès élargi (indice « Meilleur titre ») -----
+    // Le roster reste défini par les majors, mais le titre affiché peut venir
+    // de n'importe quel événement : « Top 8 mondial » dit moins de MaxO que
+    // « champion d'Europe ». Voir titles.js pour le calcul.
+    //
+    // Poids d'un titre = niveau × placement × discipline × catégorie annexe,
+    // puis bonus de répétition (triple champion national) et de double source.
+    TITLE_LEVEL_WEIGHTS: {
+        wbc: 100,
+        gbb: 100,
+        continental: 70,  // European / Asia / African… Beatbox Championship
+        intl: 50,         // grands battles internationaux (liste ci-dessous)
+        national: 40,     // championnat d'un pays
+        other: 20,        // tout le reste, à classer si un titre en dépend
+    },
+    TITLE_PLACEMENT_FACTORS: {
+        champion: 1,
+        'runner-up': 0.7,
+        third: 0.6,
+        semi: 0.5,
+        quarter: 0.35,
+        entrant: 0.2,
+    },
+    TITLE_DISCIPLINE_FACTORS: { solo: 1, loopstation: 0.85, 'tag-team': 0.8, crew: 0.7 },
+    // Catégories annexes d'un grand événement : 7 To Smoke du GBB, Draft…
+    TITLE_SIDE_CATEGORY: { match: /7 ?to ?smoke|shootout|draft|showcase|battle royale|vocobox|world cup|crowd/i, factor: 0.6 },
+    TITLE_REPEAT_BONUS: 0.1,    // par titre identique supplémentaire (autre année)
+    TITLE_REPEAT_MAX: 3,        // bonus plafonné à +30 %
+    TITLE_CONFIRMED_BONUS: 0.05, // titre présent sur beatbox.world ET au wiki
+
+    // Ni des titres ni des participations : qualifications, soirées annexes.
+    TITLE_EXCLUDED_EVENTS: /qualif|wild ?card|try-?out|audition|preliminar|\bdivision\b|\bregional\b|elimination round/i,
+    TITLE_SIDE_EVENTS: /after ?party|warm-?up|open mic|side battle|fan battle/i,
+
+    // Grands battles internationaux hors championnats officiels. La liste se
+    // complète avec reports/evenements-non-classes.csv (écrit par enrich.js).
+    TITLE_INTL_EVENTS: new RegExp([
+        'swissbeatbox', 'beatbox masters', 'one ?one battle', 'florida beatbox', 'vokal ?total',
+        'world beatbox camp', 'sbx camp', 'great north battle', 'la cup', 'bayreuth beatbox battle',
+        'multiverse beatbox battle', 'beatbox of the year', 'nothing ?2 ?looz', '7 ?to ?smoke', 'die to die',
+        'vocal combat', 'clip\\b.*loop ?station', 'haten', 'owbc', 'sbx kickback', 'draft tag team',
+        'all star beatbox', 'lyon beatbox battle', 'beatbox battle tv', 'mascaret beatbox battle',
+        'maestro beatbox', 'astro beatbox battle', 'nue beatbox battle', 'balkan beatbox',
+        'king of the beats?', 'tag team beatbox championship', 'world loop ?station',
+    ].join('|'), 'i'),
+
     // ----- Catégories principales -----
     CATEGORY_LABELS: {
         solo: 'Solo',
@@ -94,6 +140,11 @@ module.exports = {
     RAW_DIR: path.join(DATA_DIR, 'raw'),
     ROSTER_FILE: path.join(DATA_DIR, 'raw', 'roster.json'),
     PROFILES_FILE: path.join(DATA_DIR, 'raw', 'profiles.json'),
+    WIKI_FILE: path.join(DATA_DIR, 'raw', 'wiki.json'),
+    // Propositions de titres en attente de revue (écrit par enrich.js) et
+    // décisions de l'administrateur (lues par build.js).
+    TITLE_PROPOSALS_FILE: path.join(ROOT, 'beatbox_artists', 'review', 'titles.json'),
+    REVIEWED_TITLES_FILE: path.join(DATA_DIR, 'reviewed-titles.json'),
     DATASET_FILE: path.join(DATA_DIR, 'beatboxdle.json'),
     REPORT_DIR: path.join(DATA_DIR, 'reports'),
     OVERRIDES_FILE: path.join(__dirname, 'overrides.json'),

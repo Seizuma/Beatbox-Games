@@ -11,10 +11,16 @@ services:
       - ./server/public:/app/public
       - beatbox-data-prod:/app/data
       - ./server/beatbox_artists:/app/beatbox_artists
+      # Compte de service Google (google-credentials.json) : coloration du
+      # Google Sheet depuis /admin. Un dossier plutôt qu'un fichier : s'il
+      # manque, Docker crée un dossier vide au lieu d'un faux fichier.
+      - /etc/beatbox-games/secrets:/app/secrets:ro
     env_file:
       - /etc/beatbox-games/.env.production
     environment:
       - NODE_ENV=production
+      - SHEET_SYNC=true
+      - GOOGLE_APPLICATION_CREDENTIALS=/app/secrets/google-credentials.json
       - DISABLE_CONSOLE=true
       - BASE_URL=https://beatboxgames.com
       - CLIENT_URL=https://beatboxgames.com

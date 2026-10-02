@@ -1,6 +1,6 @@
 import React from 'react';
 import GuessAvatar from './GuessAvatar';
-import { continentName, countryName, categoryName, genderName, titleShortName } from '../../utils/beatboxdleLabels';
+import { continentName, countryName, categoryName, genderName, titlePlace, titleShortName } from '../../utils/beatboxdleLabels';
 
 const STATE_CLASS = {
     correct: 'bg-dle-correct text-dle-correct-ink',
@@ -29,8 +29,9 @@ function Arrow({ direction, label }) {
  * Deux précisions se glissent sous la valeur principale, en plus petit :
  * - le continent quand le pays est orange, sinon le joueur voit « Royaume-Uni »
  *   en orange sans savoir ce qui est commun ;
- * - la discipline du titre, parce que « champion du monde » en crew et en solo
- *   ne racontent pas la même carrière.
+ * - le lieu et la discipline du titre : « champion national » ne dit rien sans
+ *   le pays, et « champion du monde » en crew et en solo ne racontent pas la
+ *   même carrière.
  *
  * La ligne qui vient d'être jouée se pose case par case (`dle-reveal`) ; les
  * lignes déjà là ne rejouent rien au rechargement. La ligne gagnante garde une
@@ -65,7 +66,8 @@ export default function CluesGrid({ language, t, guesses, revealIndex }) {
         }
         if (field === 'gender') return { main: genderName(t, cell.value) || '—', hint: null };
         if (field === 'firstYear') return { main: cell.value != null ? String(cell.value) : '—', hint: null };
-        return { main: titleShortName(t, cell.id) || '—', hint: categoryName(t, cell.discipline) };
+        const hint = [titlePlace(t, language, cell), categoryName(t, cell.discipline)].filter(Boolean).join(' · ');
+        return { main: titleShortName(t, cell) || '—', hint: hint || null };
     };
 
     const columns = 'minmax(0, 1fr) repeat(4, minmax(0, 4.25rem))';

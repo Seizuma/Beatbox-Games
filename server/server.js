@@ -51,6 +51,11 @@ const contactService = require('./services/contactService');
 // ✅ Route pour servir les images des beatboxers
 app.get('/api/beatboxer-images/:filename', (req, res) => {
     const filename = req.params.filename;
+    // Express décode %2F dans les paramètres : sans ce contrôle,
+    // « ..%2Fdata%2F… » sortirait du dossier des photos.
+    if (!filename || filename !== path.basename(filename) || filename.startsWith('.')) {
+        return res.status(404).json({ error: 'Image non trouvée' });
+    }
     const imagePath = path.join(__dirname, 'beatbox_artists', filename);
 
     console.log('🖼️ Requête image:', filename);

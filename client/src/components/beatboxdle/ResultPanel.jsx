@@ -84,7 +84,7 @@ export default function ResultPanel({ t, language, answer, solved, guesses, puzz
         }
     };
 
-    const title = answer.bestTitle ? titleName(t, answer.bestTitle.id) : null;
+    const title = answer.bestTitle ? titleName(t, answer.bestTitle, language) : null;
     const discipline = answer.bestTitle ? categoryName(t, answer.bestTitle.discipline) : null;
 
     return (

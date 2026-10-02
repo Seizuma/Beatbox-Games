@@ -8,19 +8,14 @@ import { useDiscordAuth } from '../utils/discordAuth';
 import { useDiscordCallback } from '../utils/useDiscordCallback';
 import { useIsAdmin } from '../utils/useIsAdmin';
 import { useSiteI18n, formatDay, formatNumber } from '../utils/siteI18n';
-import { API_BASE_URL, getStoredDiscordToken, useApi } from '../utils/useApi';
+import { useApi } from '../utils/useApi';
 import useUrlTab from '../hooks/useUrlTab';
+import { authFetch } from './admin/adminApi';
+import PhotoReview from './admin/PhotoReview';
+import TitleReview from './admin/TitleReview';
 
-const TABS = ['overview', 'players', 'games', 'rooms', 'log', 'maintenance'];
-
-const authFetch = (path, options = {}) => fetch(`${API_BASE_URL}${path}`, {
-    ...options,
-    headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${getStoredDiscordToken()}`,
-        ...(options.headers || {}),
-    },
-});
+const TABS = ['overview', 'players', 'games', 'rooms', 'log', 'data', 'maintenance'];
+const DATA_SECTIONS = ['photos', 'titles'];
 
 const formatBytes = (bytes) => {
     if (!bytes) return '—';
@@ -553,6 +548,30 @@ function MaintenanceTab() {
         </div>
     );
 }
+/**
+ * Revue des données collectées par les scripts (photos du Buzzer Battle,
+ * titres du Beatboxdle) : la vérification humaine avant la mise en jeu.
+ */
+function DataTab() {
+    const { t } = useSiteI18n();
+    const [section, setSection] = useUrlTab('data', DATA_SECTIONS, 'photos');
+
+    return (
+        <div className="flex flex-col gap-8">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+                <SectionTitle aside={t(`admin.review.${section}.help`)}>{t(`admin.review.${section}.title`)}</SectionTitle>
+                <Segmented
+                    label={t('admin.review.sections')}
+                    value={section}
+                    onChange={setSection}
+                    options={DATA_SECTIONS.map((id) => ({ id, label: t(`admin.review.${id}.tab`) }))}
+                />
+            </div>
+            {section === 'photos' ? <PhotoReview /> : <TitleReview />}
+        </div>
+    );
+}
+
 function AdminContent() {
     const { t } = useSiteI18n();
     const { isAuthenticated, login, loading } = useDiscordAuth();
@@ -600,6 +619,7 @@ function AdminContent() {
                 {tab === 'games' && <GamesTab />}
                 {tab === 'rooms' && <RoomsTab />}
                 {tab === 'log' && <LogTab />}
+                {tab === 'data' && <DataTab />}
                 {tab === 'maintenance' && <MaintenanceTab />}
             </div>
         </>

@@ -1,0 +1,11 @@
+# Détection de visage (faces.py)
+opencv-python>=4.8
+numpy>=1.24
+# Facultatif : clean_text.py — détection automatique du texte et remplissage fin.
+# Sans eux, l'effacement marche avec les zones tracées dans l'admin (OpenCV).
+# Sur Linux, installer d'abord torch en version CPU (beaucoup plus légère) :
+#   pip install torch --index-url https://download.pytorch.org/whl/cpu
+# easyocr
+# simple-lama-inpainting
+# Facultatif : faces.py --deep (images extraites des vidéos, nécessite aussi ffmpeg)
+# yt-dlp>=2024.1

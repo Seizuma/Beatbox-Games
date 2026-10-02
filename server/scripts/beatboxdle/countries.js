@@ -48,6 +48,60 @@ Object.assign(CODE_BY_ENGLISH_NAME, {
     'ivory coast': 'CI',
 });
 
+// Gentilés et formes courtes rencontrés dans les noms d'événements
+// (« Bulgarian Beatbox Championship », « UK Beatbox Championships »). Les
+// noms de pays eux-mêmes sont déjà couverts par CODE_BY_ENGLISH_NAME.
+// Pas de « Welsh » ni de « Scottish » : un champion du pays de Galles n'est
+// pas champion du Royaume-Uni, ces titres restent hors classement national.
+const CODE_BY_DEMONYM = {
+    afghan: 'AF', albanian: 'AL', algerian: 'DZ', american: 'US', usa: 'US', us: 'US', argentinian: 'AR',
+    argentine: 'AR', armenian: 'AM', australian: 'AU', austrian: 'AT', azerbaijani: 'AZ', bangladeshi: 'BD',
+    belarusian: 'BY', belgian: 'BE', bolivian: 'BO', bosnian: 'BA', brazilian: 'BR', british: 'GB', uk: 'GB',
+    bulgarian: 'BG', cambodian: 'KH', cameroonian: 'CM', canadian: 'CA', chilean: 'CL', chinese: 'CN',
+    colombian: 'CO', 'costa rican': 'CR', croatian: 'HR', cuban: 'CU', cypriot: 'CY', czech: 'CZ', danish: 'DK',
+    dutch: 'NL', ecuadorian: 'EC', egyptian: 'EG', estonian: 'EE', filipino: 'PH', philippine: 'PH',
+    finnish: 'FI', french: 'FR', georgian: 'GE', german: 'DE', ghanaian: 'GH', greek: 'GR', guatemalan: 'GT',
+    hungarian: 'HU', icelandic: 'IS', indian: 'IN', indonesian: 'ID', iranian: 'IR', iraqi: 'IQ', irish: 'IE',
+    israeli: 'IL', italian: 'IT', japanese: 'JP', jordanian: 'JO', kazakh: 'KZ', kenyan: 'KE', korean: 'KR',
+    'south korean': 'KR', latvian: 'LV', lebanese: 'LB', lithuanian: 'LT', luxembourgish: 'LU', malagasy: 'MG',
+    malaysian: 'MY', maltese: 'MT', mexican: 'MX', moldovan: 'MD', mongolian: 'MN', moroccan: 'MA', nepalese: 'NP',
+    'new zealand': 'NZ', nigerian: 'NG', norwegian: 'NO', pakistani: 'PK', panamanian: 'PA', paraguayan: 'PY',
+    peruvian: 'PE', polish: 'PL', portuguese: 'PT', 'puerto rican': 'PR', romanian: 'RO', russian: 'RU',
+    salvadoran: 'SV', saudi: 'SA', senegalese: 'SN', serbian: 'RS', singaporean: 'SG',
+    slovak: 'SK', slovenian: 'SI', 'south african': 'ZA', spanish: 'ES', 'sri lankan': 'LK', swedish: 'SE',
+    swiss: 'CH', taiwanese: 'TW', thai: 'TH', tunisian: 'TN', turkish: 'TR', ukrainian: 'UA', uruguayan: 'UY',
+    uzbek: 'UZ', venezuelan: 'VE', vietnamese: 'VN', korea: 'KR', vietnam: 'VN', russia: 'RU',
+    'hong kong': 'HK', macau: 'MO', 'el salvador': 'SV', 'czech republic': 'CZ', holland: 'NL', emirati: 'AE',
+};
+
+// Continents tels qu'ils apparaissent dans les noms d'événements.
+const CONTINENT_BY_WORD = {
+    europe: 'EU', european: 'EU',
+    asia: 'AS', asian: 'AS',
+    africa: 'AF', african: 'AF',
+    'latin america': 'SA', 'latin american': 'SA', 'south america': 'SA', 'south american': 'SA', latam: 'SA',
+    'north america': 'NA', 'north american': 'NA',
+    oceania: 'OC', oceanian: 'OC', 'asia pacific': 'AS', 'asia-pacific': 'AS',
+};
+
+/**
+ * Code pays à partir d'un mot de nom d'événement : gentilé (« Bulgarian »),
+ * forme courte (« UK ») ou nom anglais (« Argentina »).
+ */
+function codeFromPlaceWord(word) {
+    if (!word) return null;
+    const key = word.trim().toLowerCase();
+    return CODE_BY_DEMONYM[key] || CODE_BY_ENGLISH_NAME[key] || null;
+}
+
+/** Code de continent à partir d'un mot (« European » -> EU). */
+const continentFromWord = (word) => (word ? CONTINENT_BY_WORD[word.trim().toLowerCase()] || null : null);
+
+/** Toutes les formes connues, plus longues d'abord : « South African » avant « African ». */
+const placeWords = () => [
+    ...new Set([...Object.keys(CODE_BY_DEMONYM), ...Object.keys(CODE_BY_ENGLISH_NAME), ...Object.keys(CONTINENT_BY_WORD)]),
+].sort((a, b) => b.length - a.length);
+
 /** Convertit un drapeau emoji (🇫🇷) en code ISO alpha-2 (FR). */
 function flagToCode(flag) {
     if (!flag) return null;
@@ -81,4 +135,12 @@ function frenchName(code) {
 /** Code de continent (EU, AS, AF, NA, SA, OC), traduit côté client. */
 const continentOf = (code) => (code ? CONTINENT_BY_CODE[code] || null : null);
 
-module.exports = { flagToCode, codeFromEnglishName, frenchName, continentOf };
+module.exports = {
+    flagToCode,
+    codeFromEnglishName,
+    codeFromPlaceWord,
+    continentFromWord,
+    placeWords,
+    frenchName,
+    continentOf,
+};
