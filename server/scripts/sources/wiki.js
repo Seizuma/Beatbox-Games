@@ -165,6 +165,7 @@ function parseWikitext(wikitext) {
     const countryCode = countryMatch ? countryMatch[1].toUpperCase() : null;
 
     const achievements = [];
+    const prose = [];
     let inSection = false;
     let headingYear = null;
 
@@ -176,7 +177,10 @@ function parseWikitext(wikitext) {
             headingYear = null;
             continue;
         }
-        if (!inSection) continue;
+        if (!inSection) {
+            prose.push(line);
+            continue;
+        }
 
         const level3 = line.match(/^={3,}\s*(.*?)\s*={3,}$/);
         if (level3) {
@@ -191,7 +195,23 @@ function parseWikitext(wikitext) {
         }
     }
 
-    return { countryCode, achievements };
+    return { countryCode, achievements, pronouns: countPronouns(prose.join('\n')) };
+}
+
+/**
+ * Pronoms du texte de la fiche (biographie, anecdotes), palmarès et
+ * références exclus. Le wiki n'a pas de champ « genre » : c'est l'indice le
+ * plus fiable qu'il offre, et il ne sert qu'à proposer — un humain valide.
+ */
+function countPronouns(text) {
+    const cleaned = text
+        .replace(/<ref[^>]*\/>|<ref[^>]*>[\s\S]*?<\/ref>/gi, ' ')
+        .replace(/\{\{[\s\S]*?\}\}/g, ' ')
+        .replace(/\[\[(?:[^\]|]+\|)?([^\]]+)\]\]/g, '$1');
+    return {
+        male: (cleaned.match(/\b(he|him|his|himself)\b/gi) || []).length,
+        female: (cleaned.match(/\b(she|her|hers|herself)\b/gi) || []).length,
+    };
 }
 
 async function fetchProfile(client, title) {

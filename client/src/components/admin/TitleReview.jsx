@@ -3,7 +3,7 @@ import { DataState, Notice, Segmented, SectionTitle, SiteButton } from '../site/
 import Icon from '../icons/Icon';
 import { useSiteI18n, formatNumber, formatDay } from '../../utils/siteI18n';
 import { useApi } from '../../utils/useApi';
-import { categoryName, countryName, titleName } from '../../utils/beatboxdleLabels';
+import { categoryName, countryName, genderName, titleName } from '../../utils/beatboxdleLabels';
 import { postJson } from './adminApi';
 import { errorText } from './PhotoReview';
 
@@ -66,6 +66,15 @@ export default function TitleReview() {
                         reviewed: formatNumber(language, info.reviewed),
                     })}
                     {info.generatedAt ? ` ${t('admin.review.titles.generatedAt', { date: formatDay(language, info.generatedAt, t) })}` : ''}
+                    {info.fixes && (
+                        <span className="mt-1 block text-xs text-site-soft">
+                            {t('admin.review.titles.fixesSummary', {
+                                gender: info.fixes.gender || 0,
+                                firstYear: info.fixes.firstYear || 0,
+                                country: info.fixes.countryCode || 0,
+                            })}
+                        </span>
+                    )}
                 </p>
             )}
 
@@ -121,7 +130,7 @@ export default function TitleReview() {
                 )}
             </DataState>
 
-            <RebuildPanel onDone={refresh} />
+            <RebuildPanel info={info} onDone={refresh} />
         </div>
     );
 }
@@ -170,6 +179,14 @@ function TitleLabel({ title, showScore = false }) {
     );
 }
 
+/** Valeur lisible d'une donnée d'indice (genre, année, pays). */
+function fixValue(t, language, field, value) {
+    if (value === null || value === undefined || value === '') return '—';
+    if (field === 'gender') return genderName(t, value) || value;
+    if (field === 'countryCode') return countryName(language, value) || value;
+    return String(value);
+}
+
 const choiceOf = (decision) => {
     if (!decision) return 'proposed';
     if (decision.choice === 'alternative') return `alt:${decision.title?.key}`;
@@ -181,8 +198,18 @@ function TitleRow({ item, onChanged }) {
     const [choice, setChoice] = useState(choiceOf(item.decision));
     const [busy, setBusy] = useState(false);
     const [error, setError] = useState(null);
+    const fixFields = Object.keys(item.fixes || {});
+    // Par défaut tout est accepté ; une fiche déjà tranchée retrouve ses choix.
+    const fixesOf = (decision) => (decision ? Object.keys(decision.fixes || {}) : fixFields);
+    const [accepted, setAccepted] = useState(() => fixesOf(item.decision));
 
     useEffect(() => setChoice(choiceOf(item.decision)), [item.decision]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    useEffect(() => setAccepted(fixesOf(item.decision)), [item.decision]);
+
+    const toggleFix = (field) => setAccepted((previous) => (previous.includes(field)
+        ? previous.filter((other) => other !== field)
+        : [...previous, field]));
 
     // La proposition n'est autre que l'alternative n° 1 : on ne la répète pas.
     const alternatives = item.alternatives.filter((alternative) => alternative.key !== item.proposed?.key);
@@ -191,7 +218,7 @@ function TitleRow({ item, onChanged }) {
     const save = async () => {
         setBusy(true);
         setError(null);
-        const result = await postJson(`/api/admin/review/titles/${encodeURIComponent(item.slug)}/decision`, { choice });
+        const result = await postJson(`/api/admin/review/titles/${encodeURIComponent(item.slug)}/decision`, { choice, fixes: accepted });
         setBusy(false);
         if (!result.ok) setError(errorText(t, result.error));
         else onChanged();
@@ -247,6 +274,33 @@ function TitleRow({ item, onChanged }) {
                 </div>
             </fieldset>
 
+            {fixFields.length > 0 && (
+                <fieldset className="mt-4">
+                    <legend className="mb-1 text-xs font-bold text-site-muted">{t('admin.review.titles.fixes')}</legend>
+                    {!item.inGame && <p className="mb-1 px-3 text-[11px] text-site-soft">{t('admin.review.titles.notInGame')}</p>}
+                    <div className="flex flex-col gap-0.5">
+                        {fixFields.map((field) => (
+                            <label key={field} className="flex cursor-pointer items-start gap-3 rounded-lg px-3 py-2 hover:bg-site-tint">
+                                <input
+                                    type="checkbox"
+                                    checked={accepted.includes(field)}
+                                    onChange={() => toggleFix(field)}
+                                    className="mt-1 h-4 w-4 shrink-0"
+                                />
+                                <span className="min-w-0 text-sm">
+                                    <span className="font-semibold">{t(`admin.review.titles.fixFields.${field}`)}</span>
+                                    {' : '}
+                                    <span className="text-site-muted">{fixValue(t, language, field, item.liveData?.[field] ?? item.fixes[field].previous)}</span>
+                                    {' → '}
+                                    <span className="font-semibold">{fixValue(t, language, field, item.fixes[field].value)}</span>
+                                    <span className="block text-[11px] text-site-soft">{item.fixes[field].evidence}</span>
+                                </span>
+                            </label>
+                        ))}
+                    </div>
+                </fieldset>
+            )}
+
             {item.unclassified?.length > 0 && (
                 <p className="mt-2 text-[11px] text-site-soft">
                     {t('admin.review.titles.unclassified', { events: item.unclassified.slice(0, 6).join(', ') })}
@@ -273,8 +327,16 @@ function TitleRow({ item, onChanged }) {
     );
 }
 
-function RebuildPanel({ onDone }) {
-    const { t } = useSiteI18n();
+/**
+ * Mise en jeu des décisions.
+ *
+ * Valider des titres ne change pas le tirage : la reconstruction est
+ * immédiate. Faire entrer un beatboxer dans le mode indices (genre complété)
+ * change l'ordre du tirage : on propose alors de l'appliquer au prochain
+ * minuit, quand une nouvelle énigme commence de toute façon.
+ */
+function RebuildPanel({ info, onDone }) {
+    const { t, language } = useSiteI18n();
     const [busy, setBusy] = useState(false);
     const [result, setResult] = useState(null);
 
@@ -287,9 +349,52 @@ function RebuildPanel({ onDone }) {
         if (response.ok && response.result?.ok) onDone();
     };
 
+    const schedule = async () => {
+        setBusy(true);
+        await postJson('/api/admin/review/titles/rebuild/schedule');
+        setBusy(false);
+        setResult(null);
+        onDone();
+    };
+
+    const cancelSchedule = async () => {
+        setBusy(true);
+        await postJson('/api/admin/review/titles/rebuild/schedule', {}, 'DELETE');
+        setBusy(false);
+        onDone();
+    };
+
+    const time = (iso) => new Date(iso).toLocaleString(language === 'fr' ? 'fr-FR' : 'en-GB', {
+        weekday: 'long', hour: '2-digit', minute: '2-digit',
+    });
+    const impactLines = Object.entries(result?.impact || {}).map(([mode, change]) => t('admin.review.titles.impactLine', {
+        mode: t(`beatboxdle.modes.${mode}`),
+        added: change.added,
+        removed: change.removed,
+        size: change.size,
+    }));
+
     return (
         <section className="mt-6 max-w-2xl border-t border-site-line pt-8">
             <SectionTitle aside={t('admin.review.titles.rebuildHelp')}>{t('admin.review.titles.rebuild')}</SectionTitle>
+
+            {info?.schedule && (
+                <div className="mb-5 flex flex-wrap items-center gap-3">
+                    <Notice>{t('admin.review.titles.scheduled', { time: time(info.schedule.at), who: info.schedule.requestedBy || '—' })}</Notice>
+                    <SiteButton variant="ghost" size="sm" onClick={cancelSchedule} disabled={busy}>
+                        {t('admin.review.titles.cancelSchedule')}
+                    </SiteButton>
+                </div>
+            )}
+            {info?.lastScheduled && !info.schedule && (
+                <p className="mb-5 text-xs text-site-muted">
+                    {t(info.lastScheduled.ok ? 'admin.review.titles.lastScheduledOk' : 'admin.review.titles.lastScheduledFailed', {
+                        date: formatDay(language, info.lastScheduled.at, t),
+                        changed: info.lastScheduled.changedTitles || 0,
+                    })}
+                </p>
+            )}
+
             <SiteButton onClick={() => rebuild(false)} disabled={busy}>
                 {busy ? t('admin.review.titles.rebuilding') : t('admin.review.titles.rebuildButton')}
             </SiteButton>
@@ -304,8 +409,18 @@ function RebuildPanel({ onDone }) {
 
             {result && !result.ok && result.reason === 'draw_changed' && (
                 <div className="mt-5 flex flex-col gap-3">
-                    <Notice tone="error">{t('admin.review.titles.drawChanged', { modes: (result.modes || []).join(', ') })}</Notice>
-                    <div>
+                    <Notice tone="error">
+                        {t('admin.review.titles.drawChanged')}
+                        {impactLines.length > 0 && (
+                            <ul className="mt-2 list-disc pl-5">
+                                {impactLines.map((line) => <li key={line}>{line}</li>)}
+                            </ul>
+                        )}
+                    </Notice>
+                    <div className="flex flex-wrap gap-2">
+                        <SiteButton size="sm" onClick={schedule} disabled={busy}>
+                            {t('admin.review.titles.scheduleButton')}
+                        </SiteButton>
                         <SiteButton variant="danger" size="sm" onClick={() => rebuild(true)} disabled={busy}>
                             {t('admin.review.titles.forceRebuild')}
                         </SiteButton>

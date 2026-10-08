@@ -72,22 +72,56 @@ const directionOf = (guessValue, targetValue) => {
  *            réponse. Cette colonne a remplacé « catégorie principale », qui
  *            répondait « solo » pour 89 % de la base et n'apprenait rien.
  * Meilleur titre : vert si exactement le même titre (champion national de
- *            Bulgarie = champion national de Bulgarie), orange si titre de
- *            prestige équivalent (champion GBB vs champion du monde, champion
- *            de Bulgarie vs champion de France), gris sinon, avec une flèche
- *            vers le prestige cherché. La discipline et le lieu voyagent avec
- *            le titre : « champion du monde » en crew et en solo ne veut pas
- *            dire la même chose pour qui cherche la réponse.
+ *            Bulgarie = champion national de Bulgarie), orange si même rang
+ *            ailleurs — même niveau et même placement : champion GBB vs
+ *            champion du monde, champion de Bulgarie vs champion de France —,
+ *            gris sinon, avec une flèche vers le prestige cherché. La
+ *            discipline et le lieu voyagent avec le titre : « champion du
+ *            monde » en crew et en solo ne veut pas dire la même chose pour
+ *            qui cherche la réponse.
  */
 // `key` distingue les titres régionaux (national-champion:BG) ; les bases
 // construites avant le palmarès élargi n'ont que `id`.
 const titleKey = (title) => (title ? title.key || title.id : null);
 
+// Le GBB et le championnat du monde sont un seul niveau : « mondial ».
+const LEVEL_GROUPS = { wbc: 'world', gbb: 'world' };
+
+/**
+ * Rang d'un titre : niveau + placement, sans le lieu. Déduit de l'identifiant
+ * (« national-runner-up » -> national / runner-up), présent dans tous les
+ * formats de base, anciens compris.
+ */
+function titleRank(title) {
+    const id = title && title.id;
+    if (!id) return null;
+    const [level, ...placement] = id.split('-');
+    return `${LEVEL_GROUPS[level] || level}:${placement.join('-')}`;
+}
+
+// Départage de deux titres au prestige égal mais de rangs différents
+// (champion d'Europe 70 / finaliste GBB 70) : le niveau de l'événement.
+const LEVEL_ORDER = { world: 5, continental: 4, intl: 3, national: 2, other: 1 };
+
+/**
+ * Flèche du titre : vers le prestige cherché. À prestige égal et rang
+ * différent, le niveau départage, sinon le joueur verrait un gris sans
+ * direction. À rang égal (orange), pas de flèche : c'est le lieu qui diffère.
+ */
+function titleDirection(guess, target) {
+    const byTier = directionOf(guess.tier, target.tier);
+    if (byTier || titleRank(guess) === titleRank(target)) return byTier;
+    const level = (title) => LEVEL_ORDER[(titleRank(title) || '').split(':')[0]] || 0;
+    return directionOf(level(guess), level(target));
+}
+
 function compareClues(guess, target) {
     const titleState = (() => {
         if (!guess.bestTitle || !target.bestTitle) return 'absent';
         if (titleKey(guess.bestTitle) === titleKey(target.bestTitle)) return 'correct';
-        return guess.bestTitle.tier === target.bestTitle.tier ? 'present' : 'absent';
+        // Un rang égal par coïncidence de score (continental 70 = finaliste mondial 70)
+        // n'est pas un titre équivalent : seul le rang compte pour l'orange.
+        return titleRank(guess.bestTitle) === titleRank(target.bestTitle) ? 'present' : 'absent';
     })();
 
     const yearGap = guess.firstYear != null && target.firstYear != null
@@ -121,8 +155,8 @@ function compareClues(guess, target) {
             event: guess.bestTitle ? guess.bestTitle.event || null : null,
             count: guess.bestTitle ? guess.bestTitle.count || 1 : null,
             state: titleState,
-            direction: guess.bestTitle && target.bestTitle
-                ? directionOf(guess.bestTitle.tier, target.bestTitle.tier)
+            direction: guess.bestTitle && target.bestTitle && titleState !== 'correct'
+                ? titleDirection(guess.bestTitle, target.bestTitle)
                 : null,
         },
     };
@@ -145,4 +179,4 @@ function revealAnswer(beatboxer) {
     };
 }
 
-module.exports = { compareLetters, compareClues, revealAnswer, YEAR_TOLERANCE };
+module.exports = { compareLetters, compareClues, revealAnswer, titleRank, YEAR_TOLERANCE };

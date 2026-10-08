@@ -81,6 +81,7 @@ async function main() {
             countryCode: wikiCountry || null,
             image: page.image,
             achievements: wikiProfile.achievements,
+            pronouns: wikiProfile.pronouns,
         };
 
         if ((index + 1) % 25 === 0 || index === todo.length - 1) {

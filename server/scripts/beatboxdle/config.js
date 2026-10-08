@@ -36,7 +36,9 @@ module.exports = {
             id: 'wbc',
             label: 'Championnat du monde',
             match: /beatbox battle world championship|world beatbox championship/i,
-            exclude: null,
+            // L'« Online World Beatbox Championship » (OWBC) est un autre
+            // événement : il compte comme battle international, pas comme le mondial.
+            exclude: /\bonline\b|\bowbc\b/i,
         },
     ],
 
@@ -110,7 +112,7 @@ module.exports = {
         'world beatbox camp', 'sbx camp', 'great north battle', 'la cup', 'bayreuth beatbox battle',
         'multiverse beatbox battle', 'beatbox of the year', 'nothing ?2 ?looz', '7 ?to ?smoke', 'die to die',
         'vocal combat', 'clip\\b.*loop ?station', 'haten', 'owbc', 'sbx kickback', 'draft tag team',
-        'all star beatbox', 'lyon beatbox battle', 'beatbox battle tv', 'mascaret beatbox battle',
+        'all star beatbox', 'online world beatbox', 'lyon beatbox battle', 'beatbox battle tv', 'mascaret beatbox battle',
         'maestro beatbox', 'astro beatbox battle', 'nue beatbox battle', 'balkan beatbox',
         'king of the beats?', 'tag team beatbox championship', 'world loop ?station',
     ].join('|'), 'i'),

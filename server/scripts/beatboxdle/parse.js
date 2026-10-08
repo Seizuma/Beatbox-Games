@@ -30,8 +30,10 @@ const DISCIPLINES = [
 // genrées (Men's Solo, Solo Femmes…). « Solo Mixte » ne dit rien, on l'ignore.
 // Les femmes sont testées en premier : \b protège déjà « Women's » de /\bmen's\b/,
 // mais l'ordre rend l'intention explicite.
-const FEMALE_RE = /\bwomen'?s\b|\bfemmes\b|\bfemale\b|\bladies\b/i;
-const MALE_RE = /\bmen'?s\b|\bhommes\b|\bmale\b/i;
+// Le wiki écrit « Women Solo » / « Men Solo », beatbox.world « Women's Solo » :
+// l'apostrophe et le s sont facultatifs.
+const FEMALE_RE = /\bwom[ae]n(?:'?s)?\b|\bfemmes\b|\bfemales?\b|\bladies\b|\bgirls?\b/i;
+const MALE_RE = /\bmen(?:'?s)?\b|\bhommes\b|\bmales?\b|\bboys?\b/i;
 
 function detectDiscipline(text) {
     const found = DISCIPLINES.find((discipline) => discipline.match.test(text));

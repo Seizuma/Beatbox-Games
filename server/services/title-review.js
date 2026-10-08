@@ -1,15 +1,18 @@
 // server/services/title-review.js
 //
-// Revue humaine des titres Beatboxdle.
+// Revue humaine des fiches Beatboxdle.
 //
 // scripts/beatboxdle/enrich.js propose, pour chaque beatboxer, le titre le
-// plus marquant de son palmarès complet. L'administrateur valide la
-// proposition, garde l'indice actuel ou choisit une alternative ; les
-// décisions vont dans beatboxdle/reviewed-titles.json, que build.js relit.
+// plus marquant de son palmarès complet, et les données d'indice que le wiki
+// permet de compléter (genre, première apparition, pays). L'administrateur
+// valide, garde l'existant ou choisit une alternative ; les décisions vont
+// dans beatboxdle/reviewed-titles.json, que build.js relit.
 //
 // « Reconstruire la base » refait beatboxdle.json en mémoire, le valide, et
 // ne l'écrit que si le tirage du jour reste identique : changer la réponse en
 // pleine journée invaliderait les grilles déjà commencées par les joueurs.
+// Quand le tirage doit changer (un beatboxer entre dans le mode indices),
+// la reconstruction se programme pour le prochain minuit.
 
 const fs = require('fs');
 const path = require('path');
@@ -18,9 +21,12 @@ const { buildDataset, writeDataset, writeIncompleteReport } = require('../script
 const { validateDataset } = require('../scripts/beatboxdle/validate');
 const { normalizeName } = require('../scripts/shared/names');
 const dataset = require('./beatboxdle-dataset');
+const daily = require('./beatboxdle-daily');
 const { HttpError, writeJsonAtomic } = require('./photo-review');
 
 const FILTERS = ['todo', 'changed', 'reviewed', 'all'];
+const FIX_FIELDS = ['gender', 'firstYear', 'countryCode'];
+const SCHEDULE_FILE = path.join(config.DATA_DIR, 'rebuild-scheduled.json');
 
 let proposalsCache = { mtimeMs: 0, data: null };
 
@@ -41,18 +47,29 @@ function writeDecisions(decisions) {
     writeJsonAtomic(config.REVIEWED_TITLES_FILE, decisions);
 }
 
-/** Titre en base pour ce beatboxer, s'il est déjà dans la base en ligne. */
-const liveTitle = (slug) => dataset.findBySlug(slug)?.bestTitle || null;
+/** Fiche à revoir : titre différent ou données à compléter (anciens fichiers : titre seul). */
+const needsReview = (item) => (item.needsReview !== undefined ? item.needsReview : item.changed);
+
+/** Ce que la base en ligne affiche aujourd'hui pour ce beatboxer. */
+function liveData(slug) {
+    const live = dataset.findBySlug(slug);
+    if (!live) return null;
+    return { title: live.bestTitle || null, gender: live.gender, firstYear: live.firstYear, countryCode: live.countryCode, modes: live.modes };
+}
 
 function decorate(item, decisions) {
     const decision = decisions[item.slug] || null;
+    const live = liveData(item.slug);
     return {
         ...item,
-        live: liveTitle(item.slug),
+        fixes: item.fixes || {},
+        live: live ? live.title : null,
+        liveData: live,
         decision: decision
             ? {
                 choice: decision.choice,
                 title: decision.title,
+                fixes: decision.fixes || {},
                 reviewedAt: decision.reviewedAt,
                 reviewedBy: decision.reviewedBy,
                 // La proposition a bougé depuis la décision (nouveau crawl) : à revoir.
@@ -65,26 +82,29 @@ function decorate(item, decisions) {
 function summary() {
     const proposals = readProposals();
     const decisions = readDecisions();
-    if (!proposals) return { ready: false, total: 0, changed: 0, reviewed: Object.keys(decisions).length, todo: 0 };
-    const changed = proposals.items.filter((item) => item.changed);
+    const base = { schedule: readSchedule(), lastScheduled };
+    if (!proposals) return { ...base, ready: false, total: 0, changed: 0, reviewed: Object.keys(decisions).length, todo: 0 };
+
+    const toReview = proposals.items.filter(needsReview);
+    const countFix = (field) => proposals.items.filter((item) => item.fixes?.[field]).length;
     return {
+        ...base,
         ready: true,
         generatedAt: proposals.generatedAt,
         total: proposals.items.length,
-        changed: changed.length,
+        changed: toReview.length,
         reviewed: Object.keys(decisions).length,
-        todo: changed.filter((item) => !decisions[item.slug]).length,
+        todo: toReview.filter((item) => !decisions[item.slug]).length,
+        fixes: Object.fromEntries(FIX_FIELDS.map((field) => [field, countFix(field)])),
         weights: proposals.weights,
         datasetLoadedAt: dataset.getStatus().loadedAt,
-        decisionsUpdatedAt: fs.existsSync(config.REVIEWED_TITLES_FILE)
-            ? fs.statSync(config.REVIEWED_TITLES_FILE).mtimeMs
-            : null,
     };
 }
 
 /**
  * @param {{ filter?: 'todo'|'changed'|'reviewed'|'all', offset?: number, limit?: number, query?: string }} options
- *   todo     = proposition différente de l'indice actuel, pas encore tranchée
+ *   todo    = fiche à revoir (titre différent ou données à compléter), pas encore tranchée
+ *   changed = toutes les fiches à revoir, tranchées ou non
  */
 function list({ filter = 'todo', offset = 0, limit = 20, query = '' } = {}) {
     const proposals = readProposals();
@@ -96,8 +116,8 @@ function list({ filter = 'todo', offset = 0, limit = 20, query = '' } = {}) {
     const items = proposals.items
         .filter((item) => {
             if (needle && !normalizeName(item.name).includes(needle)) return false;
-            if (wanted === 'todo') return item.changed && !decisions[item.slug];
-            if (wanted === 'changed') return item.changed;
+            if (wanted === 'todo') return needsReview(item) && !decisions[item.slug];
+            if (wanted === 'changed') return needsReview(item);
             if (wanted === 'reviewed') return Boolean(decisions[item.slug]);
             return true;
         });
@@ -113,8 +133,9 @@ function list({ filter = 'todo', offset = 0, limit = 20, query = '' } = {}) {
 /**
  * Enregistre une décision.
  * @param {string} choice 'proposed' | 'current' | 'alt:<key>'
+ * @param {string[]|null} acceptedFixes champs complétés acceptés ; null = tous
  */
-function decide(slug, choice, reviewer) {
+function decide(slug, choice, reviewer, acceptedFixes = null) {
     const proposals = readProposals();
     const item = proposals?.items.find((candidate) => candidate.slug === slug);
     if (!item) throw new HttpError(404, 'title_not_found');
@@ -127,16 +148,24 @@ function decide(slug, choice, reviewer) {
     }
     if (!title) throw new HttpError(400, 'invalid_choice');
 
+    // Seules les valeurs proposées par enrich.js sont acceptées : l'écran ne
+    // peut pas injecter une valeur arbitraire, il ne fait que trier.
+    const proposedFixes = item.fixes || {};
+    const fields = (acceptedFixes === null ? Object.keys(proposedFixes) : acceptedFixes)
+        .filter((field) => FIX_FIELDS.includes(field) && proposedFixes[field]);
+    const fixes = Object.fromEntries(fields.map((field) => [field, proposedFixes[field].value]));
+
     const decisions = readDecisions();
     decisions[slug] = {
         name: item.name,
         choice: choice.startsWith('alt:') ? 'alternative' : choice,
         title,
+        fixes,
         reviewedAt: new Date().toISOString(),
         reviewedBy: reviewer,
     };
     writeDecisions(decisions);
-    return { slug, name: item.name, title };
+    return { slug, name: item.name, title, fixes };
 }
 
 function decideMany(slugs, reviewer) {
@@ -151,12 +180,32 @@ function undo(slug) {
     return { slug, removed: true };
 }
 
-/** Ordre des viviers de chaque mode : c'est lui qui fixe le tirage du jour. */
-const poolOrder = (beatboxers, mode) =>
-    beatboxers.filter((beatboxer) => beatboxer.modes.includes(mode)).map((beatboxer) => beatboxer.slug).join('|');
+// --- Reconstruction ----------------------------------------------------------
+
+const pool = (beatboxers, mode) => beatboxers.filter((beatboxer) => beatboxer.modes.includes(mode)).map((beatboxer) => beatboxer.slug);
 
 /**
- * Reconstruit la base avec les titres validés.
+ * Ce qui change dans le vivier de chaque mode. L'ordre du vivier fixe le
+ * tirage : une entrée, une sortie ou un simple déplacement changent la
+ * réponse du jour.
+ */
+function drawImpact(before, after) {
+    const impact = {};
+    ['letters', 'clues'].forEach((mode) => {
+        const previous = pool(before, mode);
+        const next = pool(after, mode);
+        if (previous.join('|') === next.join('|')) return;
+        impact[mode] = {
+            added: next.filter((slug) => !previous.includes(slug)).length,
+            removed: previous.filter((slug) => !next.includes(slug)).length,
+            size: next.length,
+        };
+    });
+    return impact;
+}
+
+/**
+ * Reconstruit la base avec les décisions validées.
  * @returns {{ ok: boolean, reason?: string, errors?: string[], warnings?: string[], ... }}
  */
 function rebuild({ force = false } = {}) {
@@ -171,14 +220,10 @@ function rebuild({ force = false } = {}) {
     if (errors.length) return { ok: false, reason: 'invalid_dataset', errors, warnings };
 
     const before = dataset.beatboxers;
-    const drawChanged = ['letters', 'clues'].filter(
-        (mode) => before.length > 0 && poolOrder(before, mode) !== poolOrder(result.dataset.beatboxers, mode),
-    );
+    const impact = before.length > 0 ? drawImpact(before, result.dataset.beatboxers) : {};
+    const drawChanged = Object.keys(impact);
     if (drawChanged.length && !force) {
-        // Les profils ont changé depuis la dernière construction (nouveau crawl) :
-        // l'ordre du tirage n'est plus le même. À faire juste après minuit, ou
-        // en connaissance de cause.
-        return { ok: false, reason: 'draw_changed', modes: drawChanged, warnings };
+        return { ok: false, reason: 'draw_changed', modes: drawChanged, impact, warnings };
     }
 
     const changedTitles = result.dataset.beatboxers.filter((beatboxer) => {
@@ -197,9 +242,83 @@ function rebuild({ force = false } = {}) {
         reviewedCount: result.reviewedCount,
         changedTitles,
         drawChanged,
+        impact,
         cycle,
         warnings,
     };
 }
 
-module.exports = { summary, list, decide, decideMany, undo, rebuild };
+// --- Reconstruction programmée à minuit -------------------------------------
+// Le seul moment où changer le tirage ne casse la partie de personne : la
+// nouvelle énigme commence. L'échéance est écrite sur disque pour survivre à
+// un redémarrage du serveur.
+
+let scheduleTimer = null;
+let lastScheduled = null; // résultat de la dernière reconstruction programmée
+
+function readSchedule() {
+    if (!fs.existsSync(SCHEDULE_FILE)) return null;
+    try {
+        return JSON.parse(fs.readFileSync(SCHEDULE_FILE, 'utf8'));
+    } catch (error) {
+        return null;
+    }
+}
+
+function runScheduled() {
+    scheduleTimer = null;
+    const schedule = readSchedule();
+    if (!schedule) return;
+    fs.rmSync(SCHEDULE_FILE, { force: true });
+
+    const result = rebuild({ force: true });
+    lastScheduled = { at: new Date().toISOString(), requestedBy: schedule.requestedBy, ...result };
+    console.log(`🌙 Beatboxdle : reconstruction de minuit ${result.ok ? 'faite' : `échouée (${result.reason})`}`);
+    try {
+        require('./database').getDatabase().logEvent({
+            level: result.ok ? 'info' : 'error',
+            type: 'admin',
+            message: `Reconstruction Beatboxdle de minuit ${result.ok ? 'effectuée' : 'échouée'} (demandée par ${schedule.requestedBy})`,
+            context: { reason: result.reason || null, impact: result.impact || null, changedTitles: result.changedTitles || 0 },
+        });
+    } catch (error) {
+        // Le journal est un plus.
+    }
+}
+
+function armSchedule() {
+    if (scheduleTimer) clearTimeout(scheduleTimer);
+    scheduleTimer = null;
+    const schedule = readSchedule();
+    if (!schedule) return;
+
+    const delay = Date.parse(schedule.at) - Date.now();
+    const MAX_TIMEOUT = 2 ** 31 - 1; // ~24,8 jours, limite de setTimeout
+    scheduleTimer = delay > MAX_TIMEOUT
+        ? setTimeout(armSchedule, MAX_TIMEOUT)
+        : setTimeout(runScheduled, Math.max(0, delay));
+    // Une échéance ne doit pas empêcher le processus de s'arrêter proprement.
+    if (scheduleTimer.unref) scheduleTimer.unref();
+}
+
+/** Programme la reconstruction juste après le prochain changement de jour. */
+function scheduleRebuild(reviewer) {
+    // Deux secondes après minuit plutôt qu'avant : au pire, une énigme ouverte
+    // dans ces deux secondes change, alors qu'avant minuit ce seraient les
+    // dernières grilles de la veille.
+    const at = new Date(Date.parse(daily.nextResetAt()) + 2000).toISOString();
+    fs.mkdirSync(path.dirname(SCHEDULE_FILE), { recursive: true });
+    writeJsonAtomic(SCHEDULE_FILE, { at, requestedBy: reviewer, requestedAt: new Date().toISOString() });
+    armSchedule();
+    return { at };
+}
+
+function cancelSchedule() {
+    fs.rmSync(SCHEDULE_FILE, { force: true });
+    armSchedule();
+    return { cancelled: true };
+}
+
+armSchedule();
+
+module.exports = { summary, list, decide, decideMany, undo, rebuild, scheduleRebuild, cancelSchedule };

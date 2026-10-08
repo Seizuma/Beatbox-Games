@@ -50,25 +50,40 @@ npm run photos:clean                   # (plus tard) libère la place des fiches
   LaMa s'ils sont installés, sinon zones tracées à la main + OpenCV.
 - Fichiers de travail : `beatbox_artists/review/photos/<clé>/`.
 
-## Titres du Beatboxdle
+## Beatboxdle : titres et données d'indice
 
 ```bash
-npm run beatboxdle:profiles    # relit les fiches (cache : quasi instantané)
-npm run beatboxdle:wiki        # palmarès du Beatbox Wiki
-npm run beatboxdle:enrich      # propositions de titres
+npm run beatboxdle:profiles    # relit les fiches beatbox.world (cache : quasi instantané)
+npm run beatboxdle:wiki        # palmarès et texte des fiches du Beatbox Wiki
+npm run beatboxdle:enrich      # propositions : titre + données à compléter
+npm run beatboxdle:analyse     # (facultatif) pouvoir discriminant de chaque indice
 # /admin → Données → Titres Beatboxdle, puis « Reconstruire la base »
 ```
 
 `npm run beatboxdle:all` enchaîne tout le pipeline, enrichissement compris.
 
-- Le titre affiché n'est plus limité au GBB et au championnat du monde :
-  continental, national, grands battles internationaux sont pris en compte et
-  pondérés (`TITLE_*` dans `beatboxdle/config.js`).
+- **Titre** : il n'est plus limité au GBB et au championnat du monde.
+  Continental, national et grands battles internationaux sont pris en compte
+  et pondérés (`TITLE_*` dans `beatboxdle/config.js`).
+- **Données complétées par le wiki**, proposées seulement quand il nous en
+  manque :
+  - genre, d'après les catégories genrées du palmarès (« Women Solo ») ou les
+    pronoms de la fiche (« she », « he ») ;
+  - première apparition, quand le wiki connaît une compétition plus ancienne ;
+  - pays.
+  Un genre complété fait entrer le beatboxer dans le mode indices.
+- **Dans le jeu**, colonne « Meilleur titre » :
+  - vert = exactement le même titre ;
+  - orange = même rang ailleurs, c'est-à-dire même niveau (mondial, continental,
+    national, international) et même placement : champion GBB et champion du
+    monde, champion de France et champion de Belgique ;
+  - la flèche pointe vers le titre le plus prestigieux.
 - `beatboxdle/reports/evenements-non-classes.csv` liste les événements que
   la classification ne connaît pas, du plus fréquent au plus rare : c'est la
   liste à compléter dans `TITLE_INTL_EVENTS`.
-- Seuls les titres validés sont repris par `build.js`
+- **Seules les décisions validées** sont reprises par `build.js`
   (`beatboxdle/reviewed-titles.json`) ; `overrides.json` reste prioritaire.
-- « Reconstruire la base » refuse d'écrire si la réponse du jour changerait
-  (profils recrawlés depuis la dernière construction) : le faire juste après
-  minuit, ou forcer en connaissance de cause.
+- **Mise en jeu** : valider des titres ne change pas le tirage, la
+  reconstruction est immédiate. Faire entrer ou sortir des beatboxers change
+  l'ordre du tirage : la reconstruction se programme alors pour le prochain
+  minuit (« Appliquer à minuit »), avec toutes les décisions prises d'ici là.

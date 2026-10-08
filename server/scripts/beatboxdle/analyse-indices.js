@@ -16,6 +16,7 @@
 
 const fs = require('fs');
 const config = require('./config');
+const { titlesFor } = require('./titles');
 
 /** Probabilité que deux tirages au hasard donnent la même valeur (indice de Simpson). */
 function collision(values) {
@@ -84,12 +85,23 @@ function main() {
     report('Catégorie principale (actuel)', profiles.map(mainCat));
     report('Genre', profiles.map((p) => p.entries.map((e) => e.gender).filter(Boolean)[0] || null));
     report('Pays', profiles.map((p) => p.code || p.countryEn));
-    report('Meilleur titre', profiles.map((p) => {
+    report('Meilleur titre (majors seuls)', profiles.map((p) => {
         const majors = p.entries.filter((e) => e.series);
         if (!majors.length) return null;
         const best = majors.reduce((w, e) => (!w || e.tier > w.tier ? e : w), null);
         return `${best.series}-${best.placementId}`;
     }));
+
+    // Palmarès élargi (beatbox.world + wiki) : la proposition d'enrich.js, et
+    // l'orange tel que le jeu le calcule désormais (même rang, autre lieu).
+    const wiki = fs.existsSync(config.WIKI_FILE) ? JSON.parse(fs.readFileSync(config.WIKI_FILE, 'utf8')).profiles || {} : {};
+    const rankOf = (key) => {
+        const [level, ...placement] = key.split(':')[0].split('-');
+        return `${level === 'wbc' || level === 'gbb' ? 'world' : level}:${placement.join('-')}`;
+    };
+    report('Meilleur titre (palmarès élargi)',
+        profiles.map((p) => titlesFor(p, wiki[p.slug] || null).titles[0]?.key || null),
+        (a, b) => rankOf(a) === rankOf(b));
 
     console.log('\n   — Les cinq candidats —');
     report('1 · Première apparition (année)',

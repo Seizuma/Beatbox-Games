@@ -20,10 +20,67 @@ const fs = require('fs');
 const path = require('path');
 const config = require('./config');
 const { titlesFor, legacyMajorTitle } = require('./titles');
+const { inferGender, yearBound } = require('./builder');
+const { codeFromEnglishName } = require('./countries');
 
 const ALTERNATIVES = 6;
+const MIN_PRONOUNS = 2; // en dessous, une seule phrase ambiguë suffirait à se tromper
 
 const readJson = (file, fallback) => (fs.existsSync(file) ? JSON.parse(fs.readFileSync(file, 'utf8')) : fallback);
+
+/**
+ * Données d'indice que le wiki permet de compléter, avec la preuve à montrer
+ * à l'administrateur. On ne propose que ce qui manque ou s'améliore
+ * nettement : jamais d'écrasement silencieux d'une valeur existante.
+ *
+ *   gender     : manquant chez nous, déduit des catégories genrées du palmarès
+ *                wiki (« Women Solo ») ou, à défaut, des pronoms de la fiche ;
+ *   firstYear  : le wiki connaît une compétition plus ancienne ;
+ *   countryCode: manquant chez nous, indiqué par le wiki.
+ */
+function proposeFixes(profile, wikiProfile, live) {
+    const fixes = {};
+    if (!wikiProfile) return fixes;
+
+    const currentGender = live ? live.gender : inferGender(profile.entries);
+    if (!currentGender) {
+        const votes = (wikiProfile.achievements || []).filter((achievement) => achievement.gender);
+        const female = votes.filter((achievement) => achievement.gender === 'F');
+        const male = votes.filter((achievement) => achievement.gender === 'M');
+        const pronouns = wikiProfile.pronouns || { male: 0, female: 0 };
+
+        if (female.length && !male.length) {
+            fixes.gender = { value: 'F', evidence: `palmarès wiki : « ${female[0].categoryText} » (${female[0].eventName})` };
+        } else if (male.length && !female.length) {
+            fixes.gender = { value: 'M', evidence: `palmarès wiki : « ${male[0].categoryText} » (${male[0].eventName})` };
+        } else if (!votes.length && pronouns.female >= MIN_PRONOUNS && pronouns.male === 0) {
+            fixes.gender = { value: 'F', evidence: `texte du wiki : ${pronouns.female} × she/her, aucun he/his` };
+        } else if (!votes.length && pronouns.male >= MIN_PRONOUNS && pronouns.female === 0) {
+            fixes.gender = { value: 'M', evidence: `texte du wiki : ${pronouns.male} × he/his, aucun she/her` };
+        }
+    }
+
+    const currentFirst = live ? live.firstYear : yearBound(profile.entries, Math.min);
+    const thisYear = new Date().getFullYear();
+    const dated = (wikiProfile.achievements || []).filter((achievement) => achievement.year >= 1995 && achievement.year <= thisYear);
+    if (dated.length) {
+        const earliest = dated.reduce((first, achievement) => (achievement.year < first.year ? achievement : first));
+        if (!currentFirst || earliest.year < currentFirst) {
+            fixes.firstYear = {
+                value: earliest.year,
+                previous: currentFirst || null,
+                evidence: `palmarès wiki : ${earliest.eventName}`,
+            };
+        }
+    }
+
+    const currentCountry = live ? live.countryCode : profile.code || codeFromEnglishName(profile.countryEn);
+    if (!currentCountry && wikiProfile.countryCode) {
+        fixes.countryCode = { value: wikiProfile.countryCode, evidence: 'fiche du wiki' };
+    }
+
+    return fixes;
+}
 
 function main() {
     if (!fs.existsSync(config.PROFILES_FILE)) {
@@ -46,13 +103,17 @@ function main() {
 
     // Ce que voient les joueurs aujourd'hui, à défaut le calcul historique.
     const live = new Map((dataset?.beatboxers || []).map((beatboxer) => [beatboxer.slug, beatboxer]));
-    const inDataset = (profile) => !dataset || live.has(profile.slug);
 
     const unclassifiedCount = new Map();
     const items = profiles
-        .filter((profile) => profile.name && inDataset(profile))
+        .filter((profile) => profile.name)
         .map((profile) => {
             const wikiProfile = wiki[profile.slug] || null;
+            const fixes = proposeFixes(profile, wikiProfile, live.get(profile.slug) || null);
+            // Hors de la base et rien à compléter : rien à revoir. Hors de la base
+            // AVEC un genre ou un pays à compléter : c'est peut-être ce qui l'en
+            // excluait, la fiche mérite la revue.
+            if (dataset && !live.has(profile.slug) && Object.keys(fixes).length === 0) return null;
             const { titles, unclassified } = titlesFor(profile, wikiProfile);
             unclassified.forEach((event) => {
                 const entry = unclassifiedCount.get(event) || { count: 0, names: [] };
@@ -79,12 +140,16 @@ function main() {
                 proposed,
                 alternatives: titles.slice(0, ALTERNATIVES),
                 changed: Boolean(proposed && current && proposed.key !== (current.key || current.id)),
+                fixes,
+                inGame: live.has(profile.slug),
                 unclassified,
                 // Une décision prise sur une ancienne proposition reste valable,
                 // mais l'écran la signale si la proposition a changé depuis.
                 decision: decision ? { choice: decision.choice, key: decision.title?.key || null } : null,
             };
         })
+        .filter(Boolean)
+        .map((item) => ({ ...item, needsReview: item.changed || Object.keys(item.fixes).length > 0 }))
         .sort((a, b) => (b.fame ?? 0) - (a.fame ?? 0) || a.name.localeCompare(b.name));
 
     fs.mkdirSync(path.dirname(config.TITLE_PROPOSALS_FILE), { recursive: true });
@@ -101,6 +166,7 @@ function main() {
             },
             count: items.length,
             changed: items.filter((item) => item.changed).length,
+            toReview: items.filter((item) => item.needsReview).length,
             items,
         }, null, 2),
     );
@@ -131,6 +197,12 @@ function main() {
     changed.slice(0, 8).forEach((item) => {
         console.log(`     ${item.name.padEnd(18)} ${(item.current.key || item.current.id).padEnd(24)} → ${item.proposed.key} (${item.proposed.score})`);
     });
+    const countFix = (field) => items.filter((item) => item.fixes[field]).length;
+    const unlocked = items.filter((item) => item.fixes.gender && !item.inGame).length;
+    console.log('\n   Données complétées par le wiki :');
+    console.log(`     genre                 ${countFix('gender')}${unlocked ? ` (dont ${unlocked} hors de la base aujourd'hui)` : ''}`);
+    console.log(`     première apparition   ${countFix('firstYear')}`);
+    console.log(`     pays                  ${countFix('countryCode')}`);
     console.log(`\n   📄 ${rows.length} événements non classés listés dans ${reportFile}`);
     console.log(`\n✅ Propositions écrites dans ${config.TITLE_PROPOSALS_FILE}`);
     console.log('👉 Revue : /admin → Données → Titres, puis « Reconstruire la base ».');

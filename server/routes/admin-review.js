@@ -189,8 +189,22 @@ router.post('/titles/rebuild', handle('Reconstruction Beatboxdle', (req) => {
     return { result };
 }));
 
+// Quand le tirage doit changer : reconstruction au prochain minuit.
+router.post('/titles/rebuild/schedule', handle('Programmation Beatboxdle', (req) => {
+    const result = titleReview.scheduleRebuild(reviewer(req));
+    logAdmin(req, `Reconstruction Beatboxdle programmée pour ${result.at} par ${reviewer(req)}`, result);
+    return { result };
+}));
+
+router.delete('/titles/rebuild/schedule', handle('Annulation programmation', (req) => {
+    logAdmin(req, `Reconstruction Beatboxdle programmée annulée par ${reviewer(req)}`, null);
+    return { result: titleReview.cancelSchedule() };
+}));
+
 router.post('/titles/:slug/decision', handle('Décision titre', (req) => {
-    const result = titleReview.decide(req.params.slug, String(req.body?.choice || ''), reviewer(req));
+    // fixes : champs complétés acceptés (genre, première apparition, pays) ; absent = tous.
+    const fixes = Array.isArray(req.body?.fixes) ? req.body.fixes.map(String) : null;
+    const result = titleReview.decide(req.params.slug, String(req.body?.choice || ''), reviewer(req), fixes);
     return { result };
 }));
 

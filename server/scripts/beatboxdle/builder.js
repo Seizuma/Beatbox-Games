@@ -169,7 +169,9 @@ function buildDataset({ targetSize = config.TARGET_SIZE, keepAll = false } = {})
         .filter((profile) => profile.name && !excluded.has(profile.slug))
         .map((profile) => {
             const patch = (overrides.patch || {})[profile.slug] || {};
-            const code = patch.countryCode || profile.code || codeFromEnglishName(profile.countryEn);
+            // Données complétées par le wiki et validées en administration.
+            const fixes = reviewed[profile.slug]?.fixes || {};
+            const code = patch.countryCode || profile.code || codeFromEnglishName(profile.countryEn) || fixes.countryCode;
             const letters = toLetters(patch.name || profile.name);
 
             // Priorité : correction manuelle d'overrides.json, puis titre validé
@@ -189,7 +191,7 @@ function buildDataset({ targetSize = config.TARGET_SIZE, keepAll = false } = {})
                 countryCode: code || null,
                 country: frenchName(code),
                 continent: continentOf(code),
-                gender: patch.gender || inferGender(profile.entries),
+                gender: patch.gender || inferGender(profile.entries) || fixes.gender || null,
                 category: patch.category || mainCategory(profile.entries),
                 categoryLabel: null, // rempli juste après, une fois la catégorie arrêtée
                 bestTitle,
@@ -198,7 +200,7 @@ function buildDataset({ targetSize = config.TARGET_SIZE, keepAll = false } = {})
                 events: profile.eventCount,
                 titles: profile.titleCount,
                 elo: profile.elo,
-                firstYear: yearBound(profile.entries, Math.min),
+                firstYear: fixes.firstYear || yearBound(profile.entries, Math.min),
                 lastYear: yearBound(profile.entries, Math.max),
                 photo: photos.get(normalizeName(profile.name)) || null,
                 source: `${config.BASE_URL}/beatboxers/${profile.slug}`,
@@ -254,4 +256,4 @@ function writeDataset(dataset) {
     fs.renameSync(temp, config.DATASET_FILE);
 }
 
-module.exports = { buildDataset, writeDataset, writeIncompleteReport, toLetters, normalizeName };
+module.exports = { buildDataset, writeDataset, writeIncompleteReport, toLetters, normalizeName, inferGender, yearBound };

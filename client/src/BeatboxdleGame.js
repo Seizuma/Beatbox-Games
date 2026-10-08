@@ -192,6 +192,17 @@ function BeatboxdleContent() {
                     <p className="mt-2 text-sm leading-relaxed text-site-muted">
                         {mode === 'letters' ? t('beatboxdle.introLetters') : t('beatboxdle.introClues')}
                     </p>
+                    {/* Mode indices : ce que veulent dire le vert et l'orange, colonne par colonne */}
+                    {mode === 'clues' && (
+                        <dl className="mt-2 grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-sm leading-relaxed text-site-muted">
+                            {['country', 'gender', 'firstYear', 'title'].map((field) => (
+                                <React.Fragment key={field}>
+                                    <dt className="font-semibold text-site-ink">{t(`beatboxdle.clues.${field}`)}</dt>
+                                    <dd>{t(`beatboxdle.rules.${field}`)}</dd>
+                                </React.Fragment>
+                            ))}
+                        </dl>
+                    )}
                 </details>
 
                 {status === 'loading' && (
