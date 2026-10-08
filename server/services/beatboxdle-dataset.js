@@ -8,6 +8,7 @@
 const fs = require('fs');
 const path = require('path');
 const { normalize } = require('../utils');
+const exclusions = require('./artist-exclusions');
 
 class BeatboxdleDataset {
     constructor() {
@@ -76,9 +77,13 @@ class BeatboxdleDataset {
         return this.bySlug.get(slug) || null;
     }
 
-    /** Retrouve un beatboxer à partir de ce que le joueur a tapé. */
+    /**
+     * Retrouve un beatboxer à partir de ce que le joueur a tapé. Un artiste
+     * désactivé en administration n'est pas une proposition valable.
+     */
     findByName(input) {
-        return this.byName.get(normalize(input)) || null;
+        const beatboxer = this.byName.get(normalize(input)) || null;
+        return beatboxer && !exclusions.isExcluded(beatboxer.name) ? beatboxer : null;
     }
 
     /**
@@ -87,8 +92,11 @@ class BeatboxdleDataset {
      * c'est ce qui rend la grille lisible, comme sur Wordle.
      */
     candidates(mode, { length = null } = {}) {
+        // Les désactivés disparaissent des propositions, mais pas de forMode() :
+        // c'est l'ordre du vivier qui fixe le tirage, il ne doit pas bouger.
         return this.forMode(mode)
             .filter((beatboxer) => (length ? beatboxer.length === length : true))
+            .filter((beatboxer) => !exclusions.isExcluded(beatboxer.name))
             .map((beatboxer) => beatboxer.name)
             .sort((a, b) => a.localeCompare(b, 'fr'));
     }

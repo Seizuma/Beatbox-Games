@@ -13,8 +13,9 @@ import useUrlTab from '../hooks/useUrlTab';
 import { authFetch } from './admin/adminApi';
 import PhotoReview from './admin/PhotoReview';
 import TitleReview from './admin/TitleReview';
+import ArtistsTab from './admin/ArtistsTab';
 
-const TABS = ['overview', 'players', 'games', 'rooms', 'log', 'data', 'maintenance'];
+const TABS = ['overview', 'players', 'games', 'rooms', 'log', 'artists', 'data', 'maintenance'];
 const DATA_SECTIONS = ['photos', 'titles'];
 
 const formatBytes = (bytes) => {
@@ -619,6 +620,7 @@ function AdminContent() {
                 {tab === 'games' && <GamesTab />}
                 {tab === 'rooms' && <RoomsTab />}
                 {tab === 'log' && <LogTab />}
+                {tab === 'artists' && <ArtistsTab />}
                 {tab === 'data' && <DataTab />}
                 {tab === 'maintenance' && <MaintenanceTab />}
             </div>

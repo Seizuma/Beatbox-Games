@@ -35,6 +35,7 @@ const beatboxWorld = require('../sources/beatboxworld');
 const wiki = require('../sources/wiki');
 const youtube = require('../sources/youtube');
 const review = require('../../services/photo-review');
+const exclusions = require('../../services/artist-exclusions');
 
 // --- Arguments ------------------------------------------------------------------
 
@@ -322,7 +323,10 @@ async function main() {
     // Une image déjà déposée sous le bon nom mais pas encore référencée dans
     // beatboxers.json : c'est le travail de scan_images.py, pas une photo à chercher.
     const onDisk = allTargets.filter((target) => hasImageOnDisk(target.name));
-    const targets = allTargets.filter((target) => !hasImageOnDisk(target.name));
+    // Désactivé dans /admin → Artistes : il ne sortira dans aucun jeu, inutile de lui chercher une photo.
+    const disabled = allTargets.filter((target) => exclusions.isExcluded(target.name));
+    if (disabled.length) console.log(`🚫 ${disabled.length} artistes désactivés en administration, ignorés\n`);
+    const targets = allTargets.filter((target) => !hasImageOnDisk(target.name) && !exclusions.isExcluded(target.name));
     if (onDisk.length) {
         console.log(`🗂️  ${onDisk.length} noms ont déjà une image dans beatbox_artists/ sans être référencés :`);
         console.log(`   ${onDisk.slice(0, 8).map((target) => target.name).join(', ')}${onDisk.length > 8 ? '…' : ''}`);

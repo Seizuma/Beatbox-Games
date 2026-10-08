@@ -17,6 +17,7 @@
 // tirage aujourd'hui ne décale pas les semaines suivantes.
 
 const dataset = require('./beatboxdle-dataset');
+const exclusions = require('./artist-exclusions');
 
 const TIMEZONE = process.env.BEATBOXDLE_TIMEZONE || 'Europe/Paris';
 const EPOCH = process.env.BEATBOXDLE_EPOCH || '2026-01-01';
@@ -143,39 +144,53 @@ function drawFor(mode, dateString, index, reroll) {
 }
 
 /**
+ * Premier beatboxer acceptable à partir de la position du jour, en avançant
+ * d'un cran dans l'ordre du mode tant que `avoid` le refuse. Déterministe :
+ * identique pour tous les joueurs, sans rien stocker.
+ */
+function pickFrom(draw, avoid) {
+    for (let step = 0; step < draw.size; step += 1) {
+        const candidate = draw.order[(draw.position + step) % draw.size];
+        if (!avoid(candidate)) return candidate;
+    }
+    return null;
+}
+
+/**
  * Énigme du jour, réponse comprise. Usage interne au serveur uniquement.
+ *
+ * Deux raisons d'avancer d'un cran dans l'ordre du mode :
+ *   - le beatboxer est déjà la réponse d'un mode prioritaire le même jour ;
+ *   - il est désactivé en administration. On le saute plutôt que de le
+ *     retirer du vivier : retiré, il décalerait le tirage de tous les jours
+ *     suivants ; sauté, seul son jour change.
  *
  * @param {string} mode    'letters' ou 'clues'
  * @param {Date}   date    instant de référence
  * @param {object} rerolls compteurs de relances par mode, ex. { letters: 0, clues: 2 }
+ * @param {{ isExcluded?: (beatboxer) => boolean }} options permet de calculer
+ *        l'énigme avec une autre liste d'exclusions (mesure d'impact)
  */
-function getPuzzle(mode, date = new Date(), rerolls = {}) {
+function getPuzzle(mode, date = new Date(), rerolls = {}, options = {}) {
     if (!isMode(mode)) throw new Error(`Mode Beatboxdle inconnu : ${mode}`);
+    const isExcluded = options.isExcluded || ((beatboxer) => exclusions.isExcluded(beatboxer.name));
 
     const dateString = localDate(date);
     const index = dayIndex(dateString);
     const draw = drawFor(mode, dateString, index, rerolls[mode] || 0);
     if (!draw) return null;
 
-    let answer = draw.order[draw.position];
-
-    // Aucun mode ne propose le beatboxer déjà pris par un mode prioritaire le
-    // même jour. Celui qui cède avance d'un cran dans SON propre ordre : le
-    // calcul reste déterministe, donc identique pour tous les joueurs, et sans
-    // rien stocker. Les viviers ayant des tailles différentes, la collision
-    // était rare — mais « rare » n'est pas « jamais ».
+    // Les modes prioritaires choisissent d'abord, avec les mêmes règles.
     const taken = new Set();
     for (const other of PRIORITY) {
         if (other === mode) break;
         const otherDraw = drawFor(other, dateString, index, rerolls[other] || 0);
-        if (otherDraw) taken.add(otherDraw.order[otherDraw.position].slug);
+        const otherAnswer = otherDraw && pickFrom(otherDraw, (beatboxer) => isExcluded(beatboxer) || taken.has(beatboxer.slug));
+        if (otherAnswer) taken.add(otherAnswer.slug);
     }
 
-    let step = 0;
-    while (answer && taken.has(answer.slug) && step < draw.size) {
-        step += 1;
-        answer = draw.order[(draw.position + step) % draw.size];
-    }
+    const answer = pickFrom(draw, (beatboxer) => isExcluded(beatboxer) || taken.has(beatboxer.slug));
+    if (!answer) return null;
 
     return {
         mode,

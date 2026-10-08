@@ -114,12 +114,28 @@ class AudioManager {
      * Morceaux encore au tirage pour une room (sans les artistes exclus par l'hôte)
      */
     getRoomFiles(room) {
-        const allFiles = this.audioCache.get('all_level1_files') || [];
+        const allFiles = this.getPlayableFiles();
         const excluded = room.excludedArtists;
         if (!excluded || excluded.size === 0) return allFiles;
 
         const pool = allFiles.filter((file) => !excluded.has(this.extractArtistFromFilename(file).trim()));
         return pool.length > 0 ? pool : allFiles;
+    }
+
+    /**
+     * Morceaux jouables : tous, sauf ceux des artistes désactivés en
+     * administration (liste commune à tous les jeux, relue à chaque appel).
+     */
+    getPlayableFiles() {
+        const allFiles = this.audioCache.get('all_level1_files') || [];
+        const exclusions = require('./artist-exclusions');
+        return allFiles.filter((file) => !exclusions.isExcluded(this.extractArtistFromFilename(file).trim()));
+    }
+
+    /** Tous les artistes ayant un extrait, désactivés compris (catalogue de l'administration). */
+    getAllArtistNames() {
+        const allFiles = this.audioCache.get('all_level1_files') || [];
+        return [...new Set(allFiles.map((file) => this.extractArtistFromFilename(file).trim()).filter(Boolean))];
     }
 
     /**
@@ -212,7 +228,7 @@ class AudioManager {
      * Liste triée des artistes disponibles (liste et autocomplétion du Blind Test)
      */
     getArtistNames() {
-        const allFiles = this.audioCache.get('all_level1_files') || [];
+        const allFiles = this.getPlayableFiles();
         const names = new Set(
             allFiles
                 .map((file) => this.extractArtistFromFilename(file).trim())

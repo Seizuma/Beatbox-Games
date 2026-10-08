@@ -44,6 +44,9 @@ router.use('/review', require('./admin-review'));
 // Tout ce qui suit est réservé aux administrateurs
 router.use(requireAdmin);
 
+// Catalogue des artistes et désactivation dans tous les jeux
+router.use('/artists', require('./admin-artists'));
+
 /**
  * GET /api/admin/overview
  * Chiffres de la plateforme, activité des 30 derniers jours et santé du processus.

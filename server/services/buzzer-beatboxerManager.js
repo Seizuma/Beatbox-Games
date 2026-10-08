@@ -4,6 +4,7 @@ const path = require('path');
 class BeatboxerManager {
     constructor() {
         this.beatboxersData = [];
+        this.allWithImages = [];
         // ✅ Le dossier doit être copié dans /app/beatbox_artists par Docker
         this.dataPath = path.join(process.cwd(), 'beatbox_artists', 'beatboxers.json');
         this.imagesPath = path.join(process.cwd(), 'beatbox_artists');
@@ -24,8 +25,13 @@ class BeatboxerManager {
             if (fs.existsSync(this.dataPath)) {
                 const rawData = fs.readFileSync(this.dataPath, 'utf8');
                 const allBeatboxers = JSON.parse(rawData);
-                this.beatboxersData = allBeatboxers.filter(b => b.local_image && b.local_image.trim() !== '');
-                console.log(`✅ ${this.beatboxersData.length}/${allBeatboxers.length} beatboxers chargés (avec image locale)`);
+                // Tous ceux qui ont une photo : le catalogue de l'administration en a besoin,
+                // désactivés compris. Le jeu, lui, ne tire que dans beatboxersData.
+                this.allWithImages = allBeatboxers.filter(b => b.local_image && b.local_image.trim() !== '');
+                const exclusions = require('./artist-exclusions');
+                this.beatboxersData = this.allWithImages.filter(b => !exclusions.isExcluded(b.title));
+                const disabled = this.allWithImages.length - this.beatboxersData.length;
+                console.log(`✅ ${this.beatboxersData.length}/${allBeatboxers.length} beatboxers chargés (avec image locale${disabled ? `, ${disabled} désactivés` : ''})`);
 
                 // ✅ NOUVEAU : Debug - Afficher quelques exemples
                 if (this.beatboxersData.length > 0) {
@@ -272,5 +278,11 @@ class BeatboxerManager {
 
 // Singleton
 const beatboxerManager = new BeatboxerManager();
+
+// Un artiste désactivé en administration sort du tirage sans redémarrer.
+require('./artist-exclusions').onChange(() => {
+    beatboxerManager.loadData();
+    return null;
+});
 
 module.exports = beatboxerManager;
