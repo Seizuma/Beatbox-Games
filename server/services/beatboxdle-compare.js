@@ -162,6 +162,19 @@ function compareClues(guess, target) {
     };
 }
 
+/** Quatre verts : la proposition a exactement le profil de la réponse. */
+const allCluesMatch = (result) => ['country', 'gender', 'firstYear', 'title']
+    .every((field) => result[field] && result[field].state === 'correct');
+
+/**
+ * Nombre de beatboxers (réponse comprise) dont les indices sont tous verts
+ * face à la réponse. Au-delà de 1, quatre verts ne suffisent pas : le joueur
+ * doit savoir qu'il reste un sosie à départager, sinon il croit à un bug.
+ */
+function countClueTwins(pool, target) {
+    return pool.filter((beatboxer) => allCluesMatch(compareClues(beatboxer, target))).length;
+}
+
 /** Ce que le client reçoit une fois la partie terminée (trouvé ou épuisé). */
 function revealAnswer(beatboxer) {
     return {
@@ -179,4 +192,6 @@ function revealAnswer(beatboxer) {
     };
 }
 
-module.exports = { compareLetters, compareClues, revealAnswer, titleRank, YEAR_TOLERANCE };
+module.exports = {
+    compareLetters, compareClues, allCluesMatch, countClueTwins, revealAnswer, titleRank, YEAR_TOLERANCE,
+};

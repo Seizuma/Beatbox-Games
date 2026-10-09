@@ -3,7 +3,10 @@ const express = require('express');
 const { authenticateDiscord } = require('../middleware/auth');
 const dataset = require('../services/beatboxdle-dataset');
 const daily = require('../services/beatboxdle-daily');
-const { compareLetters, compareClues, revealAnswer } = require('../services/beatboxdle-compare');
+const {
+    compareLetters, compareClues, allCluesMatch, countClueTwins, revealAnswer,
+} = require('../services/beatboxdle-compare');
+const exclusions = require('../services/artist-exclusions');
 const { getDatabase } = require('../services/database');
 
 const router = express.Router();
@@ -134,6 +137,18 @@ router.post('/guess', requireDataset, rateLimit(60, 60000), (req, res) => {
         const correct = proposed.slug === puzzle.answer.slug;
         const attemptNumber = Number(attempt) || 1;
         const finished = correct || attemptNumber >= puzzle.maxAttempts;
+        const result = mode === 'letters'
+            ? compareLetters(proposed.letters, puzzle.answer.letters)
+            : compareClues(proposed, puzzle.answer);
+
+        // Quatre verts sans être la réponse : un autre beatboxer a le même
+        // profil. On dit combien, pas lesquels — la liste trahirait la réponse.
+        const twins = mode === 'clues' && !correct && allCluesMatch(result)
+            ? countClueTwins(
+                dataset.forMode('clues').filter((beatboxer) => !exclusions.isExcluded(beatboxer.name)),
+                puzzle.answer,
+            )
+            : null;
 
         res.set('Cache-Control', 'no-store');
         res.json({
@@ -146,9 +161,8 @@ router.post('/guess', requireDataset, rateLimit(60, 60000), (req, res) => {
             guess: { name: proposed.name, slug: proposed.slug, photo: proposed.photo || null },
             correct,
             finished,
-            result: mode === 'letters'
-                ? compareLetters(proposed.letters, puzzle.answer.letters)
-                : compareClues(proposed, puzzle.answer),
+            result,
+            twins,
             answer: finished ? revealAnswer(puzzle.answer) : null,
         });
     } catch (error) {

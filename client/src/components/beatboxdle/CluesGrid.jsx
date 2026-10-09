@@ -11,6 +11,12 @@ const STATE_CLASS = {
 // Ordre des colonnes, partagé avec compareClues côté serveur
 const FIELDS = ['country', 'gender', 'firstYear', 'title'];
 
+/**
+ * Quatre verts sans victoire : la proposition a exactement le profil de la
+ * réponse. Sans signal, le joueur croit avoir gagné et ne comprend pas le refus.
+ */
+const isTwin = (guess) => !guess.correct && FIELDS.every((field) => guess.result[field].state === 'correct');
+
 /** Flèche pointant vers la réponse. En SVG et non en caractère : même rendu partout. */
 function Arrow({ direction, label }) {
     if (!direction) return null;
@@ -32,6 +38,10 @@ function Arrow({ direction, label }) {
  * - le lieu et la discipline du titre : « champion national » ne dit rien sans
  *   le pays, et « champion du monde » en crew et en solo ne racontent pas la
  *   même carrière.
+ *
+ * Une ligne aux quatre verts qui n'est pas la réponse est un sosie : les cases
+ * restent vertes (elles disent vrai), mais le nom est barré et un bandeau
+ * explique qu'un autre beatboxer partage ce profil.
  *
  * La ligne qui vient d'être jouée se pose case par case (`dle-reveal`) ; les
  * lignes déjà là ne rejouent rien au rechargement. La ligne gagnante garde une
@@ -91,6 +101,7 @@ export default function CluesGrid({ language, t, guesses, revealIndex }) {
             {/* Le plus récent en haut : c'est l'essai que le joueur vient de faire */}
             {guesses.map((guess, index) => ({ guess, index })).reverse().map(({ guess, index }) => {
                 const animate = index === revealIndex;
+                const twin = isTwin(guess);
 
                 return (
                     <div
@@ -100,7 +111,11 @@ export default function CluesGrid({ language, t, guesses, revealIndex }) {
                     >
                         <span className="flex items-center gap-2 pr-1">
                             <GuessAvatar name={guess.guess.name} photo={guess.guess.photo} />
-                            <span className="min-w-0 break-words text-sm font-semibold leading-tight text-site-ink">
+                            <span
+                                className={`min-w-0 break-words text-sm font-semibold leading-tight ${twin
+                                    ? 'text-site-muted line-through decoration-2'
+                                    : 'text-site-ink'}`}
+                            >
                                 {guess.guess.name}
                             </span>
                         </span>
@@ -124,6 +139,20 @@ export default function CluesGrid({ language, t, guesses, revealIndex }) {
                                 </span>
                             );
                         })}
+                        {twin && (
+                            <p
+                                role="status"
+                                style={{ gridColumn: '1 / -1', ...(animate ? { '--dle-index': FIELDS.length } : {}) }}
+                                className={`flex items-center gap-2 rounded-lg border border-dashed border-brand-yellow px-3 py-2 text-xs font-semibold leading-snug text-site-ink ${animate ? 'dle-reveal' : ''}`}
+                            >
+                                <svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true" className="shrink-0 text-brand-yellow">
+                                    <path d="M2 5 H12 M2 9 H12 M9.5 2 L4.5 12" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+                                </svg>
+                                {guess.twins > 1
+                                    ? t('beatboxdle.clues.twinCount', { count: guess.twins })
+                                    : t('beatboxdle.clues.twin')}
+                            </p>
+                        )}
                     </div>
                 );
             })}

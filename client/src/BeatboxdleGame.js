@@ -203,6 +203,9 @@ function BeatboxdleContent() {
                             ))}
                         </dl>
                     )}
+                    {mode === 'clues' && (
+                        <p className="mt-2 text-sm leading-relaxed text-site-muted">{t('beatboxdle.rules.twin')}</p>
+                    )}
                 </details>
 
                 {status === 'loading' && (
