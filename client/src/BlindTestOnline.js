@@ -116,6 +116,8 @@ function BlindTestOnline() {
     const [answerFeedback, setAnswerFeedback] = useState({ show: false, isCorrect: false, correctAnswer: null });
     const [countdown, setCountdown] = useState('');
     const [artistRevealState, setArtistRevealState] = useState({ show: false, artist: '', isExiting: false });
+    // Artistes dévoilés pendant la partie, avec qui les a trouvés : récapitulés à la fin
+    const [revealHistory, setRevealHistory] = useState([]);
 
     // Mode de jeu et configuration
     const [gameMode, setGameMode] = useState('normal');
@@ -213,7 +215,7 @@ function BlindTestOnline() {
         setPlayers, setScores, setEditingPseudo, setNewPseudo, setArtistCountRange, setLocalArtistCount,
         setAnswerTimeSettings, setLocalAnswerTime, setHasAnswered, setAnswer, setRoundResults, setCanAnswer,
         setTimerStarted, setGameState, setAnswerFeedback, setArtistRevealState, setTimeLeft, setFinalRanking,
-        setCountdown, setShowSettings, setIsReady, setArtistPool,
+        setCountdown, setShowSettings, setIsReady, setArtistPool, setRevealHistory,
 
         // Current state values
         pseudo, room, gameState, view, players, isCreator, artistCountRange, answerTimeSettings, audioVolume, audioRef, gameMode,
@@ -385,7 +387,7 @@ function BlindTestOnline() {
 
             {/* Overlays globaux */}
             <CountdownOverlay countdown={countdown} isFirefox={isFirefox} />
-            <ArtistRevealOverlay artistRevealState={artistRevealState} t={t} />
+            <ArtistRevealOverlay artistRevealState={artistRevealState} language={language} pseudo={pseudo} />
 
             {/* Vue principale */}
             <SEO {...seoData} />
@@ -491,6 +493,7 @@ function BlindTestOnline() {
                 <ResultsView
                     {...commonViewProps}
                     finalRanking={finalRanking}
+                    revealHistory={revealHistory}
                     pseudo={pseudo}
                     handleNewGame={handleNewGame}
                     onBackToSite={handleLeaveRoom}

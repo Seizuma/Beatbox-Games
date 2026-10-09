@@ -19,12 +19,12 @@ function HubContent() {
         <>
             <SEO title={t('hub.seoTitle')} description={t('hub.seoDescription')} url="https://beatboxgames.com" />
 
-            <div className="mx-auto max-w-site px-4 pb-16 pt-8 sm:px-6 sm:pt-12">
+            <div className="mx-auto max-w-site px-4 pb-16 pt-6 sm:px-6 sm:pt-12">
                 <div className="max-w-2xl">
-                    <h1 className="text-[1.75rem] font-bold leading-tight tracking-tight sm:text-4xl">
+                    <h1 className="text-[1.6rem] font-bold leading-tight tracking-tight sm:text-4xl">
                         {t('hub.title')}
                     </h1>
-                    <p className="mt-3 text-base leading-relaxed text-site-muted sm:text-lg">
+                    <p className="mt-2 text-[0.95rem] leading-relaxed text-site-muted sm:mt-3 sm:text-lg">
                         {t('hub.intro')}
                     </p>
                 </div>
@@ -35,8 +35,13 @@ function HubContent() {
                     Grand écran : les jeux occupent les deux premières colonnes, la colonne de
                     droite regroupe le code et le classement (display:contents libère l'ordre).
                 */}
-                <div className="mt-8 flex flex-col gap-8 sm:mt-10 lg:grid lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_19rem] lg:gap-8">
-                    <aside className="contents lg:col-start-3 lg:row-start-1 lg:flex lg:flex-col lg:gap-10 lg:border-l lg:border-site-line lg:pl-8">
+                {/*
+                    La colonne de droite s'étend sur deux rangées, la seconde en 1fr : la hauteur
+                    des cartes ne dépend plus que de leur contenu, et leurs boutons restent dans
+                    le premier écran au lieu d'être poussés en bas par le classement.
+                */}
+                <div className="mt-6 flex flex-col gap-6 sm:mt-10 sm:gap-8 lg:grid lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_19rem] lg:grid-rows-[auto_1fr] lg:gap-8">
+                    <aside className="contents lg:col-start-3 lg:row-span-2 lg:row-start-1 lg:flex lg:flex-col lg:gap-10 lg:border-l lg:border-site-line lg:pl-8">
                         <div className="order-1 lg:order-none">
                             <JoinRoomForm />
                         </div>
@@ -55,7 +60,7 @@ function HubContent() {
                     </aside>
 
                     {GAMES.map((game, index) => (
-                        <div key={game.id} className={index === 0 ? 'order-2 lg:order-none' : 'order-3 lg:order-none'}>
+                        <div key={game.id} className={index === 0 ? 'order-2 lg:order-none lg:row-start-1' : 'order-3 lg:order-none lg:row-start-1'}>
                             <GameCard
                                 game={game.id}
                                 to={game.path}
@@ -65,6 +70,14 @@ function HubContent() {
                                 players={t('games.players')}
                                 meta={t(`games.${game.id}.meta`)}
                                 cta={t('games.create')}
+                                demoLabels={game.id === 'blindtest' ? {
+                                    listen: t('games.demo.listen'),
+                                    another: t('games.demo.another'),
+                                    stop: t('games.demo.stop'),
+                                    playing: t('games.demo.playing'),
+                                    reveal: t('games.demo.reveal'),
+                                    error: t('games.demo.error'),
+                                } : undefined}
                             />
                         </div>
                     ))}

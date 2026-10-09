@@ -2,6 +2,7 @@ import { useEffect, useRef, useCallback } from 'react';
 import socketOnline from '../socketOnline';
 import { getRandomPseudo } from '../utils/randomPseudo';
 import { listenForAudioUnlock, playArtistClip, stopArtistClip } from '../utils/artistAudio';
+import { loadArtistCard } from '../utils/artistCard';
 
 /**
  * Hook Socket.io - Version corrigée avec Discord + Logique de base fonctionnelle
@@ -13,7 +14,7 @@ export const useSocket = ({
     setPlayers, setScores, setEditingPseudo, setNewPseudo, setArtistCountRange, setLocalArtistCount,
     setAnswerTimeSettings, setLocalAnswerTime, setHasAnswered, setAnswer, setRoundResults, setCanAnswer,
     setTimerStarted, setGameState, setAnswerFeedback, setArtistRevealState, setTimeLeft, setFinalRanking,
-    setCountdown, setShowSettings, setIsReady, setArtistPool, discordToken,
+    setCountdown, setShowSettings, setIsReady, setArtistPool, setRevealHistory, discordToken,
     discordUser,
     updateDiscordStats,
 
@@ -31,6 +32,9 @@ export const useSocket = ({
     const hasTriedReconnection = useRef(false);
     const retryAttempts = useRef(0);
     const connectionTimeout = useRef(null);
+    // Qui a trouvé la manche en cours, et à quel extrait : les trois niveaux arrivent
+    // dans trois 'round-results' séparés, la révélation les réunit
+    const roundFindsRef = useRef([]);
 
     // ✅ Nettoyage simple du localStorage et redirection
     const handleCleanAndRedirect = useCallback(() => {
@@ -282,6 +286,8 @@ export const useSocket = ({
         // ÉVÉNEMENTS DE JEU
         socketOnline.on('game-starting', () => {
             console.log('🎮 GAME STARTING');
+            roundFindsRef.current = [];
+            setRevealHistory?.([]);
             setView(VIEWS.GAME);
         });
 
@@ -306,6 +312,7 @@ export const useSocket = ({
             console.log('🎵 Round started:', { audioUrl, round, level, answerTime });
 
             setGameState({ round, maxRounds, level, maxLevel });
+            if (level === 1) roundFindsRef.current = [];
             setHasAnswered(false);
             setAnswer('');
             setRoundResults(null);
@@ -394,16 +401,27 @@ export const useSocket = ({
             setAnswer('');
             setCanAnswer(false);
 
+            (results || []).forEach((result) => {
+                if (result?.isCorrect && !roundFindsRef.current.some((find) => find.pseudo === result.pseudo)) {
+                    roundFindsRef.current.push({ pseudo: result.pseudo, level: result.level || level });
+                }
+            });
+
             if (revealArtist && artist) {
+                const finds = [...roundFindsRef.current];
+                // La photo se charge pendant la courte pause qui précède la fiche
+                loadArtistCard(artist);
+                setRevealHistory?.((previous) => [...previous, { artist, finds }]);
+                // Le serveur laisse 5 s avant la manche suivante : la fiche reste 3,8 s à l'écran
                 setTimeout(() => {
-                    setArtistRevealState({ show: true, artist, isExiting: false });
+                    setArtistRevealState({ show: true, artist, finds, isExiting: false });
                     setTimeout(() => {
                         setArtistRevealState(prev => ({ ...prev, isExiting: true }));
                         setTimeout(() => {
                             setArtistRevealState({ show: false, artist: '', isExiting: false });
-                        }, 500);
-                    }, 3500);
-                }, 1000);
+                        }, 400);
+                    }, 3800);
+                }, 600);
             }
         });
 

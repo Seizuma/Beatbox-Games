@@ -80,15 +80,15 @@ export default function CluesGrid({ language, t, guesses, revealIndex }) {
         return { main: titleShortName(t, cell) || '—', hint: hint || null };
     };
 
-    const columns = 'minmax(0, 1fr) repeat(4, minmax(0, 4.25rem))';
+    // Téléphone : le nom passe sur sa propre ligne au-dessus des quatre cases,
+    // sinon la colonne du nom fait 20 px et les noms se cassent lettre par lettre.
+    // À partir de 640 px, le nom reprend sa colonne à gauche.
+    const columns = 'grid-cols-[repeat(4,minmax(0,1fr))] sm:grid-cols-[minmax(0,1fr)_repeat(4,minmax(0,4.25rem))]';
 
     return (
         <div className="flex flex-col gap-2">
-            <div
-                className="grid items-end gap-1.5 border-b border-site-line pb-2"
-                style={{ gridTemplateColumns: columns }}
-            >
-                <span className="text-[0.625rem] font-semibold uppercase tracking-wide text-site-muted">
+            <div className={`grid items-end gap-1.5 border-b border-site-line pb-2 ${columns}`}>
+                <span className="hidden text-[0.625rem] font-semibold uppercase tracking-wide text-site-muted sm:block">
                     {headings.guess}
                 </span>
                 {FIELDS.map((field) => (
@@ -106,10 +106,9 @@ export default function CluesGrid({ language, t, guesses, revealIndex }) {
                 return (
                     <div
                         key={`${guess.guess.slug}-${index}`}
-                        className={`grid items-stretch gap-1.5 ${animate && guess.correct ? 'dle-win' : ''}`}
-                        style={{ gridTemplateColumns: columns }}
+                        className={`grid items-stretch gap-1.5 ${columns} ${animate && guess.correct ? 'dle-win' : ''}`}
                     >
-                        <span className="flex items-center gap-2 pr-1">
+                        <span className="col-span-4 flex items-center gap-2 pr-1 sm:col-span-1">
                             <GuessAvatar name={guess.guess.name} photo={guess.guess.photo} />
                             <span
                                 className={`min-w-0 break-words text-sm font-semibold leading-tight ${twin
@@ -129,7 +128,7 @@ export default function CluesGrid({ language, t, guesses, revealIndex }) {
                                     key={field}
                                     aria-label={`${headings[field]} : ${main}${hint ? `, ${hint}` : ''}, ${stateLabels[cell.state]}${directionLabel ? `, ${directionLabel}` : ''}`}
                                     style={animate ? { '--dle-index': cellIndex } : undefined}
-                                    className={`flex min-h-[4rem] flex-col items-center justify-center gap-0.5 rounded-lg px-1 py-1.5 text-center leading-tight ${STATE_CLASS[cell.state]} ${animate ? 'dle-reveal' : ''}`}
+                                    className={`flex min-h-[3.5rem] flex-col items-center justify-center gap-0.5 rounded-lg px-1 py-1.5 text-center leading-tight sm:min-h-[4rem] ${STATE_CLASS[cell.state]} ${animate ? 'dle-reveal' : ''}`}
                                 >
                                     <span aria-hidden="true" className="text-[0.6875rem] font-bold">{main}</span>
                                     {hint ? (

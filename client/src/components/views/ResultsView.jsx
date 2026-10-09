@@ -5,15 +5,49 @@ import ShowButton from '../show/ShowButton';
 import Podium from '../show/Podium';
 import WinnerSpotlight from '../show/WinnerSpotlight';
 import RankingRows from '../show/RankingRows';
-import { createShowT } from '../../utils/showI18n';
+import { createShowT, LEVEL_POINTS } from '../../utils/showI18n';
+import { useArtistCard } from '../../utils/artistCard';
 
 const discordAvatar = (player) => (player?.isDiscordUser && player?.discordId && player?.discordAvatar
     ? `https://cdn.discordapp.com/avatars/${player.discordId}/${player.discordAvatar}.png?size=128`
     : undefined);
 
-// Fin de partie : projecteur sur le gagnant, podium, ton résultat, reste du classement
+// Une ligne du récapitulatif : photo, nom, qui l'a trouvé et à quel extrait
+function RecapRow({ entry, round, pseudo, st }) {
+    const card = useArtistCard(entry.artist);
+    const finds = (entry.finds || []).slice().sort((a, b) => a.level - b.level);
+    const mine = finds.find((find) => find.pseudo === pseudo);
+
+    return (
+        <li className="flex items-center gap-3 rounded-xl bg-show-stage-2/60 px-3 py-2.5 ring-1 ring-show-muted/10">
+            <div className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-show-night font-brand text-xl text-show-muted" aria-hidden="true">
+                {card?.photoUrl
+                    ? <img src={card.photoUrl} alt="" loading="lazy" className="h-full w-full object-cover object-top" />
+                    : (entry.artist || '?').charAt(0).toUpperCase()}
+            </div>
+            <div className="min-w-0 flex-1">
+                <p className="text-[11px] font-bold text-show-muted">{st('results.recapRound', { round })}</p>
+                <p className="truncate font-brand text-lg leading-tight">{entry.artist}</p>
+                <p className="truncate text-xs font-semibold text-show-muted">
+                    {finds.length === 0
+                        ? st('reveal.nobody')
+                        : `${st('reveal.foundBy')} ${finds.map((find) => `${find.pseudo} (${st('reveal.extract', { level: find.level })})`).join(', ')}`}
+                </p>
+            </div>
+            {mine && (
+                <span className="shrink-0 rounded-full bg-show-yellow px-2.5 py-1 text-xs font-extrabold tabular-nums text-show-night">
+                    +{LEVEL_POINTS[mine.level] ?? 0}
+                </span>
+            )}
+        </li>
+    );
+}
+
+// Fin de partie : projecteur sur le gagnant, podium, ton résultat, reste du classement,
+// puis les beatboxers de la partie (on en découvre toujours un ou deux)
 const ResultsView = ({
     finalRanking,
+    revealHistory = [],
     pseudo,
     handleNewGame,
     onBackToSite,
@@ -116,6 +150,25 @@ const ResultsView = ({
                                     }))}
                                     youLabel={st('results.you')}
                                 />
+                            </section>
+                        )}
+
+                        {revealHistory.length > 0 && (
+                            <section aria-labelledby="results-recap-title">
+                                <div className="mb-2 flex items-baseline justify-between gap-3">
+                                    <h2 id="results-recap-title" className="text-xs font-extrabold text-show-muted">{st('results.recapTitle')}</h2>
+                                    <span className="text-xs font-bold text-show-muted">
+                                        {st('results.recapFound', {
+                                            count: revealHistory.filter((entry) => entry.finds?.some((find) => find.pseudo === pseudo)).length,
+                                            total: revealHistory.length,
+                                        })}
+                                    </span>
+                                </div>
+                                <ul className="flex flex-col gap-2">
+                                    {revealHistory.map((entry, index) => (
+                                        <RecapRow key={`${index}-${entry.artist}`} entry={entry} round={index + 1} pseudo={pseudo} st={st} />
+                                    ))}
+                                </ul>
                             </section>
                         )}
                     </>

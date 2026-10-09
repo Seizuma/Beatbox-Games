@@ -12,6 +12,7 @@ import ArtistAnswerInput from './ArtistAnswerInput';
 import ArtistListPanel from './ArtistListPanel';
 import { useBlindTestArtists } from '../../hooks/useBlindTestArtists';
 import { findArtist, rankArtists } from '../../utils/artistSearch.js';
+import { installSfxUnlock, playSfx, vibrate } from '../../utils/gameSfx';
 
 // Écran tactile : le clavier virtuel prend la moitié de l'écran quand on répond
 const isTouchDevice = () => typeof window !== 'undefined'
@@ -110,6 +111,10 @@ const GameView = ({
         if (blurTimeoutRef.current) clearTimeout(blurTimeoutRef.current);
     }, []);
 
+    useEffect(() => {
+        installSfxUnlock();
+    }, []);
+
     const round = gameState?.round;
     const level = gameState?.level;
 
@@ -133,6 +138,10 @@ const GameView = ({
         if (answerFeedback?.show) {
             setFeedbackKey((key) => key + 1);
             setEarnedPoints(answerFeedback.isCorrect ? LEVEL_POINTS[level] || null : null);
+            // Bruitage au volume du jeu : un curseur à zéro coupe aussi les bruitages
+            const volume = typeof volumeControlProps?.audioVolume === 'number' ? volumeControlProps.audioVolume : 1;
+            if (volume > 0) playSfx(answerFeedback.isCorrect ? 'correct' : 'wrong', { volume: 0.7 * volume });
+            vibrate(answerFeedback.isCorrect ? 'correct' : 'wrong');
         }
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [answerFeedback?.show, answerFeedback?.isCorrect]);

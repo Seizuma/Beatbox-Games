@@ -106,6 +106,20 @@ const STROKE_ICONS = {
             <path d="M16.5 8.5a5 5 0 0 1 0 7" />
         </>
     ),
+    'volume-off': (
+        <>
+            <path d="M4 9h4l5-4v14l-5-4H4z" />
+            <path d="M17 9.5l5 5M22 9.5l-5 5" />
+        </>
+    ),
+    play: <path d="M7 4.5v15l12-7.5z" />,
+    stop: <rect x="6" y="6" width="12" height="12" rx="1.5" />,
+    backspace: (
+        <>
+            <path d="M9 5h11a1 1 0 0 1 1 1v12a1 1 0 0 1-1 1H9l-6-7z" />
+            <path d="M12.5 9.5l5 5M17.5 9.5l-5 5" />
+        </>
+    ),
 };
 
 const FILL_ICONS = {

@@ -74,6 +74,14 @@ const strings = {
                 description: 'Un beatboxer à trouver par jour. Son nom lettre par lettre, ou quatre indices à recouper.',
                 cta: 'Jouer aujourd’hui',
             },
+            demo: {
+                listen: 'Écouter un extrait',
+                another: 'Un autre extrait',
+                stop: 'Arrêter l’extrait',
+                playing: 'Tu le reconnais ?',
+                reveal: 'C’était {artist}',
+                error: 'Extrait indisponible pour le moment.',
+            },
         },
         beatboxdle: {
             title: 'Beatboxdle',
@@ -223,6 +231,30 @@ const strings = {
                 left: '{count} essais restants',
                 done: 'Partie terminée',
                 serverError: 'Impossible d’envoyer ta proposition. Réessaie dans un instant.',
+                keyboard: 'Clavier',
+                enter: 'Valider',
+                backspace: 'Effacer une lettre',
+                digits: '123',
+                letters: 'ABC',
+                digitsLabel: 'Afficher les chiffres',
+                lettersLabel: 'Afficher les lettres',
+                suggestions: 'Noms possibles',
+                hintLetters: 'Tape les premières lettres, puis choisis un nom.',
+                hintClues: 'Tape le début d’un nom, puis choisis-le.',
+                noMatch: 'Aucun nom ne commence par ces lettres.',
+                pickOne: 'Choisis un des noms proposés.',
+                typed: 'Ta proposition',
+            },
+            intro: {
+                title: 'Comment jouer',
+                example: 'Exemple',
+                start: 'C’est parti',
+                lettersCorrect: 'bien placée',
+                lettersPresent: 'présente ailleurs',
+                lettersAbsent: 'absente du nom',
+                cluesCorrect: 'Vert : même valeur que la réponse',
+                cluesPresent: 'Orange : proche (même continent, même rang, à 2 ans près)',
+                cluesArrow: 'Flèche : la réponse est avant ou après',
             },
             result: {
                 win: 'Trouvé en {count} essais.',
@@ -748,6 +780,14 @@ const strings = {
                 description: 'One beatboxer to find each day. Their name letter by letter, or four clues to cross-reference.',
                 cta: 'Play today',
             },
+            demo: {
+                listen: 'Listen to a clip',
+                another: 'Another clip',
+                stop: 'Stop the clip',
+                playing: 'Can you name them?',
+                reveal: 'It was {artist}',
+                error: 'Clip unavailable right now.',
+            },
         },
         beatboxdle: {
             title: 'Beatboxdle',
@@ -895,6 +935,30 @@ const strings = {
                 left: '{count} guesses left',
                 done: 'Game over',
                 serverError: 'Could not send your guess. Try again in a moment.',
+                keyboard: 'Keyboard',
+                enter: 'Enter',
+                backspace: 'Delete a letter',
+                digits: '123',
+                letters: 'ABC',
+                digitsLabel: 'Show numbers',
+                lettersLabel: 'Show letters',
+                suggestions: 'Possible names',
+                hintLetters: 'Type the first letters, then pick a name.',
+                hintClues: 'Type the start of a name, then pick it.',
+                noMatch: 'No name starts with these letters.',
+                pickOne: 'Pick one of the suggested names.',
+                typed: 'Your guess',
+            },
+            intro: {
+                title: 'How to play',
+                example: 'Example',
+                start: 'Let’s go',
+                lettersCorrect: 'right spot',
+                lettersPresent: 'elsewhere in the name',
+                lettersAbsent: 'not in the name',
+                cluesCorrect: 'Green: same value as the answer',
+                cluesPresent: 'Orange: close (same continent, same rank, within 2 years)',
+                cluesArrow: 'Arrow: the answer is earlier or later',
             },
             result: {
                 win: 'Found in {count} guesses.',
@@ -1397,6 +1461,18 @@ export function SiteI18nProvider({ children }) {
     const value = useMemo(() => ({ language, switchLanguage, t }), [language, switchLanguage, t]);
 
     return <SiteI18nContext.Provider value={value}>{children}</SiteI18nContext.Provider>;
+}
+
+/**
+ * Traduction hors de « la chaîne » (plateau des jeux) : mêmes textes, sans contexte React.
+ * Sert aux libellés partagés, comme les titres du Beatboxdle affichés à la révélation du Blind Test.
+ */
+export function createSiteT(language = 'fr') {
+    const dictionary = strings[language] || strings.fr;
+    return (key, variables = {}) => {
+        const value = lookup(dictionary, key) ?? lookup(strings.fr, key);
+        return typeof value === 'string' ? interpolate(value, variables) : key;
+    };
 }
 
 export function useSiteI18n() {

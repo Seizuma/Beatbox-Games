@@ -50,10 +50,10 @@ export default function DailyCard({ kicker, name, description, meta, cta }) {
             <p className="text-sm leading-relaxed text-site-muted">{description}</p>
 
             <div className="mt-auto flex items-center justify-between gap-3 pt-1">
-                <span className="inline-flex items-center rounded-lg bg-site-button px-4 py-2.5 text-sm font-semibold text-site-on-button transition group-hover:bg-site-button-hover">
+                <span className="inline-flex shrink-0 items-center whitespace-nowrap rounded-lg bg-site-button px-4 py-2.5 text-sm font-semibold text-site-on-button transition group-hover:bg-site-button-hover">
                     {cta}
                 </span>
-                <span className="text-xs font-medium text-site-muted">{meta}</span>
+                <span className="text-right text-xs font-medium text-site-muted">{meta}</span>
             </div>
         </Link>
     );

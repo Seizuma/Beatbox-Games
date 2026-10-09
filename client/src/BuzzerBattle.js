@@ -790,6 +790,7 @@ function BuzzerBattle() {
                     myPlayerId={mySocketId}
                     wrongGuessFeedback={wrongGuessFeedback}
                     justReconnected={justReconnected}
+                    gameConfig={gameState}
                     onQuit={handleBackToHome}
                 />
             )}

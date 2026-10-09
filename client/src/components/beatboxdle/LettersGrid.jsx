@@ -11,31 +11,45 @@ const STATE_CLASS = {
  * Grille du mode lettres.
  *
  * La largeur des cases est fluide (`minmax(0,1fr)` sur `length` colonnes) :
- * les noms vont de 3 à 9 lettres selon le jour, et une taille fixe casserait
- * la mise en page sur les noms longs comme sur les courts.
+ * les noms vont de 3 à 12 lettres selon le jour, et une taille fixe casserait
+ * la mise en page sur les noms longs comme sur les courts. La ligne en cours
+ * affiche les lettres tapées au clavier (`draft`), comme sur Wordle.
  *
  * La ligne qui vient d'être jouée se retourne lettre par lettre (`dle-flip`,
  * décalage de 110 ms) ; les lignes déjà posées ne rejouent rien.
  */
-export default function LettersGrid({ length, maxAttempts, guesses, stateLabels, revealIndex }) {
+export default function LettersGrid({ length, maxAttempts, guesses, stateLabels, revealIndex, draft = '' }) {
     const rows = Array.from({ length: maxAttempts }, (_, index) => guesses[index] || null);
+    const draftRow = guesses.length < maxAttempts ? guesses.length : -1;
 
     return (
         <div
-            className="grid gap-1.5"
-            style={{ gridTemplateColumns: `repeat(${length}, minmax(0, 1fr))` }}
+            // Cases plafonnées à 3,4 rem, et à la hauteur d'écran qui reste une fois
+            // le clavier posé (environ 26,5 rem avec l'en-tête) : la grille entière
+            // reste visible au-dessus des touches, même sur un petit téléphone.
+            className="mx-auto grid w-full gap-1.5"
+            style={{
+                gridTemplateColumns: `repeat(${length}, minmax(0, 1fr))`,
+                maxWidth: `min(${length * 3.4 + (length - 1) * 0.375}rem, calc((100dvh - 26.5rem) * ${(length / maxAttempts).toFixed(3)}))`,
+            }}
         >
             {rows.flatMap((guess, rowIndex) => (
                 Array.from({ length }, (_, cellIndex) => {
                     const cell = guess ? guess.result[cellIndex] : null;
 
                     if (!cell) {
+                        // Ligne en cours : les lettres tapées s'y posent au fur et à mesure
+                        const typed = rowIndex === draftRow ? draft[cellIndex] : null;
                         return (
                             <div
                                 key={`${rowIndex}-${cellIndex}`}
                                 aria-hidden="true"
-                                className="flex aspect-square items-center justify-center rounded-md border border-site-line"
-                            />
+                                className={`flex aspect-square items-center justify-center rounded-md border text-[clamp(0.95rem,4.4vw,1.4rem)] font-semibold uppercase text-site-ink ${typed
+                                    ? 'border-site-muted'
+                                    : rowIndex === draftRow ? 'border-site-soft/60' : 'border-site-line'}`}
+                            >
+                                {typed || ''}
+                            </div>
                         );
                     }
 

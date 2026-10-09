@@ -182,7 +182,10 @@ class GameManager {
         // Attribution des points
         GameManager.calculateAndUpdateScores(room, results, game.level);
 
-        const shouldRevealArtist = game.level === 3;
+        // Tout le monde a trouvé avant le dernier extrait : on dévoile tout de suite,
+        // avec la même pause qu'au niveau 3, pour que la carte de l'artiste ait le temps d'être vue
+        const allFoundNow = room.getConnectedPlayers().every(p => p.hasFoundThisRound);
+        const shouldRevealArtist = game.level === 3 || allFoundNow;
 
         io.to(room.code).emit('round-results', {
             artist: shouldRevealArtist ? game.currentSong.artist : null,
@@ -200,6 +203,7 @@ class GameManager {
             const allFound = room.getConnectedPlayers().every(p => p.hasFoundThisRound);
 
             if (allFound || game.level >= 3) {
+                // Joueur parti pendant la pause : la manche se termine sans révélation affichée
                 if (!shouldRevealArtist) {
                     io.to(room.code).emit('artist-revealed', {
                         artist: game.currentSong.artist

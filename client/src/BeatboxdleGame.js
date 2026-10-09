@@ -2,19 +2,23 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link, Navigate, useParams } from 'react-router-dom';
 import SEO from './components/SEO';
 import SiteShell from './components/site/SiteShell';
-import BeatboxdleInput from './components/beatboxdle/BeatboxdleInput';
 import LettersGrid from './components/beatboxdle/LettersGrid';
 import CluesGrid from './components/beatboxdle/CluesGrid';
 import ResultModal from './components/beatboxdle/ResultModal';
+import BeatboxdleKeyboard from './components/beatboxdle/BeatboxdleKeyboard';
+import IntroModal, { markIntroSeen, shouldShowIntro } from './components/beatboxdle/IntroModal';
 import { useSiteI18n } from './utils/siteI18n';
 import { fetchDaily, submitGuess, reportResult } from './utils/beatboxdleApi';
 import { loadGame, saveGame, purgeOldGames } from './utils/beatboxdleStorage';
+import { buildKeyIndex, exactMatches, letterStates, suggest, toKeys } from './utils/beatboxdleMatch';
 
 const MODES = ['letters', 'clues'];
 
 // La fiche de réponse attend la fin de la révélation : quatre cases à 160 ms
 // d'écart plus 520 ms d'animation. L'ouvrir plus tôt masque le dernier essai.
 const REVEAL_TOTAL_MS = 1260;
+
+const MAX_SUGGESTIONS = 8;
 
 /** Jauge d'essais : des pastilles valent mieux qu'un « 5 essais restants » en gris. */
 function AttemptPips({ used, total, label }) {
@@ -30,6 +34,13 @@ function AttemptPips({ used, total, label }) {
     );
 }
 
+// Une modale ouverte ou un champ de saisie actif garde ses propres touches
+const isTypingElsewhere = (target) => {
+    if (!target) return false;
+    const tag = target.tagName;
+    return tag === 'INPUT' || tag === 'TEXTAREA' || target.isContentEditable;
+};
+
 function BeatboxdleContent() {
     const { t, language } = useSiteI18n();
     const { mode } = useParams();
@@ -40,10 +51,13 @@ function BeatboxdleContent() {
     const [puzzle, setPuzzle] = useState(null);
     const [candidates, setCandidates] = useState([]);
     const [guesses, setGuesses] = useState([]);
-    const [draft, setDraft] = useState('');
+    // Saisie au clavier du jeu : les touches tapées, et le nom choisi dans les propositions
+    const [typed, setTyped] = useState('');
+    const [picked, setPicked] = useState(null);
     const [notice, setNotice] = useState('');
     const [sending, setSending] = useState(false);
     const [modalOpen, setModalOpen] = useState(false);
+    const [introOpen, setIntroOpen] = useState(false);
 
     // Le compte-rendu au serveur ne part qu'une fois par jour et par mode
     const reportedRef = useRef(false);
@@ -56,7 +70,8 @@ function BeatboxdleContent() {
         setErrorCode(null);
         setRevealIndex(-1);
         setModalOpen(false);
-        setDraft('');
+        setTyped('');
+        setPicked(null);
         reportedRef.current = false;
 
         fetchDaily(mode, controller.signal)
@@ -68,6 +83,8 @@ function BeatboxdleContent() {
                 reportedRef.current = Boolean(saved && saved.reported);
                 setStatus('ready');
                 purgeOldGames(payload.puzzle.date);
+                // Première visite dans ce mode : l'exemple avant le premier essai
+                if (!saved && shouldShowIntro(mode)) setIntroOpen(true);
             })
             .catch((error) => {
                 if (error.name === 'AbortError') return;
@@ -121,9 +138,60 @@ function BeatboxdleContent() {
         return () => clearTimeout(timer);
     }, [finished, revealIndex]);
 
+    // --- Saisie ---------------------------------------------------------------
+    const isLetters = mode === 'letters';
+    const maxLength = isLetters && puzzle ? puzzle.length : 40;
+    const keyIndex = useMemo(() => buildKeyIndex(candidates, !isLetters), [candidates, isLetters]);
+    const suggestions = useMemo(() => {
+        const list = suggest(typed, keyIndex, MAX_SUGGESTIONS);
+        // Le nom choisi reste en tête, même s'il ne sort plus dans les premiers
+        return picked ? [picked, ...list.filter((name) => name !== picked)] : list;
+    }, [typed, keyIndex, picked]);
+    const states = useMemo(() => (isLetters ? letterStates(guesses) : {}), [isLetters, guesses]);
+
+    const canEnter = isLetters ? typed.length === maxLength : Boolean(picked || typed);
+    const locked = sending || finished || status !== 'ready';
+
+    const typeKey = useCallback((key) => {
+        if (locked) return;
+        setNotice('');
+        setPicked(null);
+        setTyped((current) => (current.length >= maxLength ? current : current + key));
+    }, [locked, maxLength]);
+
+    const erase = useCallback(() => {
+        if (locked) return;
+        setNotice('');
+        setPicked(null);
+        setTyped((current) => current.slice(0, -1));
+    }, [locked]);
+
+    const pick = useCallback((name) => {
+        if (locked) return;
+        setNotice('');
+        setPicked(name);
+        setTyped(toKeys(name, !isLetters).slice(0, maxLength));
+    }, [locked, isLetters, maxLength]);
+
+    // Ce que la saisie désigne : le nom choisi, sinon le seul nom qui s'écrit ainsi
+    const resolveGuess = useCallback(() => {
+        if (picked) return picked;
+        const exact = exactMatches(typed, keyIndex);
+        if (isLetters) {
+            // En mode lettres, deux graphies des mêmes lettres donnent le même résultat
+            if (exact.length > 0) return exact[0];
+            setNotice(t('beatboxdle.play.noMatch'));
+            return null;
+        }
+        if (exact.length === 1) return exact[0];
+        setNotice(exact.length > 1 || suggestions.length > 0 ? t('beatboxdle.play.pickOne') : t('beatboxdle.play.noMatch'));
+        return null;
+    }, [picked, typed, keyIndex, isLetters, suggestions.length, t]);
+
     const play = useCallback(async () => {
-        const value = draft.trim();
-        if (!value || sending || finished || !puzzle) return;
+        if (locked || !puzzle || !canEnter) return;
+        const value = resolveGuess();
+        if (!value) return;
 
         setSending(true);
         setNotice('');
@@ -134,14 +202,43 @@ function BeatboxdleContent() {
             // déjà joués se reposent sans rejouer toute la séquence.
             setRevealIndex(guesses.length);
             setGuesses((previous) => [...previous, payload]);
-            setDraft('');
+            setTyped('');
+            setPicked(null);
         } catch (error) {
             // Un nom hors liste ne consomme pas d'essai : on le dit et on laisse la saisie
             setNotice(error.unknown ? error.message : t('beatboxdle.play.serverError'));
         } finally {
             setSending(false);
         }
-    }, [draft, sending, finished, puzzle, mode, guesses.length, t]);
+    }, [locked, puzzle, canEnter, resolveGuess, mode, guesses.length, t]);
+
+    // Clavier physique : sur ordinateur, on tape directement, comme sur Wordle
+    useEffect(() => {
+        if (status !== 'ready' || finished || introOpen || modalOpen) return undefined;
+        const onKeyDown = (event) => {
+            if (event.ctrlKey || event.metaKey || event.altKey || isTypingElsewhere(event.target)) return;
+            if (event.key === 'Enter') {
+                event.preventDefault();
+                play();
+            } else if (event.key === 'Backspace') {
+                event.preventDefault();
+                erase();
+            } else if (event.key.length === 1) {
+                const key = toKeys(event.key, !isLetters);
+                if (key) {
+                    event.preventDefault();
+                    typeKey(key);
+                }
+            }
+        };
+        window.addEventListener('keydown', onKeyDown);
+        return () => window.removeEventListener('keydown', onKeyDown);
+    }, [status, finished, introOpen, modalOpen, play, erase, typeKey, isLetters]);
+
+    const closeIntro = useCallback(() => {
+        markIntroSeen(mode);
+        setIntroOpen(false);
+    }, [mode]);
 
     const modeLabel = t(`beatboxdle.modes.${mode}`);
 
@@ -151,6 +248,21 @@ function BeatboxdleContent() {
         absent: t('beatboxdle.states.absent'),
     };
 
+    const keyboardLabels = {
+        keyboard: t('beatboxdle.play.keyboard'),
+        enter: t('beatboxdle.play.enter'),
+        backspace: t('beatboxdle.play.backspace'),
+        digits: t('beatboxdle.play.digits'),
+        letters: t('beatboxdle.play.letters'),
+        digitsLabel: t('beatboxdle.play.digitsLabel'),
+        lettersLabel: t('beatboxdle.play.lettersLabel'),
+        suggestions: t('beatboxdle.play.suggestions'),
+        states: stateLabels,
+    };
+
+    const hint = isLetters ? t('beatboxdle.play.hintLetters') : t('beatboxdle.play.hintClues');
+    const attemptsLeft = puzzle ? Math.max(0, puzzle.maxAttempts - guesses.length) : 0;
+
     return (
         <>
             <SEO
@@ -159,61 +271,42 @@ function BeatboxdleContent() {
                 url="https://beatboxgames.com/beatboxdle"
             />
 
-            <div className="mx-auto flex max-w-xl flex-col gap-5 px-4 pb-16 pt-6 sm:px-6 sm:pt-10">
-                <div>
+            {/* Page de jeu : pas d'onglets ni de pied de page, le clavier occupe le bas de l'écran */}
+            <div className="mx-auto flex min-h-[calc(100dvh-3.5rem)] max-w-xl flex-col px-4 pt-3 sm:px-6 sm:pt-6">
+                <header className="flex items-center gap-3">
                     <Link
                         to="/beatboxdle"
-                        className="inline-flex items-center gap-1.5 text-sm font-semibold text-site-muted transition hover:text-site-ink focus:outline-none focus-visible:ring-2 focus-visible:ring-site-ink"
+                        aria-label={t('beatboxdle.backToModes')}
+                        className="-ml-2 flex h-11 w-11 shrink-0 items-center justify-center rounded-lg text-site-muted transition hover:text-site-ink focus:outline-none focus-visible:ring-2 focus-visible:ring-site-ink"
                     >
-                        <svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true">
+                        <svg width="16" height="16" viewBox="0 0 14 14" aria-hidden="true">
                             <path d="M8.5 2 L3.5 7 L8.5 12" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
                         </svg>
-                        {t('beatboxdle.backToModes')}
                     </Link>
-                </div>
-
-                <header className="flex flex-wrap items-center justify-between gap-3">
-                    <h1 className="text-2xl font-bold leading-none tracking-tight text-site-ink sm:text-3xl">
-                        {t(`beatboxdle.modes.${mode}`)}
+                    <h1 className="min-w-0 flex-1 truncate text-2xl font-bold leading-none tracking-tight text-site-ink sm:text-3xl">
+                        {modeLabel}
                     </h1>
                     {puzzle && (
-                        <span className="rounded-full border border-brand-yellow px-3 py-1 text-xs font-bold text-brand-yellow">
+                        <span className="shrink-0 rounded-full border border-brand-yellow px-3 py-1 text-xs font-bold text-brand-yellow">
                             {t('beatboxdle.number', { number: puzzle.puzzleNumber })}
                         </span>
                     )}
+                    <button
+                        type="button"
+                        onClick={() => setIntroOpen(true)}
+                        aria-label={t('beatboxdle.howTo')}
+                        className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-site-line text-base font-bold text-site-muted transition hover:text-site-ink focus:outline-none focus-visible:ring-2 focus-visible:ring-site-ink"
+                    >
+                        ?
+                    </button>
                 </header>
-
-                {/* Les règles se replient : la grille doit être la première chose
-                    qu'on voit, pas un paragraphe explicatif. */}
-                <details className="group">
-                    <summary className="cursor-pointer list-none text-sm font-semibold text-site-muted transition hover:text-site-ink">
-                        {t('beatboxdle.howTo')}
-                    </summary>
-                    <p className="mt-2 text-sm leading-relaxed text-site-muted">
-                        {mode === 'letters' ? t('beatboxdle.introLetters') : t('beatboxdle.introClues')}
-                    </p>
-                    {/* Mode indices : ce que veulent dire le vert et l'orange, colonne par colonne */}
-                    {mode === 'clues' && (
-                        <dl className="mt-2 grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-sm leading-relaxed text-site-muted">
-                            {['country', 'gender', 'firstYear', 'title'].map((field) => (
-                                <React.Fragment key={field}>
-                                    <dt className="font-semibold text-site-ink">{t(`beatboxdle.clues.${field}`)}</dt>
-                                    <dd>{t(`beatboxdle.rules.${field}`)}</dd>
-                                </React.Fragment>
-                            ))}
-                        </dl>
-                    )}
-                    {mode === 'clues' && (
-                        <p className="mt-2 text-sm leading-relaxed text-site-muted">{t('beatboxdle.rules.twin')}</p>
-                    )}
-                </details>
 
                 {status === 'loading' && (
                     <p className="py-10 text-center text-sm text-site-muted">{t('common.loading')}</p>
                 )}
 
                 {status === 'error' && (
-                    <div className="flex flex-col gap-1 rounded-xl border border-site-line bg-site-surface p-5">
+                    <div className="mt-4 flex flex-col gap-1 rounded-xl border border-site-line bg-site-surface p-5">
                         <p className="text-sm text-site-muted">{t('beatboxdle.unavailable')}</p>
                         {errorCode ? (
                             <p className="text-xs text-site-soft">{t('beatboxdle.errorCode', { code: errorCode })}</p>
@@ -223,26 +316,27 @@ function BeatboxdleContent() {
 
                 {status === 'ready' && puzzle && (
                     <>
-                        {/* Le plateau : un objet à part, pas du texte de page */}
-                        <section className="flex flex-col gap-4 rounded-2xl border border-site-line bg-site-surface p-4 sm:p-5">
-                            <div className="flex items-center justify-between gap-3">
-                                <span className="text-xs font-semibold uppercase tracking-wide text-site-muted">
-                                    {t('beatboxdle.play.left', { count: Math.max(0, puzzle.maxAttempts - guesses.length) })}
-                                </span>
-                                <AttemptPips
-                                    used={guesses.length}
-                                    total={puzzle.maxAttempts}
-                                    label={t('beatboxdle.play.left', { count: Math.max(0, puzzle.maxAttempts - guesses.length) })}
-                                />
-                            </div>
+                        <div className="mt-3 flex items-center justify-between gap-3">
+                            <span className="text-xs font-semibold uppercase tracking-wide text-site-muted">
+                                {t('beatboxdle.play.left', { count: attemptsLeft })}
+                            </span>
+                            <AttemptPips
+                                used={guesses.length}
+                                total={puzzle.maxAttempts}
+                                label={t('beatboxdle.play.left', { count: attemptsLeft })}
+                            />
+                        </div>
 
-                            {mode === 'letters' ? (
+                        {/* Le plateau : la grille reste à l'écran pendant toute la saisie */}
+                        <section className="mt-3 flex-1">
+                            {isLetters ? (
                                 <LettersGrid
                                     length={puzzle.length}
                                     maxAttempts={puzzle.maxAttempts}
                                     guesses={guesses}
                                     stateLabels={stateLabels}
                                     revealIndex={revealIndex}
+                                    draft={finished ? '' : typed}
                                 />
                             ) : (
                                 <CluesGrid
@@ -252,51 +346,62 @@ function BeatboxdleContent() {
                                     revealIndex={revealIndex}
                                 />
                             )}
-
-                            {!finished ? (
-                                <div className="flex flex-col gap-2 border-t border-site-line pt-4">
-                                    <BeatboxdleInput
-                                        value={draft}
-                                        onChange={setDraft}
-                                        onSubmit={play}
-                                        candidates={candidates}
-                                        disabled={sending}
-                                        invalid={Boolean(notice)}
-                                        describedBy="beatboxdle-notice"
-                                        placeholder={mode === 'letters'
-                                            ? t('beatboxdle.play.placeholderLetters', { count: puzzle.length })
-                                            : t('beatboxdle.play.placeholderClues')}
-                                        listLabel={t('beatboxdle.play.listLabel')}
-                                        submitLabel={t('beatboxdle.play.submit')}
-                                    />
-                                    <p id="beatboxdle-notice" role="status" className="min-h-[1.25rem] text-sm text-site-danger">
-                                        {notice}
-                                    </p>
-                                </div>
-                            ) : (
-                                <div className="flex items-center justify-between gap-3 border-t border-site-line pt-4">
-                                    <span className="text-sm font-semibold text-site-ink">
-                                        {solved ? t('beatboxdle.play.solved') : t('beatboxdle.play.done')}
-                                    </span>
-                                    <button
-                                        type="button"
-                                        onClick={() => setModalOpen(true)}
-                                        className="rounded-lg bg-brand-yellow px-4 py-2.5 text-sm font-bold text-brand-ink transition hover:brightness-105 focus:outline-none focus-visible:ring-2 focus-visible:ring-site-ink"
-                                    >
-                                        {t('beatboxdle.play.seeAnswer')}
-                                    </button>
-                                </div>
+                            {!isLetters && guesses.length === 0 && !finished && (
+                                <p className="py-6 text-center text-sm text-site-muted">
+                                    {t('beatboxdle.play.pool', { count: candidates.length })}
+                                </p>
                             )}
                         </section>
 
-                        {!finished && (
-                            <p className="text-center text-xs text-site-soft">
-                                {t('beatboxdle.play.pool', { count: candidates.length })}
-                            </p>
+                        {!finished ? (
+                            <div className="sticky bottom-0 z-20 -mx-4 mt-4 border-t border-site-line bg-site-paper px-4 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-2 sm:-mx-6 sm:px-6">
+                                {/* Une seule ligne d'état : l'erreur, sinon la saisie en cours (mode indices), sinon la consigne */}
+                                <p
+                                    id="beatboxdle-notice"
+                                    role="status"
+                                    aria-label={!notice && !isLetters && (picked || typed) ? `${t('beatboxdle.play.typed')} : ${picked || typed}` : undefined}
+                                    className={`flex min-h-[1.5rem] items-center justify-center text-center ${notice
+                                        ? 'text-xs font-semibold text-site-danger'
+                                        : !isLetters && (picked || typed)
+                                            ? 'text-base font-bold tracking-wide text-site-ink'
+                                            : 'text-xs text-site-soft'}`}
+                                >
+                                    {notice || (!isLetters && (picked || typed)) || (typed ? '' : hint)}
+                                </p>
+                                <BeatboxdleKeyboard
+                                    language={language}
+                                    states={states}
+                                    allowDigits={!isLetters}
+                                    suggestions={suggestions}
+                                    picked={picked}
+                                    canEnter={canEnter}
+                                    disabled={sending}
+                                    labels={keyboardLabels}
+                                    onKey={typeKey}
+                                    onBackspace={erase}
+                                    onEnter={play}
+                                    onPick={pick}
+                                />
+                            </div>
+                        ) : (
+                            <div className="sticky bottom-0 z-20 -mx-4 mt-4 flex items-center justify-between gap-3 border-t border-site-line bg-site-paper px-4 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-3 sm:-mx-6 sm:px-6">
+                                <span className="text-sm font-semibold text-site-ink">
+                                    {solved ? t('beatboxdle.play.solved') : t('beatboxdle.play.done')}
+                                </span>
+                                <button
+                                    type="button"
+                                    onClick={() => setModalOpen(true)}
+                                    className="rounded-lg bg-brand-yellow px-4 py-2.5 text-sm font-bold text-brand-ink transition hover:brightness-105 focus:outline-none focus-visible:ring-2 focus-visible:ring-site-ink"
+                                >
+                                    {t('beatboxdle.play.seeAnswer')}
+                                </button>
+                            </div>
                         )}
                     </>
                 )}
             </div>
+
+            {introOpen && <IntroModal mode={mode} t={t} onClose={closeIntro} />}
 
             {modalOpen && finished && answer && puzzle && (
                 <ResultModal
@@ -321,7 +426,7 @@ export default function BeatboxdleGame() {
     if (!MODES.includes(mode)) return <Navigate to="/beatboxdle" replace />;
 
     return (
-        <SiteShell>
+        <SiteShell variant="game">
             <BeatboxdleContent />
         </SiteShell>
     );

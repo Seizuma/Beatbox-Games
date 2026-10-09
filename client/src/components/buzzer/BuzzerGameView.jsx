@@ -1,4 +1,4 @@
-import React, { useEffect, useId, useState } from 'react';
+import React, { useEffect, useId, useMemo, useRef, useState } from 'react';
 import GameShell from '../show/GameShell';
 import ShowButton from '../show/ShowButton';
 import Lectern from '../show/Lectern';
@@ -7,6 +7,17 @@ import Icon from '../icons/Icon';
 import { BUZZER_ANSWER_SECONDS, createShowT, getQuitGameConfirm } from '../../utils/showI18n';
 import RevealImage, { pickRevealEffect } from './RevealImage';
 import useRevealProgress from '../../hooks/useRevealProgress';
+import socketBuzzer from '../../buzzer-socket';
+import { rankArtists } from '../../utils/artistSearch';
+import { installSfxUnlock, isSfxMuted, onSfxMutedChange, playSfx, setSfxMuted, vibrate } from '../../utils/gameSfx';
+
+// Propositions tactiles après un buzz : quatre au plus, dès deux lettres tapées
+const MAX_GUESS_SUGGESTIONS = 4;
+
+// Écran tactile : le clavier virtuel prend la moitié de l'écran quand on répond
+const isTouchDevice = () => typeof window !== 'undefined'
+    && typeof window.matchMedia === 'function'
+    && window.matchMedia('(pointer: coarse)').matches;
 
 const API_BASE_URL = process.env.REACT_APP_API_URL || 'https://dev.beatboxgames.com';
 
@@ -39,6 +50,49 @@ function useAnswerCountdown(buzzedPlayer) {
     return secondsLeft;
 }
 
+// Noms de la sélection de la salle, pour les propositions de réponse.
+// Ce sont les noms déjà visibles dans les réglages : ils ne dévoilent rien de la photo.
+function useRoomNames(gameConfig) {
+    const [names, setNames] = useState([]);
+    const mode = gameConfig?.mode;
+    const filter = gameConfig?.filter;
+    const excludedKey = (gameConfig?.excludedBeatboxers || []).join('|');
+
+    useEffect(() => {
+        if (!mode || !filter) return undefined;
+        let active = true;
+        const excluded = new Set(excludedKey ? excludedKey.split('|') : []);
+        socketBuzzer.emit('buzzer:getMaxBeatboxers', { mode, filter }, (response) => {
+            if (!active || !response?.success || !Array.isArray(response.names)) return;
+            setNames(response.names.filter((name) => !excluded.has(name)));
+        });
+        return () => {
+            active = false;
+        };
+    }, [mode, filter, excludedKey]);
+
+    return names;
+}
+
+// Bruitages du buzzer : coupés ou rétablis d'un toucher, réglage gardé d'une partie à l'autre
+function SfxToggle({ st }) {
+    const [muted, setMuted] = useState(isSfxMuted);
+    useEffect(() => onSfxMutedChange(setMuted), []);
+    const label = muted ? st('buzzerGame.soundOn') : st('buzzerGame.soundOff');
+
+    return (
+        <button
+            type="button"
+            onClick={() => setSfxMuted(!muted)}
+            aria-label={label}
+            aria-pressed={!muted}
+            className={`flex h-11 w-11 items-center justify-center rounded-full transition-colors ${muted ? 'bg-show-stage-2 text-show-muted' : 'bg-show-stage-2 text-show-white hover:text-show-yellow'}`}
+        >
+            <Icon name={muted ? 'volume-off' : 'volume'} size={18} />
+        </button>
+    );
+}
+
 // Partie de Buzzer Battle : tableau de manche, photo et netteté, buzzer sous le pouce, pupitres
 function BuzzerGameView({
     currentRound,
@@ -56,11 +110,18 @@ function BuzzerGameView({
     myPlayerId,
     wrongGuessFeedback,
     justReconnected,
+    gameConfig,
     language,
     onQuit
 }) {
     const st = createShowT(language);
     const guessId = useId();
+    const [touch] = useState(isTouchDevice);
+    const roomNames = useRoomNames(gameConfig);
+
+    useEffect(() => {
+        installSfxUnlock();
+    }, []);
 
     const [guess, setGuess] = useState('');
     const [showGuessInput, setShowGuessInput] = useState(false);
@@ -105,14 +166,24 @@ function BuzzerGameView({
         }
     }, [isBuzzedByMe, showGuessInput]);
 
+    const sendGuess = (value) => {
+        const clean = (value || '').trim();
+        if (!clean) return;
+        onGuess(clean);
+        setGuess('');
+        setShowGuessInput(false);
+    };
+
     const handleSubmitGuess = (event) => {
         event.preventDefault();
-        if (guess.trim()) {
-            onGuess(guess.trim());
-            setGuess('');
-            setShowGuessInput(false);
-        }
+        sendGuess(guess);
     };
+
+    // Dès deux lettres, les noms possibles en gros boutons : un toucher suffit
+    const guessSuggestions = useMemo(
+        () => (guess.trim().length >= 2 ? rankArtists(guess, roomNames, MAX_GUESS_SUGGESTIONS) : []),
+        [guess, roomNames]
+    );
 
     const playerList = Array.isArray(players) ? players.filter(Boolean) : [];
     const scoreList = Array.isArray(scores) ? scores : [];
@@ -129,6 +200,42 @@ function BuzzerGameView({
     const buzzerDisabled = !canBuzz || Boolean(buzzedPlayer) || Boolean(currentBeatboxer);
     const lockedAfterError = !canBuzz && !buzzedPlayer && !currentBeatboxer;
     const isGuessing = isBuzzedByMe && showGuessInput && !currentBeatboxer;
+    // Téléphone qui répond : clavier ouvert, on ne garde que la photo et la saisie
+    const compact = touch && isGuessing;
+
+    // --- Bruitages et vibrations -------------------------------------------
+    const previousBuzzRef = useRef(buzzedPlayer);
+    useEffect(() => {
+        if (buzzedPlayer && buzzedPlayer !== previousBuzzRef.current) {
+            playSfx('buzz');
+            if (buzzedPlayer === myPlayerId) vibrate('buzz');
+        }
+        previousBuzzRef.current = buzzedPlayer;
+    }, [buzzedPlayer, myPlayerId]);
+
+    const previousWrongRef = useRef(null);
+    useEffect(() => {
+        if (wrongGuessFeedback && wrongGuessFeedback !== previousWrongRef.current) {
+            playSfx('wrong');
+            if (wrongGuessFeedback.playerId === myPlayerId) vibrate('wrong');
+        }
+        previousWrongRef.current = wrongGuessFeedback;
+    }, [wrongGuessFeedback, myPlayerId]);
+
+    const previousAnswerRef = useRef(currentBeatboxer);
+    useEffect(() => {
+        if (currentBeatboxer && currentBeatboxer !== previousAnswerRef.current) {
+            // Trouvé après un buzz : fanfare ; photo dévoilée sans gagnant : simple carillon
+            if (buzzedPlayer) {
+                playSfx('correct');
+                if (buzzedPlayer === myPlayerId) vibrate('correct');
+            } else {
+                playSfx('reveal');
+            }
+        }
+        previousAnswerRef.current = currentBeatboxer;
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [currentBeatboxer]);
 
     const getLamp = (player) => {
         if (player.connected === false) return 'idle';
@@ -149,10 +256,28 @@ function BuzzerGameView({
 
     const actionBar = isGuessing ? (
         <form onSubmit={handleSubmitGuess} className="flex flex-col gap-2">
-            <p className="flex items-center justify-center gap-2 text-center text-xs font-extrabold text-show-yellow" aria-live="assertive">
-                {st('buzzerGame.youBuzzedShort')}
+            {/* Compte à rebours et noms possibles sur une rangée : la photo dit déjà « À toi » */}
+            <div className="flex min-h-[2.75rem] items-center gap-2">
                 {countdownPill}
-            </p>
+                <ul aria-label={st('buzzerGame.suggestions')} className="flex min-w-0 flex-1 gap-2 overflow-x-auto [scrollbar-width:none]">
+                    {guessSuggestions.length === 0 && (
+                        <li className="text-xs font-semibold text-show-muted">{st('buzzerGame.typeHint')}</li>
+                    )}
+                    {guessSuggestions.map((name) => (
+                        <li key={name} className="shrink-0">
+                            <button
+                                type="button"
+                                // Le champ garde le focus : le clavier ne se ferme pas avant l'envoi
+                                onMouseDown={(event) => event.preventDefault()}
+                                onClick={() => sendGuess(name)}
+                                className="h-11 whitespace-nowrap rounded-full bg-show-yellow px-4 font-brand text-base leading-none text-show-night shadow-show-btn active:translate-y-[2px] active:shadow-none"
+                            >
+                                {name}
+                            </button>
+                        </li>
+                    ))}
+                </ul>
+            </div>
             <div className="flex gap-2">
                 <label htmlFor={guessId} className="sr-only">{st('game.answerLabel')}</label>
                 <input
@@ -190,14 +315,16 @@ function BuzzerGameView({
             onQuit={onQuit}
             quitLabel={st('common.quit')}
             quitConfirm={getQuitGameConfirm(st)}
+            tools={<SfxToggle st={st} />}
             showSettings={false}
             language={language}
             actionBar={actionBar}
             actionBarClassName={isGuessing ? '' : 'lg:hidden'}
+            contentClassName={compact ? '!py-3' : ''}
         >
             <div className="mx-auto grid w-full max-w-5xl gap-8 lg:grid-cols-[minmax(0,1fr)_15rem] lg:gap-10">
                 <div className="flex min-w-0 flex-col gap-4">
-                    <div className="grid gap-3 rounded-2xl bg-show-night/45 p-4 ring-1 ring-show-muted/15 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end sm:gap-6">
+                    <div className={`grid gap-3 rounded-2xl bg-show-night/45 p-4 ring-1 ring-show-muted/15 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end sm:gap-6 ${compact ? 'hidden' : ''}`}>
                         <RoundTrack
                             round={currentRound}
                             total={totalRounds}
@@ -212,7 +339,7 @@ function BuzzerGameView({
                         />
                     </div>
 
-                    <div className="screen-frame relative aspect-[4/3] w-full select-none overflow-hidden rounded-2xl bg-show-night sm:aspect-video">
+                    <div className={`screen-frame relative aspect-[4/3] w-full select-none overflow-hidden rounded-2xl bg-show-night sm:aspect-video ${compact ? 'mx-auto max-h-[36dvh] max-w-[calc(36dvh*4/3)]' : ''}`}>
                         {imageSrc && !imageFailed ? (
                             <RevealImage
                                 src={imageSrc}
@@ -268,11 +395,11 @@ function BuzzerGameView({
                         )}
                     </div>
 
-                    <SharpnessGauge
+                    {!compact && <SharpnessGauge
                         value={revealed ? 100 : sharpness}
                         label={st('buzzerGame.sharpnessLabel')}
                         valueLabel={`${revealed ? 100 : sharpness} %`}
-                    />
+                    />}
 
                     {wrongGuessFeedback && !isMyWrongGuess && (
                         <p className="text-center text-sm font-semibold text-show-muted" role="status">
@@ -299,7 +426,7 @@ function BuzzerGameView({
                     )}
                 </div>
 
-                <section aria-labelledby="buzzer-scores-title" className="lg:col-span-2">
+                <section aria-labelledby="buzzer-scores-title" className={`lg:col-span-2 ${compact ? 'hidden' : ''}`}>
                     <h2 id="buzzer-scores-title" className="sr-only">{st('game.scores')}</h2>
                     <LecternRow className="grid-cols-3 sm:grid-cols-5 lg:grid-cols-6" label={st('game.scores')}>
                         {ranked.map(({ player, score }) => (
