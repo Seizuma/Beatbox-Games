@@ -3,6 +3,7 @@ import socketOnline from '../socketOnline';
 import { getRandomPseudo } from '../utils/randomPseudo';
 import { listenForAudioUnlock, playArtistClip, stopArtistClip } from '../utils/artistAudio';
 import { loadArtistCard } from '../utils/artistCard';
+import { emitReaction } from '../components/show/Reactions';
 
 /**
  * Hook Socket.io - Version corrigée avec Discord + Logique de base fonctionnelle
@@ -14,7 +15,7 @@ export const useSocket = ({
     setPlayers, setScores, setEditingPseudo, setNewPseudo, setArtistCountRange, setLocalArtistCount,
     setAnswerTimeSettings, setLocalAnswerTime, setHasAnswered, setAnswer, setRoundResults, setCanAnswer,
     setTimerStarted, setGameState, setAnswerFeedback, setArtistRevealState, setTimeLeft, setFinalRanking,
-    setCountdown, setShowSettings, setIsReady, setArtistPool, setRevealHistory, discordToken,
+    setCountdown, setShowSettings, setIsReady, setArtistPool, setRevealHistory, setPublicInfo, discordToken,
     discordUser,
     updateDiscordStats,
 
@@ -248,6 +249,11 @@ export const useSocket = ({
             setCreatorPseudo(data.creatorPseudo || '');
             if (data.shareLink) setShareLink(data.shareLink);
             if (data.gameMode) setGameMode(data.gameMode);
+            // Salle publique : démarrage automatique dès deux joueurs
+            setPublicInfo?.({
+                isPublic: Boolean(data.isPublic),
+                autoStartAt: typeof data.autoStartInMs === 'number' ? Date.now() + data.autoStartInMs : null,
+            });
         });
 
         socketOnline.on('settings-updated', (data) => {
@@ -424,6 +430,9 @@ export const useSocket = ({
                 }, 600);
             }
         });
+
+        // Réactions rapides des joueurs : relayées à l'écran de jeu
+        socketOnline.on('reaction', (data) => emitReaction(data));
 
         socketOnline.on('artist-revealed', ({ artist }) => {
             setRoundResults(prev => prev ? { ...prev, artist, revealArtist: true } : null);
@@ -639,7 +648,7 @@ export const useSocket = ({
 
     // ✅ MÉTHODES PUBLIQUES AVEC SUPPORT DISCORD
     return {
-        createRoom: (pseudo, gameMode) => {
+        createRoom: (pseudo, gameMode, isPublic = false) => {
             if (!socketOnline.connected) {
                 setError('Non connecté');
                 return;
@@ -656,6 +665,7 @@ export const useSocket = ({
             socketOnline.emit('create-online-room', {
                 pseudo: finalPseudo,
                 gameMode,
+                isPublic: Boolean(isPublic),
                 discordId: discordUser?.discordId || null,
                 discordAvatar: discordUser?.avatar || null,
                 isDiscordUser: !!discordUser

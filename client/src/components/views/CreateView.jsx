@@ -4,6 +4,7 @@ import ShowButton from '../show/ShowButton';
 import BlindTestRulesModal from './BlindTestRulesModal';
 import { getRandomPseudo } from '../../utils/randomPseudo';
 import { createShowT } from '../../utils/showI18n';
+import { QuickPlayButton } from '../show/PublicPlay';
 
 const CODE_LENGTH = 5;
 
@@ -18,6 +19,8 @@ const CreateView = ({
     suggestedRoom,
     isFromSharedLink,
     nameLocked = false,
+    connected = true,
+    autoQuick = false,
     onBackToHub
 }) => {
     const st = createShowT(language);
@@ -95,6 +98,18 @@ const CreateView = ({
                         {st('create.create')}
                     </ShowButton>
                 </form>
+
+                {/* Partie rapide : des inconnus en ligne, sans code à partager */}
+                <QuickPlayButton
+                    game="blindtest"
+                    label={st('public.quick')}
+                    searchingLabel={st('public.searching')}
+                    hint={st('public.quickHint')}
+                    disabled={!hasName || !connected || Boolean(isFromSharedLink)}
+                    auto={autoQuick}
+                    onJoin={(code) => handleJoinRoom(code)}
+                    onCreatePublic={() => handleCreateRoom({ isPublic: true })}
+                />
 
                 <div className="flex items-center gap-3 text-sm text-show-muted" aria-hidden="true">
                     <span className="h-px flex-1 bg-show-desk" />

@@ -12,6 +12,7 @@ import PrivacyPage from './components/PrivacyPage';
 import LegalPage from './components/LegalPage';
 import ContactPage from './components/ContactPage';
 import PlayerPage from './components/PlayerPage';
+import BeatboxerPage from './components/BeatboxerPage';
 import AdminPage from './components/AdminPage';
 import NotFoundPage from './components/NotFoundPage';
 import ErrorBoundary from './components/ErrorBoundary';
@@ -32,6 +33,7 @@ function App() {
         <Route path="/stats" element={<StatsPage />} />
         <Route path="/profile" element={<ProfilePage />} />
         <Route path="/player/:discordId" element={<PlayerPage />} />
+        <Route path="/beatboxer/:slug" element={<BeatboxerPage />} />
         <Route path="/admin" element={<AdminPage />} />
         <Route path="/privacy" element={<PrivacyPage />} />
         <Route path="/legal" element={<LegalPage />} />

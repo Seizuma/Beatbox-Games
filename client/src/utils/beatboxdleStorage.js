@@ -42,13 +42,17 @@ export function saveGame(mode, date, game) {
     }
 }
 
+// Seules les parties datées sont balayées : « beatboxdle:v1:letters:2026-10-09 ».
+// Les autres clés du préfixe (fenêtre d'exemple déjà vue…) restent en place.
+const GAME_KEY = new RegExp(`^${PREFIX}:(letters|clues):\\d{4}-\\d{2}-\\d{2}$`);
+
 /** Supprime les parties des jours précédents. Appelé une fois au montage. */
 export function purgeOldGames(currentDate) {
     try {
         const stale = [];
         for (let i = 0; i < localStorage.length; i += 1) {
             const key = localStorage.key(i);
-            if (key && key.startsWith(`${PREFIX}:`) && !key.endsWith(`:${currentDate}`)) {
+            if (key && GAME_KEY.test(key) && !key.endsWith(`:${currentDate}`)) {
                 stale.push(key);
             }
         }

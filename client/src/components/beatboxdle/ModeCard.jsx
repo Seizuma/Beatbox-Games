@@ -36,7 +36,7 @@ const ICONS = {
  * sommaire. Savoir qu'on a déjà joué le mode lettres et pas le mode indices
  * est l'information qu'on vient chercher en ouvrant la page.
  */
-export default function ModeCard({ mode, name, description, to, badge, badgeTone = 'idle' }) {
+export default function ModeCard({ mode, name, description, to, badge, badgeTone = 'idle', streak = null }) {
     const tone = badgeTone === 'done'
         ? 'border-dle-correct bg-dle-correct text-dle-correct-ink'
         : badgeTone === 'failed'
@@ -55,6 +55,14 @@ export default function ModeCard({ mode, name, description, to, badge, badgeTone
             <span className="flex min-w-0 flex-1 flex-col gap-0.5">
                 <span className="text-lg font-bold leading-tight text-site-ink">{name}</span>
                 <span className="text-sm leading-snug text-site-muted">{description}</span>
+                {streak && (
+                    <span className="mt-1 inline-flex items-center gap-1 text-xs font-bold text-brand-yellow">
+                        <svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true">
+                            <path d="M6 0.5c.4 2-1.8 3-1.8 5.1 0 .9.5 1.6 1.1 1.9-.1-1 .6-1.8 1.4-2.4.2 1.3 1.8 1.8 1.8 3.4A3 3 0 0 1 2.5 8.6C2.5 5.4 5.6 4.1 6 .5Z" fill="currentColor" />
+                        </svg>
+                        {streak}
+                    </span>
+                )}
             </span>
 
             {badge ? (

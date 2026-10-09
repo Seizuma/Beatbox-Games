@@ -13,6 +13,8 @@ import ArtistListPanel from './ArtistListPanel';
 import { useBlindTestArtists } from '../../hooks/useBlindTestArtists';
 import { findArtist, rankArtists } from '../../utils/artistSearch.js';
 import { installSfxUnlock, playSfx, vibrate } from '../../utils/gameSfx';
+import socketOnline from '../../socketOnline';
+import { onReaction, ReactionBar, useReactionFeed } from '../show/Reactions';
 
 // Écran tactile : le clavier virtuel prend la moitié de l'écran quand on répond
 const isTouchDevice = () => typeof window !== 'undefined'
@@ -114,6 +116,11 @@ const GameView = ({
     useEffect(() => {
         installSfxUnlock();
     }, []);
+
+    // Réactions des joueurs : une bulle au-dessus du pupitre de chacun
+    const { feed: reactions, push: pushReaction } = useReactionFeed();
+    useEffect(() => onReaction(({ pseudo: from, id }) => pushReaction(from, id)), [pushReaction]);
+    const sendReaction = (id) => socketOnline.emit('send-reaction', { id });
 
     const round = gameState?.round;
     const level = gameState?.level;
@@ -340,11 +347,18 @@ const GameView = ({
                                     highlight={player.pseudo === pseudo}
                                     avatarUrl={player.isDiscordUser ? player.avatarUrl : undefined}
                                     dimmed={!player.connected}
+                                    reaction={reactions[player.pseudo]}
                                 />
                             </li>
                         ))}
                     </LecternRow>
-                    <p className="mt-6 text-center text-xs text-show-muted">{st('game.legend')}</p>
+                    <ReactionBar
+                        className="mt-6"
+                        onReact={sendReaction}
+                        label={st('reactions.label')}
+                        nameOf={(id) => st(`reactions.${id}`)}
+                    />
+                    <p className="mt-4 text-center text-xs text-show-muted">{st('game.legend')}</p>
                 </section>
             </div>
 

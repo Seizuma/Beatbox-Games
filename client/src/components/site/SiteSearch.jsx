@@ -9,14 +9,36 @@ const HISTORY_KEY = 'beatbox_player_search_history';
 const HISTORY_SIZE = 5;
 const MIN_QUERY = 2;
 
+// Un résultat, joueur ou beatboxer, sous une forme commune
+const fromPlayer = (player) => ({
+    kind: 'player',
+    id: player.discordId,
+    label: player.username,
+    avatar: player.avatar || null,
+    totalGames: player.totalGames,
+});
+const fromBeatboxer = (beatboxer) => ({
+    kind: 'beatboxer',
+    id: beatboxer.slug,
+    label: beatboxer.name,
+    avatar: beatboxer.photoUrl ? `${API_BASE_URL}${beatboxer.photoUrl}` : null,
+});
+
 const readHistory = () => {
     try {
         const saved = JSON.parse(localStorage.getItem(HISTORY_KEY) || '[]');
-        return Array.isArray(saved) ? saved.slice(0, HISTORY_SIZE) : [];
+        if (!Array.isArray(saved)) return [];
+        // Les anciennes entrées ne gardaient que des joueurs
+        return saved
+            .map((item) => (item.kind ? item : { kind: 'player', id: item.discordId, label: item.username, avatar: item.avatar || null }))
+            .filter((item) => item.id && item.label)
+            .slice(0, HISTORY_SIZE);
     } catch (error) {
         return [];
     }
 };
+
+const MAX_BEATBOXERS = 5;
 
 const writeHistory = (entries) => {
     try {
@@ -91,19 +113,27 @@ export default function SiteSearch() {
         setStatus('loading');
 
         const timer = setTimeout(() => {
-            fetch(`${API_BASE_URL}/api/players/search?q=${encodeURIComponent(needle)}`, { signal: controller.signal })
-                .then((response) => {
-                    if (!response.ok) throw new Error(`HTTP ${response.status}`);
-                    return response.json();
-                })
-                .then((data) => {
-                    setResults(data.results || []);
-                    setStatus('ready');
-                    setHighlight(-1);
-                })
-                .catch((error) => {
-                    if (error.name !== 'AbortError') setStatus('error');
-                });
+            const get = (url) => fetch(url, { signal: controller.signal }).then((response) => {
+                if (!response.ok) throw new Error(`HTTP ${response.status}`);
+                return response.json();
+            });
+            // Joueurs et beatboxers en parallèle : une panne d'un côté n'efface pas l'autre
+            Promise.allSettled([
+                get(`${API_BASE_URL}/api/beatboxers/search?q=${encodeURIComponent(needle)}&limit=${MAX_BEATBOXERS}`),
+                get(`${API_BASE_URL}/api/players/search?q=${encodeURIComponent(needle)}`),
+            ]).then(([beatboxers, players]) => {
+                if (controller.signal.aborted) return;
+                if (beatboxers.status === 'rejected' && players.status === 'rejected') {
+                    setStatus('error');
+                    return;
+                }
+                setResults([
+                    ...(beatboxers.status === 'fulfilled' ? (beatboxers.value.beatboxers || []).map(fromBeatboxer) : []),
+                    ...(players.status === 'fulfilled' ? (players.value.results || []).map(fromPlayer) : []),
+                ]);
+                setStatus('ready');
+                setHighlight(-1);
+            });
         }, 250);
 
         return () => {
@@ -112,14 +142,16 @@ export default function SiteSearch() {
         };
     }, [query]);
 
-    const rememberAndGo = (player) => {
-        const entry = { discordId: player.discordId, username: player.username, avatar: player.avatar || null };
-        const next = [entry, ...history.filter((item) => item.discordId !== entry.discordId)].slice(0, HISTORY_SIZE);
+    const rememberAndGo = (item) => {
+        const entry = { kind: item.kind, id: item.id, label: item.label, avatar: item.avatar || null };
+        const next = [entry, ...history.filter((other) => !(other.kind === entry.kind && other.id === entry.id))].slice(0, HISTORY_SIZE);
 
         setHistory(next);
         writeHistory(next);
         setOpen(false);
-        navigate(`/player/${encodeURIComponent(player.discordId)}`);
+        navigate(item.kind === 'beatboxer'
+            ? `/beatboxer/${encodeURIComponent(item.id)}`
+            : `/player/${encodeURIComponent(item.id)}`);
     };
 
     const clearHistory = () => {
@@ -206,19 +238,28 @@ export default function SiteSearch() {
 
                         {list.length > 0 && (
                             <ul className="pb-1.5">
-                                {list.map((player, index) => (
-                                    <li key={player.discordId}>
+                                {list.map((item, index) => (
+                                    <li key={`${item.kind}-${item.id}`}>
+                                        {/* Intitulé de groupe au premier élément de chaque sorte */}
+                                        {!showingHistory && (index === 0 || list[index - 1].kind !== item.kind) && (
+                                            <p className="px-3 pb-1 pt-2.5 text-[11px] font-bold text-site-soft">
+                                                {item.kind === 'beatboxer' ? t('search.beatboxers') : t('search.players')}
+                                            </p>
+                                        )}
                                         <button
                                             type="button"
-                                            onClick={() => rememberAndGo(player)}
+                                            onClick={() => rememberAndGo(item)}
                                             onMouseEnter={() => setHighlight(index)}
                                             className={`flex w-full items-center gap-3 px-3 py-2.5 text-left transition-colors ${index === highlight ? 'bg-site-tint' : ''}`}
                                         >
-                                            <Avatar src={player.avatar} name={player.username} size={28} />
-                                            <span className="min-w-0 flex-1 truncate text-sm font-semibold">{player.username}</span>
-                                            {typeof player.totalGames === 'number' && (
+                                            <Avatar src={item.avatar} name={item.label} size={28} />
+                                            <span className="min-w-0 flex-1 truncate text-sm font-semibold">{item.label}</span>
+                                            {item.kind === 'beatboxer' && showingHistory && (
+                                                <span className="shrink-0 text-xs text-site-soft">{t('search.beatboxerTag')}</span>
+                                            )}
+                                            {typeof item.totalGames === 'number' && (
                                                 <span className="shrink-0 text-xs text-site-soft">
-                                                    {t('search.games', { count: player.totalGames })}
+                                                    {t('search.games', { count: item.totalGames })}
                                                 </span>
                                             )}
                                             {showingHistory && <Icon name="chevron-right" size={15} className="shrink-0 text-site-soft" />}

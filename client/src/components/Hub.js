@@ -5,6 +5,7 @@ import GameCard from './site/GameCard';
 import DailyCard from './site/DailyCard';
 import JoinRoomForm from './site/JoinRoomForm';
 import RankingPreview from './site/RankingPreview';
+import PublicRooms, { quickPath, usePublicRooms } from './site/PublicRooms';
 import { useSiteI18n } from '../utils/siteI18n';
 
 const GAMES = [
@@ -14,6 +15,8 @@ const GAMES = [
 
 function HubContent() {
     const { t } = useSiteI18n();
+    const publicRooms = usePublicRooms();
+    const openRooms = (game) => publicRooms.rooms.filter((room) => room.game === game).length;
 
     return (
         <>
@@ -45,6 +48,11 @@ function HubContent() {
                         <div className="order-1 lg:order-none">
                             <JoinRoomForm />
                         </div>
+                        {publicRooms.rooms.length > 0 && (
+                            <div className="order-4 lg:order-none">
+                                <PublicRooms rooms={publicRooms.rooms} players={publicRooms.players} t={t} />
+                            </div>
+                        )}
                         <div className="order-4 lg:order-none">
                             <DailyCard
                                 kicker={t('games.beatboxdle.kicker')}
@@ -70,6 +78,11 @@ function HubContent() {
                                 players={t('games.players')}
                                 meta={t(`games.${game.id}.meta`)}
                                 cta={t('games.create')}
+                                quick={{
+                                    to: quickPath(game.id),
+                                    label: t('games.quick'),
+                                    detail: openRooms(game.id) ? t('games.quickOpen', { count: openRooms(game.id) }) : null,
+                                }}
                                 demoLabels={game.id === 'blindtest' ? {
                                     listen: t('games.demo.listen'),
                                     another: t('games.demo.another'),

@@ -57,6 +57,8 @@ class RoomManager {
             if (room.game) {
                 room.game.cleanup();
             }
+            // Compte à rebours d'une salle publique : il ne doit pas survivre à la salle
+            require('./publicRooms').cancel(`blindtest:${code}`);
             this.rooms.delete(code);
             console.log(`🗑️ Room ${code} supprimée (${reason})`);
             return true;

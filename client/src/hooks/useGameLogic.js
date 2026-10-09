@@ -46,7 +46,8 @@ export const useGameLogic = ({
     }, [setError]);
 
     // ✅ HANDLERS DE ROOM AVEC VALIDATION AMÉLIORÉE
-    const handleCreateRoom = useCallback(() => {
+    // options.isPublic : salle publique (partie rapide), listée sur l'accueil
+    const handleCreateRoom = useCallback((options = {}) => {
         if (!pseudo?.trim()) {
             setError(t('pseudoRequired') || 'Pseudo requis');
             setTimeout(() => setError(''), 3000);
@@ -64,7 +65,7 @@ export const useGameLogic = ({
 
         console.log('🎮 Création de room:', { pseudo: trimmedPseudo, gameMode });
         setView(VIEWS.LOADING);
-        socketMethods.createRoom(trimmedPseudo, gameMode);
+        socketMethods.createRoom(trimmedPseudo, gameMode, options.isPublic === true);
         return true;
     }, [pseudo, gameMode, socketMethods, setError, setView, setPseudo, t, VIEWS]);
 

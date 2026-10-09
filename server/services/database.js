@@ -924,6 +924,31 @@ class DatabaseService {
             .run(mode, puzzleNumber).changes;
     }
 
+    /**
+     * Classement Beatboxdle sur une plage d'énigmes (un jour, ou les 7 derniers).
+     * Points par énigme : trouvée en 1 essai = maxAttempts points, puis un de
+     * moins par essai ; ratée = 0. À égalité : plus d'énigmes trouvées, moins
+     * d'essais au total, puis le premier à avoir fini.
+     */
+    getBeatboxdleLeaderboard(mode, fromNumber, toNumber, maxAttempts) {
+        return this.db.prepare(`
+            SELECT
+                r.discord_id AS discordId,
+                u.username AS username,
+                u.avatar AS avatar,
+                COUNT(*) AS played,
+                SUM(r.solved) AS solved,
+                SUM(r.attempts) AS attempts,
+                SUM(CASE WHEN r.solved = 1 THEN ? + 1 - r.attempts ELSE 0 END) AS points,
+                MAX(r.created_at) AS lastAt
+            FROM beatboxdle_results r
+            JOIN users u ON u.discord_id = r.discord_id
+            WHERE r.mode = ? AND r.puzzle_number BETWEEN ? AND ?
+            GROUP BY r.discord_id
+            ORDER BY points DESC, solved DESC, attempts ASC, lastAt ASC
+        `).all(maxAttempts, mode, fromNumber, toNumber);
+    }
+
     /** Statistiques collectives d'une énigme : « 62 % ont trouvé aujourd'hui ». */
     getBeatboxdleDayStats(mode, puzzleNumber) {
         return this.db.prepare(`

@@ -7,6 +7,7 @@ import { RoomPanel, RulesBrief, SettingsSummary, StatusScreen, useRoomSharing } 
 import Icon from '../icons/Icon';
 import BlindTestRulesModal from './BlindTestRulesModal';
 import BlindTestSettingsModal from './BlindTestSettingsModal';
+import { PublicRoomBanner } from '../show/PublicPlay';
 import { createShowT, MAX_PLAYERS } from '../../utils/showI18n';
 
 // Nombre de pupitres affichés au minimum, les places vides invitent à partager la salle
@@ -14,6 +15,7 @@ const MIN_SEATS = 4;
 
 // Salle d'attente du Blind Test : pupitres des joueurs à gauche, panneau de la salle à droite
 const LobbyView = ({
+    publicInfo,
     room,
     pseudo,
     isCreator,
@@ -81,9 +83,12 @@ const LobbyView = ({
         return connectedPlayers.length <= 1 ? st('lobby.hostSolo') : st('lobby.hostHint');
     };
 
-    const statusHint = isCreator
-        ? hostHint()
-        : (allPlayersReady ? st('lobby.waitingHost', { host: creatorPseudo }) : st('lobby.notAllReady'));
+    // Salle publique : personne n'a besoin d'être prêt, le compte à rebours lance la partie
+    const statusHint = publicInfo?.isPublic
+        ? st('public.hint')
+        : isCreator
+            ? hostHint()
+            : (allPlayersReady ? st('lobby.waitingHost', { host: creatorPseudo }) : st('lobby.notAllReady'));
 
     const playerStatus = (player) => {
         if (!player.connected) return 'offline';
@@ -123,6 +128,11 @@ const LobbyView = ({
             }
         >
             <div className="mx-auto grid max-w-5xl gap-8 lg:grid-cols-[minmax(0,1fr)_20rem] lg:gap-10">
+                {publicInfo?.isPublic && (
+                    <div className="order-1 lg:col-span-2">
+                        <PublicRoomBanner isPublic autoStartAt={publicInfo.autoStartAt} st={st} />
+                    </div>
+                )}
                 <section aria-labelledby="lobby-players-title" className="order-2 lg:order-1">
                     <div className="mb-6 flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
                         <h2 id="lobby-players-title" className="font-brand text-xl leading-none sm:text-2xl">

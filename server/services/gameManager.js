@@ -7,6 +7,7 @@ const { CONFIG, GAME_STATES, ROOM_STATES } = require('../constants');
 const { normalize } = require('../utils');
 const { isAnswerCorrect } = require('./answerValidation');
 const { getDatabase } = require('./database'); // ✅ AJOUT
+const publicRooms = require('./publicRooms');
 
 const db = getDatabase(); // ✅ AJOUT
 
@@ -22,6 +23,9 @@ class GameManager {
         }
 
         room.state = ROOM_STATES.STARTING;
+        // Départ lancé par l'hôte avant la fin du compte à rebours public
+        publicRooms.cancel(`blindtest:${room.code}`);
+        room.autoStartAt = null;
         io.to(room.code).emit('game-starting');
 
         console.log(`🎮 Démarrage partie room ${room.code}: ${room.getConnectedPlayers().length} joueurs`);
@@ -511,6 +515,8 @@ class GameManager {
      * ✅ NOUVEAU : Émet la mise à jour de room avec support Discord
      */
     static emitRoomUpdate(room, io, options = {}) {
+        GameManager.syncPublicAutoStart(room, io);
+
         const playersWithAnswers = room.getAllPlayers().map(player => ({
             ...player,
             currentAnswer: player.currentRoundAnswer,
@@ -536,7 +542,11 @@ class GameManager {
             shareLink: room.shareLink,
             maxRounds: room.maxRounds,
             gameMode: room.gameMode,
-            creatorPseudo: room.creatorPseudo
+            creatorPseudo: room.creatorPseudo,
+            isPublic: Boolean(room.isPublic),
+            autoStartAt: room.autoStartAt || null,
+            // Durée restante plutôt qu'une heure : l'horloge du téléphone peut être décalée
+            autoStartInMs: room.autoStartAt ? Math.max(0, room.autoStartAt - Date.now()) : null
         };
 
         if (options.includeSettings) {
@@ -546,6 +556,45 @@ class GameManager {
         }
 
         io.to(room.code).emit('room-updated', baseData);
+    }
+
+    /**
+     * Salle publique : à deux joueurs connectés ou plus, la partie démarre
+     * seule au bout de 20 s. Appelé à chaque mise à jour de la salle (arrivée,
+     * départ, retour de l'écran de fin), donc toujours à jour.
+     */
+    static syncPublicAutoStart(room, io) {
+        if (!room || !room.isPublic) return;
+        const key = `blindtest:${room.code}`;
+        const connected = room.getConnectedPlayers().length;
+
+        if (room.state === ROOM_STATES.WAITING && connected >= publicRooms.MIN_PLAYERS) {
+            if (!room.autoStartAt) {
+                room.autoStartAt = publicRooms.schedule(key, () => GameManager.autoStartPublicRoom(room, io));
+            }
+        } else if (room.autoStartAt) {
+            publicRooms.cancel(key);
+            room.autoStartAt = null;
+        }
+    }
+
+    static autoStartPublicRoom(room, io) {
+        const { roomManager } = require('./roomManager');
+        if (roomManager.getRoom(room.code) !== room) return;
+        room.autoStartAt = null;
+
+        const connected = room.getConnectedPlayers();
+        if (!room.isPublic || room.state !== ROOM_STATES.WAITING || connected.length < publicRooms.MIN_PLAYERS) {
+            GameManager.emitRoomUpdate(room, io);
+            return;
+        }
+
+        // Personne n'a à cliquer « prêt » dans une salle publique : le compte à rebours suffit
+        connected.forEach((player) => { player.ready = true; });
+        console.log(`⏱️ Salle publique ${room.code} : démarrage automatique à ${connected.length} joueurs`);
+        if (!GameManager.startGame(room, io)) {
+            GameManager.emitRoomUpdate(room, io);
+        }
     }
 
     /**

@@ -27,7 +27,19 @@ function RecapRow({ entry, round, pseudo, st }) {
             </div>
             <div className="min-w-0 flex-1">
                 <p className="text-[11px] font-bold text-show-muted">{st('results.recapRound', { round })}</p>
-                <p className="truncate font-brand text-lg leading-tight">{entry.artist}</p>
+                {/* Nouvel onglet : la salle reste ouverte pour la revanche */}
+                {card?.slug ? (
+                    <a
+                        href={`#/beatboxer/${encodeURIComponent(card.slug)}`}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="block truncate font-brand text-lg leading-tight underline decoration-show-yellow decoration-2 underline-offset-4"
+                    >
+                        {entry.artist}
+                    </a>
+                ) : (
+                    <p className="truncate font-brand text-lg leading-tight">{entry.artist}</p>
+                )}
                 <p className="truncate text-xs font-semibold text-show-muted">
                     {finds.length === 0
                         ? st('reveal.nobody')

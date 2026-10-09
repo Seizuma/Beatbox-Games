@@ -8,10 +8,46 @@
 const express = require('express');
 const { roomManager } = require('../services/roomManager');
 const buzzerGameManager = require('../services/buzzer-gameManager');
+const publicRooms = require('../services/publicRooms');
 
 const router = express.Router();
 
 const CODE_PATTERN = /^[A-Z0-9]{4,8}$/;
+
+/**
+ * GET /api/rooms/public
+ * Salles publiques en attente, pour l'accueil : « 3 salles ouvertes · 14 joueurs ».
+ */
+router.get('/public', (req, res) => {
+    try {
+        const rooms = publicRooms.list();
+        res.set('Cache-Control', 'no-store');
+        res.json({
+            success: true,
+            rooms,
+            players: rooms.reduce((sum, room) => sum + room.players, 0),
+        });
+    } catch (error) {
+        console.error('❌ Erreur liste des salles publiques:', error);
+        res.status(500).json({ success: false, error: 'server_error' });
+    }
+});
+
+/**
+ * GET /api/rooms/quick?game=blindtest|buzzer
+ * Partie rapide : la salle publique à rejoindre, ou null s'il faut en créer une.
+ */
+router.get('/quick', (req, res) => {
+    const game = req.query.game === 'buzzer' ? 'buzzer' : 'blindtest';
+    try {
+        const room = publicRooms.pickQuick(game);
+        res.set('Cache-Control', 'no-store');
+        res.json({ success: true, game, code: room ? room.code : null });
+    } catch (error) {
+        console.error('❌ Erreur partie rapide:', error);
+        res.status(500).json({ success: false, error: 'server_error' });
+    }
+});
 
 router.get('/:code', (req, res) => {
     try {

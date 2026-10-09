@@ -768,3 +768,20 @@
         }
     }
 }
+/* Réaction rapide au-dessus d'un pupitre : elle monte, puis s'efface */
+.reaction-pop {
+    animation: reaction-pop 2.4s ease-out both;
+}
+
+@keyframes reaction-pop {
+    0% { opacity: 0; transform: translate(-50%, 10px) scale(0.6); }
+    12% { opacity: 1; transform: translate(-50%, 0) scale(1.1); }
+    20% { transform: translate(-50%, 0) scale(1); }
+    80% { opacity: 1; transform: translate(-50%, -6px) scale(1); }
+    100% { opacity: 0; transform: translate(-50%, -16px) scale(0.9); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .reaction-pop { animation: reaction-fade 2.4s linear both; }
+    @keyframes reaction-fade { 0%, 85% { opacity: 1; } 100% { opacity: 0; } }
+}

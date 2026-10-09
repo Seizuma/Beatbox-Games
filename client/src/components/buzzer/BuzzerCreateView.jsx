@@ -4,6 +4,7 @@ import ShowButton from '../show/ShowButton';
 import BuzzerRulesModal from './BuzzerRulesModal';
 import { getRandomPseudo } from '../../utils/randomPseudo';
 import { createShowT } from '../../utils/showI18n';
+import { QuickPlayButton } from '../show/PublicPlay';
 
 const CODE_MAX_LENGTH = 6;
 
@@ -29,6 +30,8 @@ function BuzzerCreateView({
     discordUser = null,
     language,
     languageSwitch,
+    autoQuick = false,
+    initialCode = '',
     onQuit
 }) {
     const st = createShowT(language);
@@ -36,7 +39,8 @@ function BuzzerCreateView({
     const codeId = useId();
     const codeHelpId = useId();
 
-    const [joinRoomCode, setJoinRoomCode] = useState('');
+    // Lien d'invitation ou salle ouverte de l'accueil : le code est déjà rempli
+    const [joinRoomCode, setJoinRoomCode] = useState(() => String(initialCode).toUpperCase().slice(0, CODE_MAX_LENGTH));
     const [showRules, setShowRules] = useState(false);
 
     useEffect(() => {
@@ -113,6 +117,18 @@ function BuzzerCreateView({
                         {st('create.create')}
                     </ShowButton>
                 </form>
+
+                {/* Partie rapide : des inconnus en ligne, sans code à partager */}
+                <QuickPlayButton
+                    game="buzzer"
+                    label={st('public.quick')}
+                    searchingLabel={st('public.searching')}
+                    hint={st('public.quickHint')}
+                    disabled={!canCreate}
+                    auto={autoQuick}
+                    onJoin={(code) => onJoinRoom({ roomCode: code, username: cleanName, avatar })}
+                    onCreatePublic={() => onCreateRoom({ ...DEFAULT_CONFIG, username: cleanName, avatar, isPublic: true })}
+                />
 
                 <div className="flex items-center gap-3 text-sm text-show-muted" aria-hidden="true">
                     <span className="h-px flex-1 bg-show-desk" />

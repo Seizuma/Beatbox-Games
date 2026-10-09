@@ -4,6 +4,7 @@ const { GameManager } = require('./services/gameManager');
 const audioManager = require('./services/audioManager');
 const { CONFIG, ROOM_STATES, GAME_STATES, GAME_MODES } = require('./constants');
 const { validatePseudo, validateRoomCode, createLogger } = require('./utils');
+const { isReaction, allowReaction } = require('./services/reactions');
 
 const logger = createLogger('ONLINE_GAME');
 
@@ -11,7 +12,7 @@ function handleOnlineSocketConnection(socket, io) {
     logger.info(`Nouvelle connexion socket: ${socket.id}`);
 
     // ✅ CORRECTION : Création de room avec support Discord
-    socket.on('create-online-room', ({ pseudo, gameMode = GAME_MODES.NORMAL }) => {
+    socket.on('create-online-room', ({ pseudo, gameMode = GAME_MODES.NORMAL, isPublic = false }) => {
         try {
             let finalPseudo = pseudo;
             let isDiscordUser = false;
@@ -41,6 +42,8 @@ function handleOnlineSocketConnection(socket, io) {
             const validGameMode = Object.values(GAME_MODES).includes(gameMode) ? gameMode : GAME_MODES.NORMAL;
 
             const room = roomManager.createRoom(pseudoValidation.cleaned, socket.id, validGameMode);
+            // Salle publique : listée sur l'accueil, ouverte à la partie rapide
+            room.isPublic = Boolean(isPublic);
 
             // ✅ NOUVEAU : Ajouter les infos Discord au joueur créateur
             if (isDiscordUser) {
@@ -390,6 +393,17 @@ function handleOnlineSocketConnection(socket, io) {
     });
 
     // ✅ CORRECTION : Soumission de réponse avec protection Discord
+    // Réaction rapide : relayée à toute la salle, avec le pseudo de l'expéditeur
+    socket.on('send-reaction', (payload) => {
+        // Charge utile absente ou null : on ignore, sans planter le serveur
+        const { id } = payload || {};
+        const { onlineRoom, onlinePseudo } = socket.data;
+        if (!onlineRoom || !onlinePseudo || !isReaction(id) || !allowReaction(socket)) return;
+        const room = roomManager.getRoom(onlineRoom);
+        if (!room || !room.getPlayer(onlinePseudo)) return;
+        io.to(room.code).emit('reaction', { pseudo: onlinePseudo, id });
+    });
+
     socket.on('submit-answer', ({ answer }) => {
         const { onlineRoom, onlinePseudo } = socket.data;
         const room = roomManager.getRoom(onlineRoom);

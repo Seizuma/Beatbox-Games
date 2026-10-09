@@ -11,6 +11,7 @@ import { useSiteI18n } from './utils/siteI18n';
 import { fetchDaily, submitGuess, reportResult } from './utils/beatboxdleApi';
 import { loadGame, saveGame, purgeOldGames } from './utils/beatboxdleStorage';
 import { buildKeyIndex, exactMatches, letterStates, suggest, toKeys } from './utils/beatboxdleMatch';
+import { liveStreak, recordLocalResult, useBeatboxdleStats } from './utils/beatboxdleHistory';
 
 const MODES = ['letters', 'clues'];
 
@@ -81,6 +82,10 @@ function BeatboxdleContent() {
                 setCandidates(payload.candidates || []);
                 setGuesses(saved ? saved.guesses : []);
                 reportedRef.current = Boolean(saved && saved.reported);
+                // Partie finie avant l'arrivée de l'historique local : on la note quand même
+                if (saved && saved.guesses.some((guess) => guess.finished)) {
+                    recordLocalResult(mode, payload.puzzle.puzzleNumber, saved.guesses.some((guess) => guess.correct), saved.guesses.length);
+                }
                 setStatus('ready');
                 purgeOldGames(payload.puzzle.date);
                 // Première visite dans ce mode : l'exemple avant le premier essai
@@ -116,9 +121,13 @@ function BeatboxdleContent() {
         });
     }, [mode, puzzle, guesses]);
 
-    // --- Compte-rendu au serveur une fois la partie finie -------------------
+    // --- Compte-rendu une fois la partie finie : navigateur, puis serveur ---
+    const [statsKey, setStatsKey] = useState(0);
     useEffect(() => {
-        if (!finished || !puzzle || reportedRef.current) return;
+        if (!finished || !puzzle) return;
+        recordLocalResult(mode, puzzle.puzzleNumber, solved, guesses.length);
+        setStatsKey((key) => key + 1);
+        if (reportedRef.current) return;
         reportedRef.current = true;
         saveGame(mode, puzzle.date, {
             puzzleNumber: puzzle.puzzleNumber,
@@ -126,8 +135,11 @@ function BeatboxdleContent() {
             guesses,
             reported: true,
         });
-        reportResult({ mode, solved, attempts: guesses.length });
+        // Le compte Discord reçoit la partie ; ses statistiques sont relues ensuite
+        reportResult({ mode, solved, attempts: guesses.length }).then(() => setStatsKey((key) => key + 1));
     }, [finished, solved, guesses, mode, puzzle]);
+
+    const stats = useBeatboxdleStats(mode, statsKey);
 
     // --- Ouverture de la fiche, une fois la dernière ligne posée ------------
     useEffect(() => {
@@ -413,6 +425,8 @@ function BeatboxdleContent() {
                     puzzle={puzzle}
                     mode={mode}
                     modeLabel={modeLabel}
+                    stats={stats}
+                    streak={liveStreak(stats, puzzle.puzzleNumber)}
                     onClose={() => setModalOpen(false)}
                 />
             )}

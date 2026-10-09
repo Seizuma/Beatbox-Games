@@ -10,6 +10,7 @@ import useRevealProgress from '../../hooks/useRevealProgress';
 import socketBuzzer from '../../buzzer-socket';
 import { rankArtists } from '../../utils/artistSearch';
 import { installSfxUnlock, isSfxMuted, onSfxMutedChange, playSfx, setSfxMuted, vibrate } from '../../utils/gameSfx';
+import { ReactionBar, useReactionFeed } from '../show/Reactions';
 
 // Propositions tactiles après un buzz : quatre au plus, dès deux lettres tapées
 const MAX_GUESS_SUGGESTIONS = 4;
@@ -111,6 +112,7 @@ function BuzzerGameView({
     wrongGuessFeedback,
     justReconnected,
     gameConfig,
+    roomCode,
     language,
     onQuit
 }) {
@@ -122,6 +124,15 @@ function BuzzerGameView({
     useEffect(() => {
         installSfxUnlock();
     }, []);
+
+    // Réactions des joueurs : une bulle au-dessus du pupitre de chacun
+    const { feed: reactions, push: pushReaction } = useReactionFeed();
+    useEffect(() => {
+        const handler = ({ playerId, id }) => pushReaction(playerId, id);
+        socketBuzzer.on('buzzer:reaction', handler);
+        return () => socketBuzzer.off('buzzer:reaction', handler);
+    }, [pushReaction]);
+    const sendReaction = (id) => socketBuzzer.emit('buzzer:reaction', { roomCode, id });
 
     const [guess, setGuess] = useState('');
     const [showGuessInput, setShowGuessInput] = useState(false);
@@ -439,11 +450,18 @@ function BuzzerGameView({
                                     highlight={player.id === myPlayerId}
                                     avatarUrl={discordAvatar(player)}
                                     dimmed={player.connected === false}
+                                    reaction={reactions[player.id]}
                                 />
                             </li>
                         ))}
                     </LecternRow>
-                    <p className="mt-6 text-center text-xs text-show-muted">{st('buzzerGame.legend')}</p>
+                    <ReactionBar
+                        className="mt-6"
+                        onReact={sendReaction}
+                        label={st('reactions.label')}
+                        nameOf={(id) => st(`reactions.${id}`)}
+                    />
+                    <p className="mt-4 text-center text-xs text-show-muted">{st('buzzerGame.legend')}</p>
                 </section>
             </div>
         </GameShell>

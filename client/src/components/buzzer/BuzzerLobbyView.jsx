@@ -9,6 +9,7 @@ import { RoomPanel, RulesBrief, SettingsSummary, StatusScreen, useRoomSharing } 
 import { CountdownOverlay } from '../UI';
 import BuzzerRulesModal from './BuzzerRulesModal';
 import BuzzerSettingsModal, { BUZZER_MODES as MODES, poolKey } from './BuzzerSettingsModal';
+import { PublicRoomBanner } from '../show/PublicPlay';
 import { createShowT, MAX_PLAYERS } from '../../utils/showI18n';
 
 const MIN_SEATS = 4;
@@ -171,11 +172,16 @@ function BuzzerLobbyView({
                             {st('buzzerLobby.start')}
                         </ShowButton>
                     )}
-                    <p className="text-center text-xs text-show-muted" aria-live="polite">{hint}</p>
+                    <p className="text-center text-xs text-show-muted" aria-live="polite">{gameState?.isPublic ? st('public.hint') : hint}</p>
                 </div>
             }
         >
             <div className="mx-auto grid max-w-5xl gap-8 lg:grid-cols-[minmax(0,1fr)_20rem] lg:gap-10">
+                {gameState?.isPublic && (
+                    <div className="order-1 lg:col-span-2">
+                        <PublicRoomBanner isPublic autoStartAt={gameState.autoStartAt || null} st={st} />
+                    </div>
+                )}
                 <section aria-labelledby="buzzer-lobby-players-title" className="order-2 lg:order-1">
                     <div className="mb-6">
                         <h2 id="buzzer-lobby-players-title" className="font-brand text-xl leading-none sm:text-2xl">

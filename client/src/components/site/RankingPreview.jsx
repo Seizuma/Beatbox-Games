@@ -7,7 +7,7 @@ import { Avatar, SkeletonRows } from './SiteUI';
 
 const PREVIEW_LIMIT = 5;
 
-function RankRow({ rank, avatar, username, value, isMe, label }) {
+export function RankRow({ rank, avatar, username, value, isMe, label }) {
     return (
         <li className={`flex items-center gap-3 border-b border-site-line py-2.5 last:border-b-0 ${isMe ? 'bg-site-highlight' : ''}`}>
             <span

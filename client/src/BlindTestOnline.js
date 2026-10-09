@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useMemo, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { getInitialPlayerName, savePlayerName } from './utils/playerName';
 import SEO from './components/SEO';
 import { useI18n } from './utils/i18n';
@@ -48,6 +48,9 @@ const isFirefox = typeof navigator !== 'undefined' && navigator.userAgent.toLowe
 function BlindTestOnline() {
     // ✅ HOOKS PERSONNALISÉS
     const navigate = useNavigate();
+    // « Partie rapide » depuis l'accueil : #/blindtest-online?quick=1
+    const location = useLocation();
+    const quickFromUrl = new URLSearchParams(location.search).get('quick') === '1';
     const { t, language, switchLanguage, isEnglish } = useI18n();
     const { saveUserSession, getUserSession, clearUserSession } = useSession();
     const { detectedMode, roomFromUrl, hasProcessedUrl, isSharedLink } = useUrlParams(getUserSession, clearUserSession);
@@ -118,6 +121,8 @@ function BlindTestOnline() {
     const [artistRevealState, setArtistRevealState] = useState({ show: false, artist: '', isExiting: false });
     // Artistes dévoilés pendant la partie, avec qui les a trouvés : récapitulés à la fin
     const [revealHistory, setRevealHistory] = useState([]);
+    // Salle publique : bandeau de démarrage automatique dans la salle d'attente
+    const [publicInfo, setPublicInfo] = useState({ isPublic: false, autoStartAt: null });
 
     // Mode de jeu et configuration
     const [gameMode, setGameMode] = useState('normal');
@@ -215,7 +220,7 @@ function BlindTestOnline() {
         setPlayers, setScores, setEditingPseudo, setNewPseudo, setArtistCountRange, setLocalArtistCount,
         setAnswerTimeSettings, setLocalAnswerTime, setHasAnswered, setAnswer, setRoundResults, setCanAnswer,
         setTimerStarted, setGameState, setAnswerFeedback, setArtistRevealState, setTimeLeft, setFinalRanking,
-        setCountdown, setShowSettings, setIsReady, setArtistPool, setRevealHistory,
+        setCountdown, setShowSettings, setIsReady, setArtistPool, setRevealHistory, setPublicInfo,
 
         // Current state values
         pseudo, room, gameState, view, players, isCreator, artistCountRange, answerTimeSettings, audioVolume, audioRef, gameMode,
@@ -416,6 +421,8 @@ function BlindTestOnline() {
                     isFromSharedLink={isSharedLink}
                     suggestedRoom={roomFromUrl}
                     nameLocked={Boolean(isAuthenticated && user?.username)}
+                    connected={connected}
+                    autoQuick={quickFromUrl}
                     onBackToHub={() => navigate('/')}
                 />
             )}
@@ -423,6 +430,7 @@ function BlindTestOnline() {
             {view === VIEWS.LOBBY && (
                 <LobbyView
                     {...commonViewProps}
+                    publicInfo={publicInfo}
                     room={room}
                     pseudo={pseudo}
                     isCreator={isCreator}

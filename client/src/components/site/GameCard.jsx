@@ -191,7 +191,7 @@ function DemoStatus({ demo, labels }) {
  * d'écoute du Blind Test passe au-dessus et joue un extrait sans quitter la page.
  * Sur téléphone, l'aperçu devient une vignette : le bouton tient dans le premier écran.
  */
-export default function GameCard({ game, to, kicker, name, description, players, meta, cta, demoLabels }) {
+export default function GameCard({ game, to, kicker, name, description, players, meta, cta, demoLabels, quick }) {
     const demo = useClipDemo();
     const withDemo = game === 'blindtest' && Boolean(demoLabels);
 
@@ -229,6 +229,18 @@ export default function GameCard({ game, to, kicker, name, description, players,
                     {withDemo && <DemoControls demo={demo} labels={demoLabels} />}
                 </div>
             </div>
+
+            {/* Partie rapide : des joueurs en ligne, sans ami ni code (au-dessus du lien étiré) */}
+            {quick && (
+                <Link
+                    to={quick.to}
+                    className="relative z-10 -mt-1 mb-5 inline-flex min-h-[2.75rem] items-center gap-2 self-start px-5 text-sm font-extrabold text-show-white hover:text-show-yellow sm:mb-6 sm:px-6"
+                >
+                    <Icon name="zap" size={16} className="text-show-yellow" />
+                    <span className="underline decoration-show-yellow decoration-2 underline-offset-4">{quick.label}</span>
+                    {quick.detail && <span className="font-semibold text-show-muted">{quick.detail}</span>}
+                </Link>
+            )}
 
             {withDemo && <DemoStatus demo={demo} labels={demoLabels} />}
         </article>

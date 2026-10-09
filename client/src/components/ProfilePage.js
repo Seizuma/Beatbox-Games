@@ -10,10 +10,67 @@ import { useDiscordCallback } from '../utils/useDiscordCallback';
 import { useSiteI18n, formatDay, formatNumber, formatOrdinal } from '../utils/siteI18n';
 import { API_BASE_URL, getStoredDiscordToken, useApi } from '../utils/useApi';
 import useUrlTab from '../hooks/useUrlTab.js';
+import StatsPanel from './beatboxdle/StatsPanel';
+import { useBeatboxdleStats } from '../utils/beatboxdleHistory';
+
+// Essais par mode, comme côté serveur (beatboxdle-daily.js)
+const DLE_MAX_ATTEMPTS = { letters: 6, clues: 8 };
 
 const isBuzzerMode = (gameMode) => typeof gameMode === 'string' && gameMode.startsWith('buzzer_');
 
 const GAME_TABS = ['blindtest', 'buzzer'];
+
+/**
+ * Progression vers la place suivante : la cote seule ne dit pas si l'on
+ * avance. La barre va du joueur juste derrière au joueur juste devant.
+ */
+function NextRankBar({ player, t, language }) {
+    if (!player?.position || !player.next) return null;
+    const low = player.behind ? player.behind.rating : player.rating - 50;
+    const high = player.next.rating;
+    const span = Math.max(1, high - low);
+    const progress = Math.min(1, Math.max(0.04, (player.rating - low) / span));
+
+    return (
+        <div className="mt-4 flex flex-col gap-1.5">
+            <p className="text-sm text-site-muted">
+                {t('profile.nextRank', { gap: formatNumber(language, player.next.gap), rank: formatOrdinal(language, player.next.position) })}
+            </p>
+            <div
+                role="progressbar"
+                aria-label={t('profile.nextRankLabel')}
+                aria-valuemin={0}
+                aria-valuemax={100}
+                aria-valuenow={Math.round(progress * 100)}
+                className="h-2 overflow-hidden rounded-full bg-site-tint"
+            >
+                <div className="h-full rounded-full bg-brand-yellow" style={{ width: `${Math.round(progress * 100)}%` }} />
+            </div>
+        </div>
+    );
+}
+
+/** Beatboxdle : séries et répartition, avec ou sans compte (historique du navigateur). */
+function BeatboxdleProfileStats() {
+    const { t } = useSiteI18n();
+    const letters = useBeatboxdleStats('letters');
+    const clues = useBeatboxdleStats('clues');
+    if (letters.played === 0 && clues.played === 0) return null;
+
+    return (
+        <section className="mt-14 border-t border-site-line pt-8" aria-labelledby="profile-dle">
+            <SectionTitle id="profile-dle">{t('games.beatboxdle.name')}</SectionTitle>
+            <div className="grid gap-8 md:grid-cols-2">
+                {[['letters', letters], ['clues', clues]].filter(([, stats]) => stats.played > 0).map(([mode, stats]) => (
+                    <div key={mode} className="flex flex-col gap-2">
+                        <p className="text-xs font-semibold uppercase tracking-wide text-brand-yellow">{t(`beatboxdle.modes.${mode}`)}</p>
+                        <StatsPanel t={t} stats={stats} maxAttempts={DLE_MAX_ATTEMPTS[mode]} />
+                    </div>
+                ))}
+            </div>
+        </section>
+    );
+}
 
 function GuestProfile({ pending }) {
     const { t } = useSiteI18n();
@@ -184,6 +241,7 @@ function ConnectedProfile() {
                                             { label: t('profile.peak'), value: formatNumber(language, rankingPlayer.peakRating ?? rankingPlayer.rating) },
                                         ]}
                                     />
+                                    <NextRankBar player={rankingPlayer} t={t} language={language} />
                                     {rankingPlayer.placementRemaining > 0 && (
                                         <p className="mt-4 rounded-lg bg-site-tint px-4 py-3 text-sm text-site-muted">
                                             {t('profile.placement', { count: rankingPlayer.placementRemaining })}
@@ -317,6 +375,7 @@ function ProfileContent() {
             <SEO title={t('profile.seoTitle')} description={t('profile.guestText')} url="https://beatboxgames.com/#/profile" />
             <PageContainer>
                 {isAuthenticated && user ? <ConnectedProfile /> : <GuestProfile pending={pending} />}
+                {!pending && <BeatboxdleProfileStats />}
             </PageContainer>
         </>
     );

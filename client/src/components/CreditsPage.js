@@ -12,11 +12,14 @@ const ARTISTS = [
     "Bronix", "Chris Celiz", "Colaps", "Den", "Derrick", "Dr koopa", "Dropical", "Dudz", "Dynamatt", "Efaybee", "Epock", "Epos", "Exallos", "Fabley", "Faya Braz", "FootboxG",
     "Fredy Beats", "Frosty", "Gene", "GTS", "G-Wizz", "Heartgrey", "Heartzel", "Helium", "Hobbit", "Jayton", "Julard",
     "Kaji", "Kenny Urban", "Kenozen", "Madox", "Max", "MixFX", "momimaru", "Mr Androide", "Osis", "Osy",
-    "PACMax", "Pash", "Patbox", "Pono", "Reeps One", "Remix", "Rich", "River'", "SamyTry", "Stan",
+    "PACMax", "Pash", "Patbox", "Pono", "Reeps One", "Remix", "Rich", "River'", "Samy Try", "Stan",
     "Supernova", "Synopsys", "Tunecinoo", "Vocodah", "Waali", "Wawad", "Xiphire", "Zede", "Zekka", "Zer0", "ZVD"
 ];
 
 const normalize = (value) => value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+
+// Adresse de la fiche : le serveur retrouve aussi le beatboxer à partir de cette forme du nom
+const slugify = (value) => normalize(value).replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
 
 // Défilement vers une lettre de l'index. Un lien « #letter-X » ne marche pas ici :
 // le site est routé par le hash, l'adresse deviendrait « /#letter-X » et mènerait à la page 404.
@@ -103,8 +106,14 @@ function CreditsContent() {
                                 <h2 className="mb-2 font-brand text-2xl leading-none text-site-soft">{group.initial}</h2>
                                 <ul className="flex flex-col">
                                     {group.names.map((name) => (
-                                        <li key={name} className="border-b border-site-line py-2 text-[0.95rem] font-semibold last:border-b-0">
-                                            {name}
+                                        <li key={name} className="border-b border-site-line last:border-b-0">
+                                            <Link
+                                                to={`/beatboxer/${encodeURIComponent(slugify(name))}`}
+                                                className="flex min-h-[2.75rem] items-center justify-between gap-2 py-2 text-[0.95rem] font-semibold transition-colors hover:text-brand-yellow"
+                                            >
+                                                {name}
+                                                <Icon name="chevron-right" size={15} className="shrink-0 text-site-soft" />
+                                            </Link>
                                         </li>
                                     ))}
                                 </ul>

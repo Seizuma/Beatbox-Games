@@ -211,6 +211,17 @@ function BuzzerBattle() {
         }
     }, [query]);
 
+    // Salle publique : démarrage automatique annoncé par le serveur
+    useEffect(() => {
+        const handlePublicState = ({ isPublic, autoStartInMs }) => {
+            // Fin du compte à rebours calculée sur l'horloge locale
+            const autoStartAt = typeof autoStartInMs === 'number' ? Date.now() + autoStartInMs : null;
+            setGameState((previous) => (previous ? { ...previous, isPublic, autoStartAt } : previous));
+        };
+        socketBuzzer.on('buzzer:publicState', handlePublicState);
+        return () => socketBuzzer.off('buzzer:publicState', handlePublicState);
+    }, []);
+
     // ✅ Écouter les mises à jour de configuration
     useEffect(() => {
         const handleConfigUpdated = (data) => {
@@ -752,6 +763,8 @@ function BuzzerBattle() {
                     setUsername={setUsername}
                     avatar={avatar}
                     discordUser={discordUser}
+                    autoQuick={query.get('quick') === '1'}
+                    initialCode={query.get('room') || ''}
                 />
             )}
 
@@ -791,6 +804,7 @@ function BuzzerBattle() {
                     wrongGuessFeedback={wrongGuessFeedback}
                     justReconnected={justReconnected}
                     gameConfig={gameState}
+                    roomCode={roomCode}
                     onQuit={handleBackToHome}
                 />
             )}

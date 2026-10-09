@@ -1,5 +1,6 @@
 import React from 'react';
 import Icon from '../icons/Icon';
+import { ReactionBubble } from './Reactions';
 
 // Couleur du bandeau lumineux selon l'état du joueur
 const LAMPS = {
@@ -38,6 +39,7 @@ export default function Lectern({
     empty = false,
     emptyLabel,
     onEmptyClick,
+    reaction = null,
     className = '',
 }) {
     const sizing = SIZES[size] || SIZES.md;
@@ -82,6 +84,7 @@ export default function Lectern({
                 </span>
             )}
 
+            <ReactionBubble reaction={reaction} />
             <span className="lectern-desk" aria-hidden="true" />
             <span className="lectern-strip" aria-hidden="true" />
 

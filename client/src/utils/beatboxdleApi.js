@@ -85,4 +85,38 @@ export async function reportResult({ mode, solved, attempts }) {
     }
 }
 
+/** Statistiques du compte Discord pour un mode, ou null (pas connecté, panne). */
+export async function fetchMyStats(mode) {
+    const token = getStoredDiscordToken();
+    if (!token) return null;
+    try {
+        const response = await fetch(`${API_BASE_URL}/api/beatboxdle/stats/me?mode=${encodeURIComponent(mode)}`, {
+            headers: authHeaders(),
+        });
+        const payload = await parse(response);
+        return (payload.stats && payload.stats[mode]) || null;
+    } catch (error) {
+        return null;
+    }
+}
+
+/** Réponses d'hier, par mode : de quoi se rappeler qui c'était, ou découvrir qui on a raté. */
+export async function fetchYesterday(signal) {
+    const response = await fetch(`${API_BASE_URL}/api/beatboxdle/yesterday`, { signal });
+    return parse(response);
+}
+
+/**
+ * Classement du jour ou de la semaine, réservé aux comptes Discord.
+ * `period` : 'day' ou 'week'. Renvoie aussi la place du joueur connecté.
+ */
+export async function fetchLeaderboard({ mode, period = 'day', limit = 10 }, signal) {
+    const query = new URLSearchParams({ mode, period, limit: String(limit) });
+    const response = await fetch(`${API_BASE_URL}/api/beatboxdle/leaderboard?${query}`, {
+        headers: authHeaders(),
+        signal,
+    });
+    return parse(response);
+}
+
 export { BeatboxdleError };

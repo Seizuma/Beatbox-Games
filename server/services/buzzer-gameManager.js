@@ -285,6 +285,8 @@ class BuzzerGameManager {
      * Supprime une partie
      */
     deleteGame(roomCode) {
+        // Compte à rebours d'une salle publique : il ne doit pas survivre à la partie
+        require('./publicRooms').cancel(`buzzer:${roomCode}`);
         this.games.delete(roomCode);
         console.log(`🗑️ Partie supprimée: ${roomCode}`);
     }

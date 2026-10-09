@@ -30,4 +30,20 @@ function authenticateDiscord(req, res, next) {
     }
 }
 
-module.exports = { authenticateDiscord };
+/**
+ * Variante facultative : un jeton valide renseigne req.user, sinon on continue
+ * sans. Pour les pages publiques qui montrent en plus « ta place ».
+ */
+function optionalDiscord(req, res, next) {
+    const authHeader = req.headers.authorization;
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+        try {
+            req.user = discordAuth.verifyJWT(authHeader.replace('Bearer ', ''));
+        } catch (error) {
+            req.user = null;
+        }
+    }
+    next();
+}
+
+module.exports = { authenticateDiscord, optionalDiscord };

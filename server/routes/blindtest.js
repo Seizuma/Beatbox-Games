@@ -6,6 +6,7 @@ const audioManager = require('../services/audioManager');
 const beatboxdleDataset = require('../services/beatboxdle-dataset');
 const buzzerBeatboxers = require('../services/buzzer-beatboxerManager');
 const { normalize } = require('../utils');
+const directory = require('../services/beatboxerDirectory');
 
 const router = express.Router();
 
@@ -78,6 +79,7 @@ router.get('/card', (req, res) => {
             success: true,
             card: {
                 name: profile ? profile.name : name,
+                slug: directory.slugFor(name),
                 photoUrl: photo ? `/api/beatboxer-images/${encodeURIComponent(photo)}` : null,
                 countryCode: profile ? profile.countryCode || null : null,
                 category: profile ? profile.category || null : null,

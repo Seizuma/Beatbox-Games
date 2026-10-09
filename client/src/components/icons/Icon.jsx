@@ -7,6 +7,14 @@ const STROKE_ICONS = {
     'arrow-right': <path d="M5 12h14M13 6l6 6-6 6" />,
     'chevron-down': <path d="M6 9l6 6 6-6" />,
     'chevron-right': <path d="M9 6l6 6-6 6" />,
+    zap: <path d="M13 3L5 13.5h6L10 21l8-10.5h-6L13 3z" />,
+    users: (
+        <>
+            <circle cx="9" cy="8" r="3.5" />
+            <path d="M3 20c0-3.3 2.7-6 6-6s6 2.7 6 6" />
+            <path d="M16 4.5a3.5 3.5 0 0 1 0 7M18 14.4c1.8.9 3 2.9 3 5.6" />
+        </>
+    ),
     external: (
         <>
             <path d="M14 4h6v6M20 4l-9 9" />

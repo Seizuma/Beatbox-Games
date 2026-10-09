@@ -203,15 +203,21 @@ function getPlayerRanking(game, discordId) {
         };
     }
 
+    // Le joueur juste devant : de quoi afficher « encore 14 points pour passer 7e »
+    const position = positions.get(discordId) || null;
+    const ahead = position && position > 1 ? ranked[position - 2] : null;
+
     return {
         rating: player.rating,
         peakRating: player.peakRating,
         rankedGames: player.rankedGames,
         wins: player.wins,
         winRate: player.winRate,
-        position: positions.get(discordId) || null,
+        position,
         placementRemaining: Math.max(0, RANKING_CONFIG.PLACEMENT_GAMES - player.rankedGames),
         totalRanked: ranked.length,
+        next: ahead ? { position: ahead.rank, rating: ahead.rating, gap: Math.max(1, ahead.rating - player.rating + 1) } : null,
+        behind: position && ranked[position] ? { position: ranked[position].rank, rating: ranked[position].rating } : null,
     };
 }
 

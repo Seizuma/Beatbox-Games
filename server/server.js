@@ -158,6 +158,10 @@ app.use('/api/players', playersRoutes);
 const beatboxdleRoutes = require('./routes/beatboxdle');
 app.use('/api/beatboxdle', beatboxdleRoutes);
 
+// Fiches publiques des beatboxers (pages /beatboxer/:slug du site)
+const beatboxersRoutes = require('./routes/beatboxers');
+app.use('/api/beatboxers', beatboxersRoutes);
+
 // Espace d'administration (accès restreint par ADMIN_DISCORD_IDS)
 const adminRoutes = require('./routes/admin');
 const { logAdminConfiguration } = require('./middleware/adminAuth');

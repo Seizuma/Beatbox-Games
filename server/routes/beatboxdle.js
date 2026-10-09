@@ -1,6 +1,6 @@
 // server/routes/beatboxdle.js
 const express = require('express');
-const { authenticateDiscord } = require('../middleware/auth');
+const { authenticateDiscord, optionalDiscord } = require('../middleware/auth');
 const dataset = require('../services/beatboxdle-dataset');
 const daily = require('../services/beatboxdle-daily');
 const {
@@ -252,6 +252,110 @@ router.get('/summary', requireDataset, (req, res) => {
         res.json({ success: true, modes });
     } catch (error) {
         console.error('❌ Erreur Beatboxdle summary:', error);
+        res.status(500).json({ success: false, error: 'Erreur serveur' });
+    }
+});
+
+// Rerolls d'une date donnée : la réponse d'hier dépend des relances d'hier
+const rerollsFor = (dateString) => {
+    try {
+        const db = getDatabase();
+        return Object.keys(daily.MODES).reduce((all, mode) => {
+            all[mode] = db.getBeatboxdleReroll(mode, dateString);
+            return all;
+        }, {});
+    } catch (error) {
+        return {};
+    }
+};
+
+// Midi UTC de la veille : toujours le bon jour à Paris, changement d'heure compris
+const yesterdayInstant = () => {
+    const [year, month, day] = daily.localDate().split('-').map(Number);
+    return new Date(Date.UTC(year, month - 1, day - 1, 12));
+};
+
+/**
+ * GET /api/beatboxdle/yesterday
+ * Réponses de la veille, par mode. Publiques : l'énigme est close.
+ */
+router.get('/yesterday', requireDataset, (req, res) => {
+    try {
+        const instant = yesterdayInstant();
+        const rerolls = rerollsFor(daily.localDate(instant));
+        const modes = {};
+
+        Object.keys(daily.MODES).forEach((mode) => {
+            const puzzle = daily.getPuzzle(mode, instant, rerolls);
+            if (!puzzle || puzzle.puzzleNumber < 1) return;
+            let dayStats = null;
+            try {
+                dayStats = getDatabase().getBeatboxdleDayStats(mode, puzzle.puzzleNumber);
+            } catch (error) {
+                dayStats = null;
+            }
+            modes[mode] = {
+                puzzleNumber: puzzle.puzzleNumber,
+                date: puzzle.date,
+                answer: { slug: puzzle.answer.slug, name: puzzle.answer.name },
+                players: dayStats ? dayStats.players : 0,
+                solvers: dayStats ? dayStats.solvers || 0 : 0,
+            };
+        });
+
+        res.set('Cache-Control', 'public, max-age=300');
+        res.json({ success: true, modes });
+    } catch (error) {
+        console.error('❌ Erreur Beatboxdle yesterday:', error);
+        res.status(500).json({ success: false, error: 'Erreur serveur' });
+    }
+});
+
+/**
+ * GET /api/beatboxdle/leaderboard?mode=letters&period=day|week&limit=10
+ * Classement des comptes Discord : l'énigme du jour, ou les 7 dernières.
+ * Avec un jeton, renvoie aussi la ligne du joueur (même hors du top).
+ */
+router.get('/leaderboard', requireDataset, optionalDiscord, (req, res) => {
+    const mode = daily.isMode(req.query.mode) ? req.query.mode : 'letters';
+    const period = req.query.period === 'week' ? 'week' : 'day';
+    const limit = Math.min(Math.max(parseInt(req.query.limit, 10) || 10, 1), 50);
+
+    try {
+        const today = daily.getPublicPuzzle(mode, new Date(), currentRerolls());
+        if (!today) return res.status(503).json({ success: false, error: 'Énigme indisponible' });
+
+        const toNumber = today.puzzleNumber;
+        const fromNumber = period === 'week' ? Math.max(1, toNumber - 6) : toNumber;
+        const rows = getDatabase()
+            .getBeatboxdleLeaderboard(mode, fromNumber, toNumber, today.maxAttempts)
+            .map((row, index) => ({
+                rank: index + 1,
+                discordId: row.discordId,
+                username: row.username || 'Joueur',
+                avatar: row.avatar ? `https://cdn.discordapp.com/avatars/${row.discordId}/${row.avatar}.png?size=64` : null,
+                played: row.played,
+                solved: row.solved || 0,
+                attempts: row.attempts || 0,
+                points: row.points || 0,
+            }));
+
+        const me = req.user ? rows.find((row) => row.discordId === req.user.discordId) || null : null;
+
+        res.set('Cache-Control', 'no-store');
+        res.json({
+            success: true,
+            mode,
+            period,
+            puzzleNumber: toNumber,
+            fromNumber,
+            maxAttempts: today.maxAttempts,
+            total: rows.length,
+            leaderboard: rows.slice(0, limit),
+            me,
+        });
+    } catch (error) {
+        console.error('❌ Erreur Beatboxdle leaderboard:', error);
         res.status(500).json({ success: false, error: 'Erreur serveur' });
     }
 });

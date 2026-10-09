@@ -1,6 +1,8 @@
 const buzzerGameManager = require('./services/buzzer-gameManager');
 const buzzerBeatboxerManager = require('./services/buzzer-beatboxerManager');
 const { BUZZER_CONFIG } = require('./constants');
+const { isReaction, allowReaction } = require('./services/reactions');
+const publicRooms = require('./services/publicRooms');
 
 // Nombre minimum de beatboxers à garder cochés (c'est aussi le nombre minimum de manches)
 const MIN_BEATBOXER_POOL = 5;
@@ -90,6 +92,8 @@ function handleBuzzerSocketConnection(socket, io) {
                 totalRounds: config.totalRounds || 10,
                 excludedBeatboxers: []
             });
+            // Salle publique : listée sur l'accueil, ouverte à la partie rapide
+            game.isPublic = Boolean(config.isPublic);
 
             // ✅ AJOUT : Logs Discord
             console.log('👤 Création joueur:', {
@@ -189,6 +193,7 @@ function handleBuzzerSocketConnection(socket, io) {
                 players: playersWithStatus,
                 totalPlayers: Object.keys(updatedGame.players).length
             });
+            syncPublicAutoStart(roomCode, io);
 
             // ✅ S'assurer que la configuration est bien retournée
             const gameResponse = {
@@ -323,6 +328,7 @@ function handleBuzzerSocketConnection(socket, io) {
                 username: targetUsername,
                 kickedBy: game.players[socket.id].username
             });
+            syncPublicAutoStart(roomCode, io);
 
             console.log(`🚫 ${targetUsername} exclu de ${roomCode} par ${game.players[socket.id].username}`);
 
@@ -351,40 +357,8 @@ function handleBuzzerSocketConnection(socket, io) {
                 return callback({ success: false, error: 'Partie déjà commencée' });
             }
 
-            console.log(`⏱️ Countdown démarré pour la room ${roomCode}`);
-
-            let countdown = 3;
-            const countdownInterval = setInterval(() => {
-                io.to(roomCode).emit('buzzer:countdown', countdown);
-                countdown--;
-
-                if (countdown < 0) {
-                    clearInterval(countdownInterval);
-                    io.to(roomCode).emit('buzzer:countdownEnd');
-                }
-            }, 1000);
-
-            // ✅ Démarrer la partie après 4 secondes
-            setTimeout(() => {
-                const updatedGame = buzzerGameManager.startRound(roomCode);
-                const beatboxerData = buzzerBeatboxerManager.getBeatboxerData(updatedGame.currentBeatboxer);
-
-                console.log('🖼️ Données beatboxer:', {
-                    title: updatedGame.currentBeatboxer.title,
-                    imageUrl: beatboxerData.imageUrl,
-                    hasLocalImage: !!updatedGame.currentBeatboxer.local_image
-                });
-
-                io.to(roomCode).emit('buzzer:gameStarted', {
-                    currentRound: updatedGame.currentRound,
-                    totalRounds: updatedGame.totalRounds,
-                    beatboxerImage: beatboxerData.imageUrl
-                });
-
-                startBlurProgression(roomCode, io);
-
-                callback({ success: true });
-            }, 4000);
+            const launched = launchGame(roomCode, io);
+            callback(launched);
 
         } catch (error) {
             console.error('❌ Erreur startGame:', error);
@@ -458,6 +432,17 @@ function handleBuzzerSocketConnection(socket, io) {
             console.error('❌ Erreur buzz:', error);
             callback({ success: false, error: error.message });
         }
+    });
+
+    // ==================== RÉACTIONS ====================
+    // Un des six émojis prédéfinis, relayé aux joueurs de la salle
+    socket.on('buzzer:reaction', (payload) => {
+        // Charge utile absente ou null : on ignore, sans planter le serveur
+        const { roomCode, id } = payload || {};
+        if (!isReaction(id) || !allowReaction(socket)) return;
+        const game = buzzerGameManager.getGame(roomCode);
+        if (!game || !game.players || !game.players[socket.id]) return;
+        io.to(roomCode).emit('buzzer:reaction', { playerId: socket.id, id });
     });
 
     // ==================== DEVINER ====================
@@ -543,10 +528,13 @@ function handleBuzzerSocketConnection(socket, io) {
                 player.wrongGuesses = 0;
             });
 
+            game.launching = false;
+
             // Notifier tous les joueurs
             io.to(roomCode).emit('buzzer:gameReset', {
                 game: game
             });
+            syncPublicAutoStart(roomCode, io);
 
             console.log(`🔄 Partie ${roomCode} réinitialisée`);
 
@@ -623,6 +611,8 @@ function handleBuzzerSocketConnection(socket, io) {
             }
         }
 
+        syncPublicAutoStart(playerRoom, io);
+
         // ✅ CRITIQUE : Vérifier immédiatement si la room est vide
         const allPlayers = Object.values(game.players);
         const connectedPlayers = allPlayers.filter(p => p.connected);
@@ -660,6 +650,7 @@ function handleBuzzerSocketConnection(socket, io) {
                         playerId: socket.id,
                         username: playerUsername
                     });
+                    syncPublicAutoStart(playerRoom, io);
 
                     // ✅ Re-vérifier si la room est devenue vide
                     const remainingPlayers = Object.values(currentGame.players).filter(p => p.connected);
@@ -724,6 +715,7 @@ function handleBuzzerSocketConnection(socket, io) {
                 username: username,
                 isCreator: game.creatorId === socket.id
             });
+            syncPublicAutoStart(roomCode, io);
 
             // ✅ Préparer l'état complet du jeu pour la reconnexion
             const gameState = {
@@ -927,6 +919,96 @@ const { BuzzerRoundClock } = require('./services/buzzerRoundClock');
 
 // Une seule horloge pour toutes les salles, créée à la première utilisation
 let roundClock = null;
+
+/**
+ * Lance la partie : décompte 3-2-1 puis première manche. Commun au bouton de
+ * l'hôte et au démarrage automatique des salles publiques.
+ */
+function launchGame(roomCode, io) {
+    const game = buzzerGameManager.getGame(roomCode);
+    if (!game) return { success: false, error: 'Room introuvable' };
+    if (game.status !== 'waiting' || game.launching) return { success: false, error: 'Partie déjà commencée' };
+
+    // Le statut ne passe à « playing » qu'à la première manche : sans ce verrou,
+    // deux départs (hôte et minuteur) pourraient se croiser pendant le décompte
+    game.launching = true;
+    publicRooms.cancel(`buzzer:${roomCode}`);
+    game.autoStartAt = null;
+    io.to(roomCode).emit('buzzer:publicState', { isPublic: Boolean(game.isPublic), autoStartAt: null });
+
+    console.log(`⏱️ Countdown démarré pour la room ${roomCode}`);
+
+    let countdown = 3;
+    const countdownInterval = setInterval(() => {
+        io.to(roomCode).emit('buzzer:countdown', countdown);
+        countdown--;
+
+        if (countdown < 0) {
+            clearInterval(countdownInterval);
+            io.to(roomCode).emit('buzzer:countdownEnd');
+        }
+    }, 1000);
+
+    setTimeout(() => {
+        const current = buzzerGameManager.getGame(roomCode);
+        if (!current) return;
+        current.launching = false;
+        const updatedGame = buzzerGameManager.startRound(roomCode);
+        if (!updatedGame || !updatedGame.currentBeatboxer) return;
+        const beatboxerData = buzzerBeatboxerManager.getBeatboxerData(updatedGame.currentBeatboxer);
+
+        io.to(roomCode).emit('buzzer:gameStarted', {
+            currentRound: updatedGame.currentRound,
+            totalRounds: updatedGame.totalRounds,
+            beatboxerImage: beatboxerData.imageUrl
+        });
+
+        startBlurProgression(roomCode, io);
+    }, 4000);
+
+    return { success: true };
+}
+
+/**
+ * Salle publique : à deux joueurs connectés ou plus, la partie démarre seule
+ * au bout de 20 s. Recalculé à chaque arrivée, départ ou remise à zéro.
+ */
+function syncPublicAutoStart(roomCode, io) {
+    const game = buzzerGameManager.getGame(roomCode);
+    if (!game || !game.isPublic) return;
+    const key = `buzzer:${roomCode}`;
+    const connected = Object.values(game.players || {}).filter((player) => player.connected !== false).length;
+    const before = game.autoStartAt || null;
+
+    if (game.status === 'waiting' && !game.launching && connected >= publicRooms.MIN_PLAYERS) {
+        if (!game.autoStartAt) {
+            game.autoStartAt = publicRooms.schedule(key, () => {
+                const current = buzzerGameManager.getGame(roomCode);
+                if (current !== game) return;
+                game.autoStartAt = null;
+                const stillThere = Object.values(game.players || {}).filter((player) => player.connected !== false).length;
+                if (game.status === 'waiting' && stillThere >= publicRooms.MIN_PLAYERS) {
+                    console.log(`⏱️ Salle publique ${roomCode} : démarrage automatique à ${stillThere} joueurs`);
+                    launchGame(roomCode, io);
+                } else {
+                    io.to(roomCode).emit('buzzer:publicState', { isPublic: true, autoStartAt: null });
+                }
+            });
+        }
+    } else if (game.autoStartAt) {
+        publicRooms.cancel(key);
+        game.autoStartAt = null;
+    }
+
+    if ((game.autoStartAt || null) !== before) {
+        io.to(roomCode).emit('buzzer:publicState', {
+            isPublic: true,
+            autoStartAt: game.autoStartAt || null,
+            // Durée restante : l'horloge du téléphone peut être décalée
+            autoStartInMs: game.autoStartAt ? Math.max(0, game.autoStartAt - Date.now()) : null,
+        });
+    }
+}
 
 function getRoundClock(io) {
     if (roundClock) return roundClock;

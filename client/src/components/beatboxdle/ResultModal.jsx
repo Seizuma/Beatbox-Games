@@ -1,6 +1,11 @@
 import React, { useEffect, useRef, useState } from 'react';
+import { Link } from 'react-router-dom';
 import GuessAvatar from './GuessAvatar';
+import StatsPanel from './StatsPanel';
 import { continentName, countryName, categoryName, titleName } from '../../utils/beatboxdleLabels';
+import { fetchLeaderboard } from '../../utils/beatboxdleApi';
+import { getStoredDiscordToken } from '../../utils/useApi';
+import { formatOrdinal } from '../../utils/siteI18n';
 
 const SQUARE = { correct: '\u{1F7E9}', present: '\u{1F7E7}', absent: '\u{2B1B}' };
 const CLUE_FIELDS = ['country', 'gender', 'firstYear', 'title'];
@@ -58,10 +63,35 @@ function Fact({ label, value, hint }) {
  * La fenêtre se ferme (Échap, la croix, le fond) et la grille reste consultable
  * derrière — on peut la rouvrir depuis le bandeau de fin.
  */
-export default function ResultModal({ t, language, answer, solved, guesses, puzzle, mode, modeLabel, onClose }) {
+/**
+ * Place du jour pour un compte Discord. Le résultat part au serveur en même
+ * temps que la fiche s'ouvre : on relit une fois, un instant plus tard.
+ */
+function useDayRank(mode) {
+    const [rank, setRank] = useState(null);
+
+    useEffect(() => {
+        if (!getStoredDiscordToken()) return undefined;
+        const controller = new AbortController();
+        const timer = setTimeout(() => {
+            fetchLeaderboard({ mode, period: 'day', limit: 1 }, controller.signal)
+                .then((payload) => setRank(payload.me ? { rank: payload.me.rank, total: payload.total } : null))
+                .catch(() => setRank(null));
+        }, 800);
+        return () => {
+            clearTimeout(timer);
+            controller.abort();
+        };
+    }, [mode]);
+
+    return rank;
+}
+
+export default function ResultModal({ t, language, answer, solved, guesses, puzzle, mode, modeLabel, stats, streak, onClose }) {
     const [copied, setCopied] = useState(false);
     const countdown = useCountdown(puzzle.nextResetAt);
     const closeRef = useRef(null);
+    const dayRank = useDayRank(mode);
 
     // Le focus entre dans la fenêtre, sinon la tabulation continue derrière
     useEffect(() => {
@@ -169,16 +199,47 @@ export default function ResultModal({ t, language, answer, solved, guesses, puzz
                     </div>
                 </dl>
 
-                {answer.source && (
-                    <a
-                        href={answer.source}
-                        target="_blank"
-                        rel="noreferrer noopener"
-                        className="text-sm font-medium text-site-ink underline underline-offset-4"
-                    >
-                        {t('beatboxdle.result.profileLink')}
-                    </a>
+                <div className="flex flex-wrap items-center gap-x-5 gap-y-2">
+                    {answer.slug && (
+                        <Link
+                            to={`/beatboxer/${encodeURIComponent(answer.slug)}`}
+                            className="text-sm font-semibold text-site-ink underline underline-offset-4"
+                        >
+                            {t('beatboxdle.result.cardLink')}
+                        </Link>
+                    )}
+                    {answer.source && (
+                        <a
+                            href={answer.source}
+                            target="_blank"
+                            rel="noreferrer noopener"
+                            className="text-sm font-medium text-site-muted underline underline-offset-4"
+                        >
+                            {t('beatboxdle.result.profileLink')}
+                        </a>
+                    )}
+                </div>
+
+                {stats && (
+                    <div className="border-t border-site-line pt-5">
+                        <StatsPanel
+                            t={t}
+                            stats={stats}
+                            streak={streak}
+                            maxAttempts={puzzle.maxAttempts}
+                            highlight={solved ? guesses.length : null}
+                        />
+                    </div>
                 )}
+
+                <p className="-mt-1 text-xs text-site-muted">
+                    {dayRank
+                        ? t('beatboxdle.result.dayRank', { rank: formatOrdinal(language, dayRank.rank), total: dayRank.total })
+                        : t('beatboxdle.result.dayRankGuest')}{' '}
+                    <Link to="/beatboxdle" className="font-semibold text-site-ink underline underline-offset-4">
+                        {t('beatboxdle.result.seeRanking')}
+                    </Link>
+                </p>
 
                 <div className="flex flex-col gap-3 border-t border-site-line pt-5">
                     <button

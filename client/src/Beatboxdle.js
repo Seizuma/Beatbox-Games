@@ -1,10 +1,13 @@
 import React, { useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
 import SEO from './components/SEO';
 import SiteShell from './components/site/SiteShell';
 import ModeCard from './components/beatboxdle/ModeCard';
+import DayLeaderboard from './components/beatboxdle/DayLeaderboard';
 import { useSiteI18n } from './utils/siteI18n';
-import { fetchSummary } from './utils/beatboxdleApi';
+import { fetchSummary, fetchYesterday } from './utils/beatboxdleApi';
 import { loadGame, purgeOldGames } from './utils/beatboxdleStorage';
+import { getLocalStats, liveStreak, recordLocalResult } from './utils/beatboxdleHistory';
 
 const MODES = ['letters', 'clues'];
 
@@ -16,11 +19,59 @@ const MODES = ['letters', 'clues'];
  * choix règle les deux : chaque mode se présente, et l'état du jour se lit
  * d'un coup d'œil — c'est ce qu'on vient vérifier en ouvrant la page.
  */
+/** Réponses d'hier : on se rappelle qui c'était, ou on découvre celui qu'on a raté. */
+function Yesterday({ t }) {
+    const [modes, setModes] = useState(null);
+
+    useEffect(() => {
+        const controller = new AbortController();
+        fetchYesterday(controller.signal)
+            .then((payload) => setModes(payload.modes || {}))
+            .catch(() => setModes(null));
+        return () => controller.abort();
+    }, []);
+
+    const entries = MODES.filter((mode) => modes && modes[mode]);
+    if (entries.length === 0) return null;
+
+    return (
+        <section aria-labelledby="dle-yesterday" className="flex flex-col gap-2">
+            <h2 id="dle-yesterday" className="text-xs font-semibold uppercase tracking-wide text-site-muted">
+                {t('beatboxdle.yesterday.title')}
+            </h2>
+            <ul className="flex flex-col gap-2">
+                {entries.map((mode) => {
+                    const entry = modes[mode];
+                    return (
+                        <li key={mode} className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5 rounded-lg border border-site-line px-4 py-3">
+                            <span className="text-sm text-site-muted">
+                                {t(`beatboxdle.modes.${mode}`)}{' · '}
+                                <Link
+                                    to={`/beatboxer/${encodeURIComponent(entry.answer.slug)}`}
+                                    className="font-bold text-site-ink underline decoration-brand-yellow decoration-2 underline-offset-4 hover:decoration-site-ink"
+                                >
+                                    {entry.answer.name}
+                                </Link>
+                            </span>
+                            {entry.players > 0 && (
+                                <span className="text-xs text-site-soft">
+                                    {t('beatboxdle.yesterday.found', { count: entry.solvers, total: entry.players })}
+                                </span>
+                            )}
+                        </li>
+                    );
+                })}
+            </ul>
+        </section>
+    );
+}
+
 function BeatboxdleHome() {
-    const { t } = useSiteI18n();
+    const { t, language } = useSiteI18n();
     const [status, setStatus] = useState('loading');
     const [modes, setModes] = useState({});
     const [played, setPlayed] = useState({});
+    const [streaks, setStreaks] = useState({});
 
     useEffect(() => {
         const controller = new AbortController();
@@ -43,8 +94,19 @@ function BeatboxdleHome() {
                         solved: saved.guesses.some((guess) => guess.correct),
                         attempts: saved.guesses.length,
                     };
+                    if (found[mode].finished) {
+                        recordLocalResult(mode, puzzle.puzzleNumber, found[mode].solved, found[mode].attempts);
+                    }
                 });
                 setPlayed(found);
+
+                // Série en cours, lue dans l'historique du navigateur
+                const live = {};
+                MODES.forEach((mode) => {
+                    const puzzle = (payload.modes || {})[mode];
+                    if (puzzle) live[mode] = liveStreak(getLocalStats(mode), puzzle.puzzleNumber);
+                });
+                setStreaks(live);
 
                 const anyDate = Object.values(payload.modes || {})[0];
                 if (anyDate) purgeOldGames(anyDate.date);
@@ -114,6 +176,7 @@ function BeatboxdleHome() {
                                     description={t(`beatboxdle.home.${mode}`)}
                                     badge={badge}
                                     badgeTone={tone}
+                                    streak={streaks[mode] ? t('beatboxdle.home.streak', { count: streaks[mode] }) : null}
                                 />
                             );
                         })}
@@ -122,6 +185,12 @@ function BeatboxdleHome() {
 
                 {status === 'ready' && (
                     <p className="text-center text-xs text-site-soft">{t('beatboxdle.home.reset')}</p>
+                )}
+
+                {status === 'ready' && <Yesterday t={t} />}
+
+                {status === 'ready' && (
+                    <DayLeaderboard t={t} language={language} modes={MODES.filter((mode) => modes[mode])} />
                 )}
             </div>
         </>

@@ -6,9 +6,12 @@ import useUrlTab from '../hooks/useUrlTab.js';
 import { ArtistList, Figures, LeaderboardTable, RankingExplainer, RateBars } from './stats/StatsBlocks';
 import { useSiteI18n, formatNumber } from '../utils/siteI18n';
 import { useApi } from '../utils/useApi';
+import { RankRow } from './site/RankingPreview';
+import DayLeaderboard from './beatboxdle/DayLeaderboard';
+import { useDiscordAuth } from '../utils/discordAuth';
 
 const LEADERBOARD_LIMIT = 15;
-const GAME_TABS = ['blindtest', 'buzzer', 'all'];
+const GAME_TABS = ['blindtest', 'buzzer', 'all', 'beatboxdle'];
 
 const toArtistBars = (list = []) => list.map((item) => ({ key: item.name, label: item.name, rate: item.successRate }));
 
@@ -213,10 +216,55 @@ function BuzzerStats() {
     );
 }
 
+/**
+ * La semaine : victoires et points des sept derniers jours. La cote récompense
+ * la régularité sur des mois ; ce tableau-là se rejoue chaque semaine.
+ */
+function WeekSection({ game }) {
+    const { t, language } = useSiteI18n();
+    const { user } = useDiscordAuth();
+    const week = useApi(`/api/ranking/week?game=${game}&limit=10`);
+    const rows = week.data?.leaderboard || [];
+
+    return (
+        <section>
+            <SectionTitle id="week-leaderboard" aside={t('stats.weekHelp')}>{t('stats.week')}</SectionTitle>
+            <DataState status={week.status} isEmpty={rows.length === 0} loadingText={t('common.loading')} errorText={t('common.loadError')} emptyText={t('stats.weekEmpty')} skeletonRows={5}>
+                <ol aria-labelledby="week-leaderboard">
+                    {rows.map((row) => {
+                        const isMe = Boolean(user?.username) && row.username === user.username;
+                        return (
+                            <RankRow
+                                key={`${row.rank}-${row.username}`}
+                                rank={row.rank}
+                                avatar={row.avatar}
+                                username={row.username}
+                                value={t('stats.weekValue', { wins: formatNumber(language, row.wins), games: formatNumber(language, row.games) })}
+                                isMe={isMe}
+                                label={isMe ? t('common.you') : null}
+                            />
+                        );
+                    })}
+                </ol>
+            </DataState>
+        </section>
+    );
+}
+
 function AllGamesStats() {
     return (
-        <div className="max-w-3xl">
+        <div className="grid gap-10 lg:grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)] lg:gap-12">
             <RankingSection game="all" titleId="all-leaderboard" />
+            <WeekSection game="all" />
+        </div>
+    );
+}
+
+function BeatboxdleRanking() {
+    const { t, language } = useSiteI18n();
+    return (
+        <div className="max-w-2xl">
+            <DayLeaderboard t={t} language={language} modes={['letters', 'clues']} />
         </div>
     );
 }
@@ -239,6 +287,7 @@ function StatsContent() {
                             { id: 'blindtest', label: t('games.blindtest.name') },
                             { id: 'buzzer', label: t('games.buzzer.name') },
                             { id: 'all', label: t('games.all') },
+                            { id: 'beatboxdle', label: t('games.beatboxdle.name') },
                         ]}
                     />
                 </PageHeader>
@@ -247,6 +296,7 @@ function StatsContent() {
                     {game === 'blindtest' && <BlindTestStats />}
                     {game === 'buzzer' && <BuzzerStats />}
                     {game === 'all' && <AllGamesStats />}
+                    {game === 'beatboxdle' && <BeatboxdleRanking />}
                 </div>
             </PageContainer>
         </>
