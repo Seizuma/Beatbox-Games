@@ -16,7 +16,7 @@ function ShowThemeToggle({ language }) {
             type="button"
             onClick={toggle}
             aria-label={label}
-            className="flex h-10 w-10 items-center justify-center rounded-full text-show-muted transition-colors hover:bg-show-stage-2 hover:text-show-white"
+            className="flex h-11 w-11 items-center justify-center rounded-full text-show-muted transition-colors hover:bg-show-stage-2 hover:text-show-white"
         >
             <Icon name={isNight ? 'sun' : 'moon'} size={18} />
         </button>
@@ -27,12 +27,14 @@ function ShowThemeToggle({ language }) {
 // Le logo reste visible et ramène au site ; le reste de la navigation du site est absent.
 // Les informations de jeu (manche, netteté…) vivent dans la zone de jeu, pas dans cette barre.
 // quitConfirm = { title, text, confirmLabel, cancelLabel, closeLabel } demande une confirmation avant de quitter.
+// showSettings = false retire la bascule de thème : pendant une partie, la barre ne garde que le jeu (volume, quitter).
 export default function GameShell({
     title,
     onQuit,
     quitLabel,
     quitConfirm,
     tools,
+    showSettings = true,
     actionBar,
     actionBarClassName = '',
     keepAwake = true,
@@ -84,7 +86,7 @@ export default function GameShell({
                         to="/"
                         onClick={handleHomeClick}
                         aria-label={homeLabel}
-                        className="flex shrink-0 items-center rounded-full p-1 transition-opacity hover:opacity-80"
+                        className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full transition-opacity hover:opacity-80"
                     >
                         <BrandMark size={24} />
                     </Link>
@@ -93,7 +95,7 @@ export default function GameShell({
                         <button
                             type="button"
                             onClick={handleQuitClick}
-                            className="inline-flex items-center gap-1.5 rounded-full px-2 py-1.5 text-sm font-semibold text-show-muted transition-colors hover:text-show-white"
+                            className="inline-flex h-11 min-w-[2.75rem] items-center justify-center gap-1.5 rounded-full px-2 text-sm font-semibold text-show-muted transition-colors hover:text-show-white"
                         >
                             <Icon name="arrow-left" size={18} />
                             <span className="hidden sm:inline">{quitLabel}</span>
@@ -105,7 +107,7 @@ export default function GameShell({
 
                     <div className="ml-auto flex items-center gap-1 sm:gap-2">
                         {tools}
-                        <ShowThemeToggle language={language} />
+                        {showSettings && <ShowThemeToggle language={language} />}
                     </div>
                 </div>
             </header>

@@ -88,7 +88,7 @@ const VolumeControl = ({
                 onClick={() => setShowVolumeControl(!showVolumeControl)}
                 aria-expanded={showVolumeControl}
                 aria-controls={panelId}
-                className={`flex h-8 w-8 items-center justify-center rounded-full transition-colors ${showVolumeControl ? 'bg-show-yellow text-show-night' : 'bg-show-stage-2 text-show-white hover:text-show-yellow'} ${localVolume === 0 ? 'opacity-60' : ''}`}
+                className={`flex h-11 w-11 items-center justify-center rounded-full transition-colors ${showVolumeControl ? 'bg-show-yellow text-show-night' : 'bg-show-stage-2 text-show-white hover:text-show-yellow'} ${localVolume === 0 ? 'opacity-60' : ''}`}
             >
                 <Icon name="volume" size={18} title={label} />
             </button>

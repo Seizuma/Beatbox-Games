@@ -41,7 +41,6 @@ const LobbyView = ({
     handleKickPlayer,
     handleTransferHost,
     LanguageSwitch,
-    GameModeBadge,
     language,
     onBackToHub,
     forceEnableAudio,
@@ -55,8 +54,12 @@ const LobbyView = ({
 
     const playerList = Array.isArray(players) ? players.filter(Boolean) : [];
     const playerCount = playerList.length;
-    const readyCount = playerList.filter((player) => player.ready).length;
-    const allPlayersReady = playerCount >= 1 && readyCount === playerCount;
+    // L'hôte est prêt d'office : il ne se déclare pas prêt, il lance
+    const isPlayerReady = (player) => Boolean(player.ready) || player.pseudo === creatorPseudo;
+    const connectedPlayers = playerList.filter((player) => player.connected !== false);
+    const readyCount = playerList.filter(isPlayerReady).length;
+    const notReadyCount = connectedPlayers.filter((player) => !isPlayerReady(player)).length;
+    const allPlayersReady = connectedPlayers.length >= 1 && notReadyCount === 0;
     const currentPlayer = playerList.find((player) => player.pseudo === pseudo);
     const canEditPseudo = !(currentPlayer?.isDiscordUser && currentPlayer?.discordId);
     const otherPlayers = playerList.filter((player) => player.pseudo !== pseudo);
@@ -72,13 +75,19 @@ const LobbyView = ({
         handleStartGame();
     };
 
-    const statusHint = allPlayersReady
-        ? (isCreator ? st('lobby.hostHint') : st('lobby.waitingHost', { host: creatorPseudo }))
-        : st('lobby.notAllReady');
+    const hostHint = () => {
+        if (notReadyCount === 1) return st('lobby.hostWaitingOne');
+        if (notReadyCount > 1) return st('lobby.hostWaitingMany', { count: notReadyCount });
+        return connectedPlayers.length <= 1 ? st('lobby.hostSolo') : st('lobby.hostHint');
+    };
+
+    const statusHint = isCreator
+        ? hostHint()
+        : (allPlayersReady ? st('lobby.waitingHost', { host: creatorPseudo }) : st('lobby.notAllReady'));
 
     const playerStatus = (player) => {
         if (!player.connected) return 'offline';
-        return player.ready ? 'ready' : 'waiting';
+        return isPlayerReady(player) ? 'ready' : 'waiting';
     };
 
     const statusLabel = {
@@ -95,19 +104,20 @@ const LobbyView = ({
             tools={LanguageSwitch ? <LanguageSwitch /> : null}
             actionBar={
                 <div className="flex flex-col gap-2">
-                    {canStart && (
-                        <ShowButton size="lg" block onClick={handleStart}>
+                    {isCreator ? (
+                        <ShowButton size="lg" block onClick={handleStart} disabled={!canStart}>
                             {st('lobby.start')}
                         </ShowButton>
+                    ) : (
+                        <ShowButton
+                            size="lg"
+                            block
+                            variant={isReady ? 'outline' : 'yellow'}
+                            onClick={handleToggleReady}
+                        >
+                            {isReady ? st('lobby.unsetReady') : st('lobby.setReady')}
+                        </ShowButton>
                     )}
-                    <ShowButton
-                        size={canStart ? 'md' : 'lg'}
-                        block
-                        variant={isReady || canStart ? 'outline' : 'yellow'}
-                        onClick={handleToggleReady}
-                    >
-                        {isReady ? st('lobby.unsetReady') : st('lobby.setReady')}
-                    </ShowButton>
                     <p className="text-center text-xs text-show-muted" aria-live="polite">{statusHint}</p>
                 </div>
             }
@@ -231,13 +241,12 @@ const LobbyView = ({
                             editLabel={st('lobby.edit')}
                             onEdit={isCreator ? () => setShowSettings(true) : undefined}
                             rows={[
-                                { label: st('lobby.artistsLabel'), value: localArtistCount },
+                                { label: st('lobby.roundsLabel'), value: localArtistCount },
                                 ...(artistPool?.total ? [{
                                     label: st('lobby.selectionLabel'),
                                     value: st('lobby.selectionValue', { count: artistPool.available, total: artistPool.total }),
                                 }] : []),
                                 { label: st('lobby.timeLabel'), value: st('lobby.seconds', { seconds: localAnswerTime }) },
-                                ...(GameModeBadge ? [{ label: st('lobby.modeLabel'), value: <GameModeBadge /> }] : []),
                             ]}
                         />
                         <div className="hidden lg:block">

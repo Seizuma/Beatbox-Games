@@ -736,39 +736,85 @@ function handleOnlineSocketConnection(socket, io) {
         }
     });
 
+    // Revanche : après l'écran de fin, le joueur revient dans la salle d'attente de la même salle.
+    // Le premier qui revient remet la salle à zéro ; les autres la retrouvent déjà en attente.
+    socket.on('return-to-lobby', (payload, callback) => {
+        const reply = typeof callback === 'function' ? callback : () => { };
+        const { onlineRoom, onlinePseudo } = socket.data;
+        const room = roomManager.getRoom(onlineRoom);
+
+        if (!room || !onlinePseudo || !room.getPlayer(onlinePseudo)) {
+            reply({ success: false, error: 'Room introuvable' });
+            return;
+        }
+
+        if (room.state === ROOM_STATES.FINISHED) {
+            room.reset();
+            GameManager.emitRoomUpdate(room, io);
+        } else if (room.state !== ROOM_STATES.WAITING) {
+            reply({ success: false, error: 'Partie en cours' });
+            return;
+        }
+
+        room.updateActivity();
+        reply({
+            success: true,
+            code: room.code,
+            isCreator: room.isCreator(onlinePseudo)
+        });
+        logger.info(`${onlinePseudo} revient dans la salle d'attente de ${room.code}`);
+    });
+
+    // Départ volontaire (bouton Quitter, retour au site) : sans ce signal, le joueur restait
+    // affiché comme connecté jusqu'à la fermeture de l'onglet et bloquait le lancement.
+    socket.on('leaveRoom', () => {
+        const { onlineRoom } = socket.data;
+        if (!onlineRoom) return;
+
+        removeSocketFromRoom(socket, io, 'a quitté la room');
+        socket.leave(onlineRoom);
+        socket.data.onlineRoom = null;
+        socket.data.onlinePseudo = null;
+    });
+
     // Déconnexion
     socket.on('disconnect', () => {
-        const { onlineRoom, onlinePseudo } = socket.data;
-        if (!onlineRoom || !onlinePseudo) return;
-
-        const room = roomManager.getRoom(onlineRoom);
-        if (room) {
-            const wasHost = room.isCreator(onlinePseudo);
-
-            room.removePlayer(onlinePseudo);
-
-            // Notifier le transfert automatique de host
-            if (wasHost && room.getConnectedPlayers().length > 0) {
-                io.to(onlineRoom).emit('host-transferred', {
-                    newHost: room.creatorPseudo,
-                    oldHost: onlinePseudo,
-                    message: `${room.creatorPseudo} est maintenant le host de la room`,
-                    isAutomatic: true
-                });
-            }
-
-            // Vérification après déconnexion
-            roomManager.checkRoomAfterDisconnection(room, io);
-
-            if (room.isEmpty()) {
-                roomManager.deleteRoom(room.code, 'room vide');
-            } else {
-                GameManager.emitRoomUpdate(room, io);
-            }
-
-            logger.info(`${onlinePseudo} déconnecté de la room ${room.code}`);
-        }
+        removeSocketFromRoom(socket, io, 'déconnecté de la room');
     });
+}
+
+// Retire le joueur de ce socket de sa salle : transfert d'hôte, salle vide supprimée, mise à jour des autres
+function removeSocketFromRoom(socket, io, reason) {
+    const { onlineRoom, onlinePseudo } = socket.data;
+    if (!onlineRoom || !onlinePseudo) return;
+
+    const room = roomManager.getRoom(onlineRoom);
+    if (!room) return;
+
+    const wasHost = room.isCreator(onlinePseudo);
+
+    room.removePlayer(onlinePseudo);
+
+    // Notifier le transfert automatique de host
+    if (wasHost && room.getConnectedPlayers().length > 0) {
+        io.to(onlineRoom).emit('host-transferred', {
+            newHost: room.creatorPseudo,
+            oldHost: onlinePseudo,
+            message: `${room.creatorPseudo} est maintenant le host de la room`,
+            isAutomatic: true
+        });
+    }
+
+    // Vérification après déconnexion
+    roomManager.checkRoomAfterDisconnection(room, io);
+
+    if (room.isEmpty()) {
+        roomManager.deleteRoom(room.code, 'room vide');
+    } else {
+        GameManager.emitRoomUpdate(room, io);
+    }
+
+    logger.info(`${onlinePseudo} ${reason} ${room.code}`);
 }
 
 function collectDetailedPlayerStats(room, pseudo) {

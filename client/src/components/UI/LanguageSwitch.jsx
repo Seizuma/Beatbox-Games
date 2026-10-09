@@ -25,7 +25,7 @@ const LanguageSwitch = ({ switchLanguage, isEnglish }) => (
                     lang={id}
                     aria-pressed={active}
                     onClick={() => switchLanguage(id)}
-                    className={`rounded-full px-2.5 py-1 transition-colors ${active ? 'bg-show-yellow text-show-night' : 'text-show-muted hover:text-show-white'}`}
+                    className={`h-10 min-w-[2.75rem] rounded-full px-2.5 transition-colors ${active ? 'bg-show-yellow text-show-night' : 'text-show-muted hover:text-show-white'}`}
                 >
                     {label}
                 </button>

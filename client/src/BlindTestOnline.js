@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useMemo, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { getRandomPseudo } from './utils/randomPseudo';
+import { getInitialPlayerName, savePlayerName } from './utils/playerName';
 import SEO from './components/SEO';
 import { useI18n } from './utils/i18n';
 
@@ -24,7 +24,6 @@ import socketOnline from './socketOnline';
 
 // Import des composants UI
 import {
-    GameModeBadge,
     LanguageSwitch,
     VolumeControl,
     CountdownOverlay,
@@ -76,13 +75,13 @@ function BlindTestOnline() {
     // ✅ ÉTATS PRINCIPAUX
     const [view, setView] = useState(VIEWS.LOADING);
 
-    // PSEUDO avec priorité Discord
+    // PSEUDO avec priorité Discord, puis la salle en cours, puis le pseudo déjà choisi (commun aux deux jeux)
     const [pseudo, setPseudo] = useState(() => {
         if (isAuthenticated && user?.username) {
             return user.username;
         }
         const session = getUserSession();
-        return session?.pseudo || getRandomPseudo();
+        return session?.pseudo || getInitialPlayerName();
     });
 
     // États de base
@@ -134,6 +133,21 @@ function BlindTestOnline() {
             console.log('📱 Pseudo synchronisé avec Discord:', user.username);
         }
     }, [isAuthenticated, user?.username, pseudo]);
+
+    // L'hôte est celui que le serveur désigne : il peut changer en cours de route
+    // (transfert manuel, départ de l'hôte), et c'est lui seul qui voit « Lancer la partie »
+    useEffect(() => {
+        if (creatorPseudo && pseudo) {
+            setIsCreator(creatorPseudo === pseudo);
+        }
+    }, [creatorPseudo, pseudo]);
+
+    // Le pseudo retenu par le serveur devient le pseudo par défaut des prochaines parties, dans les deux jeux
+    useEffect(() => {
+        if (view === VIEWS.LOBBY && pseudo && !isAuthenticated) {
+            savePlayerName(pseudo);
+        }
+    }, [view, pseudo, isAuthenticated]);
 
     // ✅ GESTION CALLBACK DISCORD - VERSION SIMPLIFIÉE
     useEffect(() => {
@@ -235,7 +249,7 @@ function BlindTestOnline() {
         answer, hasAnswered, canAnswer, timerStarted, players, newPseudo, isCreator, shareLink,
         socketMethods, saveUserSession, clearUserSession, stopAllAudio,
         setError, setView, setIsReady, setEditingPseudo, setNewPseudo, setHasAnswered, setPseudo,
-        VIEWS, t
+        VIEWS, t, language
     });
 
     // ✅ SAUVEGARDE SESSION
@@ -314,11 +328,6 @@ function BlindTestOnline() {
         [switchLanguage, isEnglish]
     );
 
-    const GameModeBadgeComponent = useCallback(() =>
-        <GameModeBadge gameMode={gameMode} t={t} />,
-        [gameMode, t]
-    );
-
     // Quitter volontairement la salle (salle d'attente ou partie en cours)
     const handleLeaveRoom = () => {
         stopAllAudio();
@@ -333,10 +342,9 @@ function BlindTestOnline() {
 
     const commonViewProps = useMemo(() => ({
         LanguageSwitch: LanguageSwitchComponent,
-        GameModeBadge: GameModeBadgeComponent,
         t,
         language
-    }), [LanguageSwitchComponent, GameModeBadgeComponent, t, language]);
+    }), [LanguageSwitchComponent, t, language]);
     // ✅ AFFICHAGES CONDITIONNELS
     const showSafariAudioInfo = isSafari && !userInteracted && (view === VIEWS.LOBBY || view === VIEWS.GAME);
     const showError = error && !showSafariAudioInfo;
@@ -405,6 +413,7 @@ function BlindTestOnline() {
                     handleJoinRoom={handleJoinRoom}
                     isFromSharedLink={isSharedLink}
                     suggestedRoom={roomFromUrl}
+                    nameLocked={Boolean(isAuthenticated && user?.username)}
                     onBackToHub={() => navigate('/')}
                 />
             )}
@@ -484,6 +493,7 @@ function BlindTestOnline() {
                     finalRanking={finalRanking}
                     pseudo={pseudo}
                     handleNewGame={handleNewGame}
+                    onBackToSite={handleLeaveRoom}
                     shareLink={shareLink}
                     room={room}
                 />

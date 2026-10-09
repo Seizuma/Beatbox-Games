@@ -1,5 +1,6 @@
 import { useCallback } from 'react';
 import socketOnline from '../socketOnline';
+import { createShowT } from '../utils/showI18n';
 /**
  * Hook personnalisé pour gérer la logique métier du jeu
  * ✅ VERSION SIMPLIFIÉE avec fix pour les messages de succès
@@ -32,7 +33,8 @@ export const useGameLogic = ({
     setHasAnswered,
     setPseudo,
     VIEWS,
-    t
+    t,
+    language = 'fr'
 }) => {
 
     // ✅ NOUVEAU : Fonction pour les messages de succès
@@ -96,26 +98,37 @@ export const useGameLogic = ({
         return true;
     }, [pseudo, room, gameMode, socketMethods, setError, setView, setPseudo, t, VIEWS]);
 
-    // ✅ NOUVELLE PARTIE SIMPLIFIÉE
-    const handleNewGame = useCallback(() => {
-        console.log('🆕 Nouvelle partie demandée par l\'utilisateur');
-
-        // Nettoyage complet
+    // Écran de création sans salle (salle fermée, plus de connexion)
+    const backToCreate = useCallback(() => {
         clearUserSession();
-        stopAllAudio();
-
-        // Nettoyer l'URL
         if (window.history.replaceState) {
             window.history.replaceState({}, document.title, window.location.pathname + '#/blindtest-online');
         }
+        setView(VIEWS.CREATE);
+    }, [clearUserSession, setView, VIEWS]);
 
-        showSuccess('Session nettoyée');
+    // ✅ REVANCHE : retour dans la salle d'attente de la même salle, avec les mêmes joueurs
+    const handleNewGame = useCallback(() => {
+        stopAllAudio();
 
-        // Redirection vers CREATE après confirmation
-        setTimeout(() => {
-            setView(VIEWS.CREATE);
-        }, 1000);
-    }, [clearUserSession, stopAllAudio, showSuccess, setView, VIEWS]);
+        if (!room || !socketOnline.connected) {
+            backToCreate();
+            return;
+        }
+
+        socketOnline.timeout(5000).emit('return-to-lobby', {}, (timeoutError, result) => {
+            if (timeoutError || !result?.success) {
+                console.warn('⚠️ Retour en salle d\'attente impossible:', timeoutError || result?.error);
+                setError(createShowT(language)('results.roomClosed'));
+                backToCreate();
+                return;
+            }
+
+            setHasAnswered(false);
+            setIsReady(Boolean(result.isCreator));
+            setView(VIEWS.LOBBY);
+        });
+    }, [room, language, stopAllAudio, backToCreate, setError, setHasAnswered, setIsReady, setView, VIEWS]);
 
     // ✅ RETRY SIMPLIFIÉ
     const handleRetry = useCallback(() => {

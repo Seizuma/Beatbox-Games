@@ -57,7 +57,6 @@ function BuzzerGameView({
     wrongGuessFeedback,
     justReconnected,
     language,
-    languageSwitch,
     onQuit
 }) {
     const st = createShowT(language);
@@ -191,7 +190,7 @@ function BuzzerGameView({
             onQuit={onQuit}
             quitLabel={st('common.quit')}
             quitConfirm={getQuitGameConfirm(st)}
-            tools={languageSwitch}
+            showSettings={false}
             language={language}
             actionBar={actionBar}
             actionBarClassName={isGuessing ? '' : 'lg:hidden'}

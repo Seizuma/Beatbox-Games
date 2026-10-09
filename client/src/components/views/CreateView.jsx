@@ -2,6 +2,7 @@ import React, { useId, useState } from 'react';
 import GameShell from '../show/GameShell';
 import ShowButton from '../show/ShowButton';
 import BlindTestRulesModal from './BlindTestRulesModal';
+import { getRandomPseudo } from '../../utils/randomPseudo';
 import { createShowT } from '../../utils/showI18n';
 
 const CODE_LENGTH = 5;
@@ -13,10 +14,10 @@ const CreateView = ({
     handleCreateRoom,
     handleJoinRoom,
     LanguageSwitch,
-    GameModeBadge,
     language,
     suggestedRoom,
     isFromSharedLink,
+    nameLocked = false,
     onBackToHub
 }) => {
     const st = createShowT(language);
@@ -54,11 +55,6 @@ const CreateView = ({
                 <div className="text-center">
                     <h1 className="font-brand text-4xl leading-none sm:text-5xl">{st('blindtest.name')}</h1>
                     <p className="mt-3 text-show-muted">{st('blindtest.tagline')}</p>
-                    {GameModeBadge && (
-                        <div className="mt-3 flex justify-center">
-                            <GameModeBadge />
-                        </div>
-                    )}
                 </div>
 
                 {isFromSharedLink && suggestedRoom && (
@@ -68,22 +64,33 @@ const CreateView = ({
                 )}
 
                 <form onSubmit={submitCreate} className="flex flex-col gap-3">
-                    <label
-                        htmlFor={nameId}
-                        className="block rounded-xl bg-show-yellow px-4 pb-3 pt-2.5 text-show-night focus-within:ring-4 focus-within:ring-show-white/70"
-                    >
-                        <span className="text-xs font-extrabold">{st('create.nameLabel')}</span>
+                    {/* Même carte de pseudo que le Buzzer Battle : le pseudo choisi vaut pour les deux jeux */}
+                    <div className="rounded-xl bg-show-yellow px-4 pb-3 pt-2.5 text-show-night focus-within:ring-4 focus-within:ring-show-white/70">
+                        <div className="flex items-center justify-between gap-3">
+                            <label htmlFor={nameId} className="text-xs font-extrabold">{st('create.nameLabel')}</label>
+                            {!nameLocked && (
+                                <button
+                                    type="button"
+                                    onClick={() => setPseudo(getRandomPseudo())}
+                                    className="-my-2 py-2 text-xs font-extrabold underline decoration-2 underline-offset-2 hover:no-underline"
+                                >
+                                    {st('buzzerCreate.random')}
+                                </button>
+                            )}
+                        </div>
                         <input
                             id={nameId}
                             type="text"
                             value={pseudo}
                             onChange={(event) => setPseudo(event.target.value)}
                             maxLength={20}
+                            disabled={nameLocked}
                             autoComplete="nickname"
                             placeholder={st('create.namePlaceholder')}
-                            className="mt-0.5 block w-full bg-transparent font-brand text-2xl leading-tight placeholder:text-show-night/40 focus:outline-none"
+                            className="mt-0.5 block w-full bg-transparent font-brand text-2xl leading-tight placeholder:text-show-night/40 focus:outline-none disabled:cursor-not-allowed"
                         />
-                    </label>
+                        {nameLocked && <p className="mt-1 text-xs font-semibold">{st('buzzerCreate.discordLocked')}</p>}
+                    </div>
                     <ShowButton type="submit" size="lg" block disabled={!hasName}>
                         {st('create.create')}
                     </ShowButton>

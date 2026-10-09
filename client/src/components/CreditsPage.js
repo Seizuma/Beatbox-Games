@@ -18,6 +18,17 @@ const ARTISTS = [
 
 const normalize = (value) => value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
 
+// Défilement vers une lettre de l'index. Un lien « #letter-X » ne marche pas ici :
+// le site est routé par le hash, l'adresse deviendrait « /#letter-X » et mènerait à la page 404.
+const jumpToLetter = (initial) => {
+    const section = document.getElementById(`letter-${initial}`);
+    if (!section) return;
+    const reduceMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+    section.scrollIntoView({ behavior: reduceMotion ? 'auto' : 'smooth', block: 'start' });
+    // Le focus suit le défilement pour les lecteurs d'écran et la navigation au clavier
+    section.focus({ preventScroll: true });
+};
+
 const groupByInitial = (names) => {
     const sorted = names.slice().sort((a, b) => a.localeCompare(b, 'fr', { sensitivity: 'base' }));
     return sorted.reduce((groups, name) => {
@@ -70,13 +81,15 @@ function CreditsContent() {
                         className="sticky top-14 z-10 -mx-4 mt-3 flex gap-1 overflow-x-auto bg-site-paper px-4 py-2 sm:-mx-6 sm:px-6"
                     >
                         {groups.map((group) => (
-                            <a
+                            <button
                                 key={group.initial}
-                                href={`#letter-${group.initial}`}
-                                className="flex h-8 min-w-[2rem] items-center justify-center rounded-md px-1 text-xs font-bold text-site-muted transition-colors hover:bg-site-tint hover:text-site-ink"
+                                type="button"
+                                onClick={() => jumpToLetter(group.initial)}
+                                aria-controls={`letter-${group.initial}`}
+                                className="flex h-11 min-w-[2.75rem] shrink-0 items-center justify-center rounded-md px-1 text-sm font-bold text-site-muted transition-colors hover:bg-site-tint hover:text-site-ink"
                             >
                                 {group.initial}
-                            </a>
+                            </button>
                         ))}
                     </nav>
                 )}
@@ -86,7 +99,7 @@ function CreditsContent() {
                 ) : (
                     <div className="mt-4 grid gap-x-10 gap-y-8 sm:grid-cols-2 lg:grid-cols-4">
                         {groups.map((group) => (
-                            <section key={group.initial} id={`letter-${group.initial}`} aria-label={group.initial} className="scroll-mt-28 break-inside-avoid">
+                            <section key={group.initial} id={`letter-${group.initial}`} tabIndex={-1} aria-label={group.initial} className="scroll-mt-32 break-inside-avoid focus:outline-none">
                                 <h2 className="mb-2 font-brand text-2xl leading-none text-site-soft">{group.initial}</h2>
                                 <ul className="flex flex-col">
                                     {group.names.map((name) => (

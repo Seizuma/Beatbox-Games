@@ -65,7 +65,6 @@ const GameView = ({
     setAnswer,
     handleSubmitAnswer,
     volumeControlProps,
-    LanguageSwitch,
     language,
     onQuit
 }) => {
@@ -196,12 +195,9 @@ const GameView = ({
             onQuit={onQuit}
             quitLabel={st('common.quit')}
             quitConfirm={getQuitGameConfirm(st)}
-            tools={
-                <>
-                    {volumeControlProps && <VolumeControl {...volumeControlProps} />}
-                    {LanguageSwitch && <LanguageSwitch />}
-                </>
-            }
+            tools={volumeControlProps ? <VolumeControl {...volumeControlProps} /> : null}
+            showSettings={false}
+            language={language}
         >
             <div className="mx-auto grid w-full max-w-5xl gap-8 lg:grid-cols-[minmax(0,1fr)_16rem] lg:gap-10">
             <div className={`flex min-w-0 flex-col ${compact ? 'gap-4' : 'gap-8 sm:gap-10'}`}>

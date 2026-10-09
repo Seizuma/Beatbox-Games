@@ -16,9 +16,9 @@ const ResultsView = ({
     finalRanking,
     pseudo,
     handleNewGame,
+    onBackToSite,
     room,
     LanguageSwitch,
-    GameModeBadge,
     language
 }) => {
     const st = createShowT(language);
@@ -34,9 +34,10 @@ const ResultsView = ({
     const iWon = Boolean(me) && myIndex === 0;
     const gap = me && winner ? (winner.score ?? 0) - (me.score ?? 0) : 0;
 
+    // Quitter la salle pour de bon : les autres joueurs ne t'attendent pas pour la revanche
     const handleBackToSite = () => {
-        handleNewGame();
-        navigate('/');
+        if (onBackToSite) onBackToSite();
+        else navigate('/');
     };
 
     return (
@@ -61,7 +62,6 @@ const ResultsView = ({
                             score={winner.score ?? 0}
                             pointsLabel={st('results.points')}
                             avatarUrl={discordAvatar(winner)}
-                            badge={GameModeBadge ? <GameModeBadge /> : null}
                         />
 
                         <Podium

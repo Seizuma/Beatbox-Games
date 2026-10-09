@@ -269,6 +269,15 @@ class OnlineRoom {
         };
 
         this.addPlayer(creatorPseudo, creatorSocketId);
+
+        // L'hôte lance la partie : il est prêt d'office, sans bouton à presser pour lui-même
+        this.markHostReady();
+    }
+
+    // L'hôte compte toujours comme prêt (création, transfert, retour en salle d'attente)
+    markHostReady() {
+        const host = this.getPlayer(this.creatorPseudo);
+        if (host) host.ready = true;
     }
 
     // ✅ AMÉLIORATION : Validation plus stricte
@@ -470,6 +479,7 @@ class OnlineRoom {
 
         const oldHost = this.creatorPseudo;
         this.creatorPseudo = newHostPseudo;
+        this.markHostReady();
         this.updateActivity();
 
         console.log(`👑 Room ${this.code}: Transfert manuel ${oldHost} → ${newHostPseudo}`);
@@ -486,6 +496,7 @@ class OnlineRoom {
         // Prendre le joueur connecté le plus ancien
         const newHost = connectedPlayers.sort((a, b) => a.joinedAt - b.joinedAt)[0];
         this.creatorPseudo = newHost.pseudo;
+        this.markHostReady();
         this.updateActivity();
 
         return newHost.pseudo;
@@ -511,7 +522,7 @@ class OnlineRoom {
     allPlayersReady() {
         const connectedPlayers = this.getConnectedPlayers();
         return connectedPlayers.length >= CONFIG.LIMITS.MIN_PLAYERS_TO_START &&
-            connectedPlayers.every(p => p.ready);
+            connectedPlayers.every(p => p.ready || this.isCreator(p.pseudo));
     }
 
     isCreator(pseudo) {
@@ -526,16 +537,36 @@ class OnlineRoom {
         return Date.now() - this.lastActivity > CONFIG.TIMEOUTS.ROOM_INACTIVITY;
     }
 
+    /**
+     * Remet la salle en attente pour une nouvelle partie, avec les mêmes joueurs.
+     * Appelée en fin de partie (retour en salle d'attente ou remise à zéro automatique)
+     * et quand un démarrage échoue. Une salle déjà en attente ou en pleine partie n'est
+     * pas touchée : la remise à zéro automatique de fin de partie peut arriver après que
+     * les joueurs sont revenus en salle d'attente, voire ont relancé une partie.
+     */
     reset() {
+        if (this.state === ROOM_STATES.WAITING || this.state === ROOM_STATES.PLAYING) {
+            console.log(`⏭️ Room ${this.code} reset ignoré (état ${this.state})`);
+            return false;
+        }
+
         this.state = ROOM_STATES.WAITING;
         this.game = null;
         this.players.forEach(player => {
             player.ready = false;
             player.currentRoundAnswer = null;
             player.hasFoundThisRound = false;
+            // Statistiques de la partie précédente : la revanche repart de zéro
+            player.correctAnswers = 0;
+            player.totalAnswers = 0;
+            player.currentStreak = 0;
+            player.bestStreak = 0;
         });
+        this.scores.forEach((score, pseudo) => this.scores.set(pseudo, 0));
+        this.markHostReady();
         this.updateActivity();
         console.log(`🔄 Room ${this.code} reset`);
+        return true;
     }
 
     resetForNewRound() {

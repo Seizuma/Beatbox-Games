@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useId, useRef, useState } from 'react';
 import { Link, NavLink } from 'react-router-dom';
 import { useSiteI18n } from '../../utils/siteI18n';
 import { useSiteTheme } from '../../utils/siteTheme';
@@ -65,9 +65,72 @@ function ThemeToggle() {
 }
 
 /**
+ * Thème et langue sur petit écran : un seul bouton dans la barre du haut, qui ouvre
+ * les deux réglages. Ils servent une fois par visite et occupaient une rangée
+ * entière sous les onglets, sur toutes les pages.
+ */
+function PreferencesMenu() {
+    const { t } = useSiteI18n();
+    const [open, setOpen] = useState(false);
+    const containerRef = useRef(null);
+    const buttonRef = useRef(null);
+    const panelId = useId();
+
+    useEffect(() => {
+        if (!open) return undefined;
+
+        const closeOnOutside = (event) => {
+            if (containerRef.current && !containerRef.current.contains(event.target)) setOpen(false);
+        };
+        const closeOnEscape = (event) => {
+            if (event.key === 'Escape') {
+                setOpen(false);
+                buttonRef.current?.focus();
+            }
+        };
+
+        document.addEventListener('pointerdown', closeOnOutside);
+        document.addEventListener('keydown', closeOnEscape);
+        return () => {
+            document.removeEventListener('pointerdown', closeOnOutside);
+            document.removeEventListener('keydown', closeOnEscape);
+        };
+    }, [open]);
+
+    return (
+        <div ref={containerRef} className="relative min-[560px]:hidden">
+            <button
+                ref={buttonRef}
+                type="button"
+                onClick={() => setOpen((value) => !value)}
+                aria-expanded={open}
+                aria-controls={panelId}
+                aria-label={t('footer.preferences')}
+                className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-site-line transition-colors ${open ? 'bg-site-tint text-site-ink' : 'bg-site-surface text-site-muted hover:text-site-ink'}`}
+            >
+                <Icon name="settings" size={18} />
+            </button>
+
+            {open && (
+                <div
+                    id={panelId}
+                    role="group"
+                    aria-label={t('footer.preferences')}
+                    className="absolute right-0 top-full z-40 mt-2 flex items-center gap-2 rounded-xl border border-site-line bg-site-surface p-2 shadow-lg"
+                >
+                    <ThemeToggle />
+                    <LanguageToggle />
+                </div>
+            )}
+        </div>
+    );
+}
+
+/**
  * Barre du haut. Sur mobile elle tient sur une seule rangée : la navigation
  * descend dans SiteTabBar, en bas d'écran, dans la zone du pouce.
- * Le thème, la langue et le compte restent ici, à droite.
+ * Le thème, la langue et le compte restent ici, à droite (thème et langue
+ * regroupés derrière un bouton sous 560 px).
  */
 export default function SiteHeader() {
     const { t } = useSiteI18n();
@@ -107,6 +170,7 @@ export default function SiteHeader() {
                         <ThemeToggle />
                         <LanguageToggle />
                     </div>
+                    <PreferencesMenu />
                     <SiteAccountButton />
                 </div>
             </div>
@@ -142,12 +206,6 @@ export function SiteTabBar() {
                         <span>{t(item.key)}</span>
                     </NavLink>
                 ))}
-            </div>
-
-            {/* Sous 560 px, le header n'a plus la place pour ces deux contrôles */}
-            <div className="flex items-center justify-center gap-2 border-t border-site-line py-2 min-[560px]:hidden">
-                <ThemeToggle />
-                <LanguageToggle />
             </div>
         </nav>
     );
