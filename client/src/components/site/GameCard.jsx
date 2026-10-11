@@ -164,10 +164,11 @@ function DemoControls({ demo, labels }) {
             onClick={playing ? demo.stop : demo.play}
             disabled={demo.status === 'loading'}
             aria-label={label}
-            className="relative z-10 inline-flex h-11 shrink-0 items-center gap-2 rounded-full border-2 border-show-white/70 px-4 font-brand text-sm leading-none text-show-white transition hover:border-show-white hover:bg-show-white/10 disabled:cursor-wait disabled:opacity-60"
+            className="relative z-10 inline-flex h-11 items-center gap-2 whitespace-nowrap rounded-full border-2 border-show-white/70 px-4 font-brand text-sm leading-none text-show-white transition hover:border-show-white hover:bg-show-white/10 disabled:cursor-wait disabled:opacity-60"
         >
             <Icon name={playing ? 'stop' : 'play'} size={16} />
-            <span className="hidden min-[370px]:inline sm:hidden xl:inline">{label}</span>
+            {/* Toujours affiché : quand la place manque, c'est la rangée qui passe à la ligne */}
+            <span>{label}</span>
         </button>
     );
 }
@@ -218,8 +219,10 @@ export default function GameCard({ game, to, kicker, name, description, players,
                 {meta}
             </p>
 
-            <div className="mt-auto flex items-center gap-3 px-5 pb-5 pt-4 sm:px-6 sm:pb-6 sm:pt-5">
-                <div className="flex min-w-0 items-center gap-2">
+            {/* Les deux boutons tiennent sur une ligne quand la carte est large, et
+                passent l'un sous l'autre sinon : la carte coupe ce qui dépasse. */}
+            <div className="mt-auto px-5 pb-5 pt-4 sm:px-6 sm:pb-6 sm:pt-5">
+                <div className="flex flex-wrap items-center gap-2">
                     <Link
                         to={to}
                         className="inline-flex shrink-0 items-center whitespace-nowrap rounded-full bg-show-yellow px-5 py-3 font-brand text-base leading-none text-show-night shadow-show-btn transition after:absolute after:inset-0 after:content-[''] hover:brightness-105 focus:outline-none active:translate-y-[3px] active:shadow-none"
