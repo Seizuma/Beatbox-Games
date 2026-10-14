@@ -2,7 +2,6 @@ import React from 'react';
 import SEO from './SEO';
 import SiteShell from './site/SiteShell';
 import GameCard from './site/GameCard';
-import DailyCard from './site/DailyCard';
 import JoinRoomForm from './site/JoinRoomForm';
 import RankingPreview from './site/RankingPreview';
 import PublicRooms, { quickPath, usePublicRooms } from './site/PublicRooms';
@@ -11,6 +10,7 @@ import { useSiteI18n } from '../utils/siteI18n';
 const GAMES = [
     { id: 'blindtest', path: '/blindtest-online' },
     { id: 'buzzer', path: '/buzzer-battle' },
+    { id: 'beatboxdle', path: '/beatboxdle' },
 ];
 
 function HubContent() {
@@ -23,77 +23,75 @@ function HubContent() {
             <SEO title={t('hub.seoTitle')} description={t('hub.seoDescription')} url="https://beatboxgames.com" />
 
             <div className="mx-auto max-w-site px-4 pb-16 pt-6 sm:px-6 sm:pt-12">
-                <div className="max-w-2xl">
-                    <h1 className="text-[1.6rem] font-bold leading-tight tracking-tight sm:text-4xl">
-                        {t('hub.title')}
-                    </h1>
-                    <p className="mt-2 text-[0.95rem] leading-relaxed text-site-muted sm:mt-3 sm:text-lg">
-                        {t('hub.intro')}
-                    </p>
+                {/* En-tête : le titre, et à droite « J'ai un code » pour qui arrive avec une invitation */}
+                <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between lg:gap-12">
+                    <div className="max-w-2xl">
+                        <h1 className="text-[1.6rem] font-bold leading-tight tracking-tight sm:text-4xl">
+                            {t('hub.title')}
+                        </h1>
+                        <p className="mt-2 text-[0.95rem] leading-relaxed text-site-muted sm:mt-3 sm:text-lg">
+                            {t('hub.intro')}
+                        </p>
+                    </div>
+                    <div className="lg:w-80 lg:shrink-0">
+                        <JoinRoomForm />
+                    </div>
                 </div>
 
                 {/*
-                    Mobile : pile ordonnée « J'ai un code », les deux jeux, le classement.
-                    Quelqu'un qui arrive avec un lien ou un code voit d'abord ce qui le concerne.
-                    Grand écran : les jeux occupent les deux premières colonnes, la colonne de
-                    droite regroupe le code et le classement (display:contents libère l'ordre).
+                    Les trois jeux côte à côte, dans la même famille de cartes : le Beatboxdle
+                    n'est plus relégué dans la colonne de droite avec un autre habillage.
                 */}
-                {/*
-                    La colonne de droite s'étend sur deux rangées, la seconde en 1fr : la hauteur
-                    des cartes ne dépend plus que de leur contenu, et leurs boutons restent dans
-                    le premier écran au lieu d'être poussés en bas par le classement.
-                */}
-                <div className="mt-6 flex flex-col gap-6 sm:mt-10 sm:gap-8 lg:grid lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_19rem] lg:grid-rows-[auto_1fr] lg:gap-8">
-                    <aside className="contents lg:col-start-3 lg:row-span-2 lg:row-start-1 lg:flex lg:flex-col lg:gap-10 lg:border-l lg:border-site-line lg:pl-8">
-                        <div className="order-1 lg:order-none">
-                            <JoinRoomForm />
-                        </div>
-                        {publicRooms.rooms.length > 0 && (
-                            <div className="order-4 lg:order-none">
-                                <PublicRooms rooms={publicRooms.rooms} players={publicRooms.players} t={t} />
-                            </div>
-                        )}
-                        <div className="order-4 lg:order-none">
-                            <DailyCard
-                                kicker={t('games.beatboxdle.kicker')}
-                                name={t('games.beatboxdle.name')}
-                                description={t('games.beatboxdle.description')}
-                                meta={t('games.beatboxdle.meta')}
-                                cta={t('games.beatboxdle.cta')}
-                            />
-                        </div>
-                        <div className="order-5 border-t border-site-line pt-8 lg:order-none lg:border-t-0 lg:pt-0">
-                            <RankingPreview />
-                        </div>
-                    </aside>
-
-                    {GAMES.map((game, index) => (
-                        <div key={game.id} className={index === 0 ? 'order-2 lg:order-none lg:row-start-1' : 'order-3 lg:order-none lg:row-start-1'}>
-                            <GameCard
-                                game={game.id}
-                                to={game.path}
-                                kicker={t(`games.${game.id}.kicker`)}
-                                name={t(`games.${game.id}.name`)}
-                                description={t(`games.${game.id}.description`)}
-                                players={t('games.players')}
-                                meta={t(`games.${game.id}.meta`)}
-                                cta={t('games.create')}
-                                quick={{
-                                    to: quickPath(game.id),
-                                    label: t('games.quick'),
-                                    detail: openRooms(game.id) ? t('games.quickOpen', { count: openRooms(game.id) }) : null,
-                                }}
-                                demoLabels={game.id === 'blindtest' ? {
-                                    listen: t('games.demo.listen'),
-                                    another: t('games.demo.another'),
-                                    stop: t('games.demo.stop'),
-                                    playing: t('games.demo.playing'),
-                                    reveal: t('games.demo.reveal'),
-                                    error: t('games.demo.error'),
-                                } : undefined}
-                            />
+                <section aria-label={t('hub.gamesLabel')} className="mt-6 grid gap-6 sm:mt-10 sm:gap-8 md:grid-cols-2 lg:grid-cols-3">
+                    {GAMES.map((game) => (
+                        <div key={game.id} className={game.id === 'beatboxdle' ? 'md:col-span-2 lg:col-span-1' : ''}>
+                            {game.id === 'beatboxdle' ? (
+                                <GameCard
+                                    game="beatboxdle"
+                                    to={game.path}
+                                    kicker={t('games.beatboxdle.kicker')}
+                                    name={t('games.beatboxdle.name')}
+                                    description={t('games.beatboxdle.description')}
+                                    players={t('games.beatboxdle.meta')}
+                                    meta={t('games.beatboxdle.reset')}
+                                    cta={t('games.beatboxdle.cta')}
+                                    badge={t('games.beatboxdle.badge')}
+                                />
+                            ) : (
+                                <GameCard
+                                    game={game.id}
+                                    to={game.path}
+                                    kicker={t(`games.${game.id}.kicker`)}
+                                    name={t(`games.${game.id}.name`)}
+                                    description={t(`games.${game.id}.description`)}
+                                    players={t('games.players')}
+                                    meta={t(`games.${game.id}.meta`)}
+                                    cta={t('games.create')}
+                                    quick={{
+                                        to: quickPath(game.id),
+                                        label: t('games.quick'),
+                                        detail: openRooms(game.id) ? t('games.quickOpen', { count: openRooms(game.id) }) : null,
+                                    }}
+                                    demoLabels={game.id === 'blindtest' ? {
+                                        listen: t('games.demo.listen'),
+                                        another: t('games.demo.another'),
+                                        stop: t('games.demo.stop'),
+                                        playing: t('games.demo.playing'),
+                                        reveal: t('games.demo.reveal'),
+                                        error: t('games.demo.error'),
+                                    } : undefined}
+                                />
+                            )}
                         </div>
                     ))}
+                </section>
+
+                {/* Sous les jeux : les salles ouvertes, puis le classement */}
+                <div className="mt-10 grid gap-10 border-t border-site-line pt-8 lg:grid-cols-2 lg:gap-12">
+                    {publicRooms.rooms.length > 0 && (
+                        <PublicRooms rooms={publicRooms.rooms} players={publicRooms.players} t={t} />
+                    )}
+                    <RankingPreview />
                 </div>
             </div>
         </>

@@ -191,10 +191,30 @@ function BuzzerGameView({
     };
 
     // Dès deux lettres, les noms possibles en gros boutons : un toucher suffit
-    const guessSuggestions = useMemo(
+    const typedSuggestions = useMemo(
         () => (guess.trim().length >= 2 ? rankArtists(guess, roomNames, MAX_GUESS_SUGGESTIONS) : []),
         [guess, roomNames]
     );
+
+    // Tab complète avec le premier nom proposé ; Tab encore passe au suivant,
+    // Maj+Tab revient en arrière. La liste reste celle des lettres tapées au départ.
+    const tabCycle = useRef(null);
+    const guessSuggestions = tabCycle.current && tabCycle.current.list[tabCycle.current.index] === guess
+        ? tabCycle.current.list
+        : typedSuggestions;
+
+    const handleGuessKeyDown = (event) => {
+        if (event.key !== 'Tab' || event.altKey || event.ctrlKey || event.metaKey) return;
+        const cycle = tabCycle.current;
+        const cycling = cycle && cycle.list[cycle.index] === guess;
+        const list = cycling ? cycle.list : typedSuggestions;
+        if (list.length === 0) return;
+        event.preventDefault();
+        const step = event.shiftKey ? -1 : 1;
+        const index = cycling ? (cycle.index + step + list.length) % list.length : (event.shiftKey ? list.length - 1 : 0);
+        tabCycle.current = { list, index };
+        setGuess(list[index]);
+    };
 
     const playerList = Array.isArray(players) ? players.filter(Boolean) : [];
     const scoreList = Array.isArray(scores) ? scores : [];
@@ -274,19 +294,27 @@ function BuzzerGameView({
                     {guessSuggestions.length === 0 && (
                         <li className="text-xs font-semibold text-show-muted">{st('buzzerGame.typeHint')}</li>
                     )}
-                    {guessSuggestions.map((name) => (
-                        <li key={name} className="shrink-0">
-                            <button
-                                type="button"
-                                // Le champ garde le focus : le clavier ne se ferme pas avant l'envoi
-                                onMouseDown={(event) => event.preventDefault()}
-                                onClick={() => sendGuess(name)}
-                                className="h-11 whitespace-nowrap rounded-full bg-show-yellow px-4 font-brand text-base leading-none text-show-night shadow-show-btn active:translate-y-[2px] active:shadow-none"
-                            >
-                                {name}
-                            </button>
-                        </li>
-                    ))}
+                    {guessSuggestions.map((name, index) => {
+                        const selected = name === guess;
+                        return (
+                            <li key={name} className="shrink-0">
+                                <button
+                                    type="button"
+                                    // Le champ garde le focus : le clavier ne se ferme pas avant l'envoi
+                                    onMouseDown={(event) => event.preventDefault()}
+                                    onClick={() => sendGuess(name)}
+                                    aria-pressed={selected}
+                                    className={`inline-flex h-11 items-center gap-2 whitespace-nowrap rounded-full px-4 font-brand text-base leading-none text-show-night shadow-show-btn active:translate-y-[2px] active:shadow-none ${selected ? 'bg-show-white' : 'bg-show-yellow'}`}
+                                >
+                                    {name}
+                                    {/* Sur ordinateur, rappel discret du raccourci sur le premier nom */}
+                                    {!touch && index === 0 && !selected && (
+                                        <kbd className="rounded bg-show-night/15 px-1.5 py-0.5 font-show text-[0.6875rem] font-extrabold">{st('buzzerGame.tabKey')}</kbd>
+                                    )}
+                                </button>
+                            </li>
+                        );
+                    })}
                 </ul>
             </div>
             <div className="flex gap-2">
@@ -295,7 +323,11 @@ function BuzzerGameView({
                     id={guessId}
                     type="text"
                     value={guess}
-                    onChange={(event) => setGuess(event.target.value)}
+                    onChange={(event) => {
+                        tabCycle.current = null;
+                        setGuess(event.target.value);
+                    }}
+                    onKeyDown={handleGuessKeyDown}
                     placeholder={st('game.answerPlaceholder')}
                     autoFocus
                     autoComplete="off"

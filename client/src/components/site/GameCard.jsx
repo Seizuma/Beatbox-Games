@@ -81,8 +81,52 @@ function BuzzerPreview() {
     );
 }
 
+// Aperçu du Beatboxdle : une grille de lettres et une ligne d'indices, rien du jour
+// (les cases ne portent pas de lettres, aucune réponse ne peut fuiter depuis l'accueil)
+const DLE_TILE = { g: 'bg-[#1F8A4F]', o: 'bg-[#C7841A]', x: 'bg-show-night/70' };
+const DLE_ROWS = ['xoxxx', 'oxxgo', 'ggggg'];
+const DLE_CLUES = [
+    { label: 'FR', tone: 'o' },
+    { label: 'M', tone: 'g' },
+    { label: '2016 ↑', tone: 'o' },
+    { label: 'GBB', tone: 'g' },
+];
+
+function BeatboxdlePreview() {
+    return (
+        <div className="flex flex-col gap-4" aria-hidden="true">
+            <div className="flex flex-col gap-1.5">
+                {DLE_ROWS.map((row, rowIndex) => (
+                    <div key={rowIndex} className="flex gap-1.5">
+                        {row.split('').map((tone, cellIndex) => (
+                            <span key={cellIndex} className={`h-9 w-9 rounded-md ${DLE_TILE[tone]} ${rowIndex === 2 ? 'transition-transform duration-300 group-hover:-translate-y-0.5' : ''}`} style={rowIndex === 2 ? { transitionDelay: `${cellIndex * 40}ms` } : undefined} />
+                        ))}
+                    </div>
+                ))}
+            </div>
+            <div className="grid grid-cols-4 gap-1.5">
+                {DLE_CLUES.map((clue) => (
+                    <span key={clue.label} className={`rounded-md px-1 py-2 text-center text-xs font-extrabold text-white ${DLE_TILE[clue.tone]}`}>
+                        {clue.label}
+                    </span>
+                ))}
+            </div>
+        </div>
+    );
+}
+
 // Vignette du téléphone : le jeu en un coup d'œil, sans prendre la moitié de l'écran
 function Thumb({ game, playing }) {
+    if (game === 'beatboxdle') {
+        return (
+            <div className="grid h-16 w-16 shrink-0 grid-cols-2 gap-1 rounded-xl bg-show-night p-1.5" aria-hidden="true">
+                <span className={`rounded ${DLE_TILE.g}`} />
+                <span className={`rounded ${DLE_TILE.o}`} />
+                <span className={`rounded ${DLE_TILE.x}`} />
+                <span className={`rounded ${DLE_TILE.g}`} />
+            </div>
+        );
+    }
     if (game === 'buzzer') {
         return (
             <div className="relative h-16 w-16 shrink-0 overflow-hidden rounded-xl bg-show-night shadow-[0_0_0_2px_#FFFFFF]" aria-hidden="true">
@@ -192,7 +236,7 @@ function DemoStatus({ demo, labels }) {
  * d'écoute du Blind Test passe au-dessus et joue un extrait sans quitter la page.
  * Sur téléphone, l'aperçu devient une vignette : le bouton tient dans le premier écran.
  */
-export default function GameCard({ game, to, kicker, name, description, players, meta, cta, demoLabels, quick }) {
+export default function GameCard({ game, to, kicker, name, description, players, meta, cta, demoLabels, quick, badge }) {
     const demo = useClipDemo();
     const withDemo = game === 'blindtest' && Boolean(demoLabels);
 
@@ -203,13 +247,18 @@ export default function GameCard({ game, to, kicker, name, description, players,
                     <Thumb game={game} playing={demo.status === 'playing'} />
                 </div>
                 <div className="min-w-0">
-                    <p className="text-xs font-extrabold text-show-yellow">{kicker}</p>
+                    <p className="flex items-center gap-2 text-xs font-extrabold text-show-yellow">
+                        {kicker}
+                        {badge && <span className="rounded-full bg-show-buzz px-2 py-0.5 text-[0.6875rem] text-show-white">{badge}</span>}
+                    </p>
                     <h2 className="mt-1 font-brand text-[1.7rem] leading-none sm:text-3xl">{name}</h2>
                 </div>
             </div>
 
             <div className="mt-5 hidden flex-col justify-center px-6 sm:flex sm:min-h-[14rem]">
-                {game === 'buzzer' ? <BuzzerPreview /> : <BlindTestPreview playing={demo.status === 'playing'} />}
+                {game === 'buzzer' && <BuzzerPreview />}
+                {game === 'blindtest' && <BlindTestPreview playing={demo.status === 'playing'} />}
+                {game === 'beatboxdle' && <BeatboxdlePreview />}
             </div>
 
             <p className="mt-3 px-5 text-sm leading-relaxed text-show-muted sm:mt-5 sm:px-6">{description}</p>

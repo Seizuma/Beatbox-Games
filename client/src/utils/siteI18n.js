@@ -48,6 +48,7 @@ const strings = {
             title: 'Les jeux beatbox à jouer entre amis',
             intro: 'Crée une salle, envoie le code, jouez ensemble. Jusqu’à 10 joueurs, rien à installer.',
             seoTitle: 'BeatBox Games — Blind Test et Buzzer Battle beatbox entre amis',
+            gamesLabel: 'Les jeux',
             seoDescription: 'Deux jeux multijoueurs gratuits autour des plus grands beatboxers : Blind Test et Buzzer Battle. Crée une salle, partage le code et joue avec jusqu’à 10 amis.',
             public: {
                 title: 'Salles ouvertes',
@@ -83,6 +84,8 @@ const strings = {
                 name: 'Beatboxdle',
                 description: 'Un beatboxer à trouver par jour. Son nom lettre par lettre, ou quatre indices à recouper.',
                 cta: 'Jouer aujourd’hui',
+                reset: 'Nouvelle énigme à minuit',
+                badge: 'Nouveau',
             },
             demo: {
                 listen: 'Écouter un extrait',
@@ -841,6 +844,7 @@ const strings = {
             title: 'Beatbox games to play with friends',
             intro: 'Create a room, send the code, play together. Up to 10 players, nothing to install.',
             seoTitle: 'BeatBox Games — Beatbox Blind Test and Buzzer Battle with friends',
+            gamesLabel: 'The games',
             seoDescription: 'Two free multiplayer games about the greatest beatboxers: Blind Test and Buzzer Battle. Create a room, share the code and play with up to 10 friends.',
             public: {
                 title: 'Open rooms',
@@ -876,6 +880,8 @@ const strings = {
                 name: 'Beatboxdle',
                 description: 'One beatboxer to find each day. Their name letter by letter, or four clues to cross-reference.',
                 cta: 'Play today',
+                reset: 'New puzzle at midnight',
+                badge: 'New',
             },
             demo: {
                 listen: 'Listen to a clip',
