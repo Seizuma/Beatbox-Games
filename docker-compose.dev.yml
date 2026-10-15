@@ -27,6 +27,8 @@ services:
       - CLIENT_URL=https://dev.beatboxgames.com
       # Le vrai Google Sheet n'est modifié que par la production
       - SHEET_SYNC=false
+      # Site réservé aux comptes de la liste d'accès (admin > Accès testeurs) et aux admins
+      - ACCESS_GATE=true
       - DISABLE_CONSOLE=false
       - LOG_LEVEL=DEBUG
     restart: unless-stopped
@@ -55,6 +57,8 @@ services:
         - REACT_APP_ENV=staging
         - REACT_APP_API_URL=https://dev.beatboxgames.com
         - GENERATE_SOURCEMAP=true
+        # Écran de connexion obligatoire (client/src/components/AccessGate.jsx)
+        - REACT_APP_ACCESS_GATE=true
     container_name: beatbox-games-dev-client
     environment:
       # Lus par le modèle client/nginx/default.conf.template (hors production : fermé aux moteurs)

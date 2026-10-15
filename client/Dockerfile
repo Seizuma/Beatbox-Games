@@ -6,11 +6,14 @@ ARG NODE_ENV=production
 ARG REACT_APP_ENV=production
 ARG REACT_APP_API_URL=https://beatboxgames.com
 ARG GENERATE_SOURCEMAP=false
+# Version de test réservée aux comptes autorisés (docker-compose.dev.yml) ; off partout ailleurs
+ARG REACT_APP_ACCESS_GATE=false
 
 ENV NODE_ENV=$NODE_ENV \
     REACT_APP_ENV=$REACT_APP_ENV \
     REACT_APP_API_URL=$REACT_APP_API_URL \
-    GENERATE_SOURCEMAP=$GENERATE_SOURCEMAP
+    GENERATE_SOURCEMAP=$GENERATE_SOURCEMAP \
+    REACT_APP_ACCESS_GATE=$REACT_APP_ACCESS_GATE
 
 COPY package*.json ./
 # npm install tant que package-lock.json n'est pas resynchronisé avec package.json (voir notes)

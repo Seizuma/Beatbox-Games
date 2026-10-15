@@ -9,7 +9,8 @@
 const express = require('express');
 const os = require('os');
 const { getDatabase } = require('../services/database');
-const { requireAdmin, isAdmin } = require('../middleware/adminAuth');
+const { requireAdmin, isAdmin, getAdminIds } = require('../middleware/adminAuth');
+const accessGate = require('../services/accessGate');
 const { authenticateDiscord } = require('../middleware/auth');
 const { roomManager } = require('../services/roomManager');
 const buzzerGameManager = require('../services/buzzer-gameManager');
@@ -325,6 +326,70 @@ router.post('/beatboxdle/reroll', (req, res) => {
         console.error('❌ Erreur relance Beatboxdle:', error);
         res.status(500).json({ success: false, error: 'server_error' });
     }
+});
+
+/**
+ * Liste d'accès de la version de test (ACCESS_GATE=true, voir services/accessGate.js).
+ * GET : les comptes autorisés, les administrateurs, et les refus récents à autoriser.
+ */
+router.get('/access', (req, res) => {
+    const db = getDatabase();
+    const denied = db.getRecentAccessDenials().map((row) => {
+        let context = {};
+        try {
+            context = row.context ? JSON.parse(row.context) : {};
+        } catch (error) {
+            context = {};
+        }
+        return {
+            discordId: row.discordId,
+            username: context.username || null,
+            avatarUrl: avatarUrl(row.discordId, context.avatar),
+            lastAttemptAt: row.lastAttemptAt,
+            attempts: row.attempts,
+        };
+    });
+    res.json({
+        success: true,
+        gate: accessGate.enabled(),
+        entries: db.listAccess().map((entry) => ({ ...entry, avatarUrl: avatarUrl(entry.discordId, entry.avatar) })),
+        admins: getAdminIds(),
+        denied,
+    });
+});
+
+/** POST /api/admin/access { discordId, label } : autorise un compte (ou change sa note). */
+router.post('/access', (req, res) => {
+    const discordId = String(req.body?.discordId || '').trim();
+    const label = String(req.body?.label || '').trim().slice(0, 80) || null;
+    if (!accessGate.DISCORD_ID.test(discordId)) {
+        return res.status(400).json({ success: false, error: 'invalid_discord_id' });
+    }
+    const db = getDatabase();
+    db.upsertAccess({ discordId, label, addedBy: req.user.discordId });
+    accessGate.reload();
+    db.logEvent({
+        type: 'access',
+        message: `${req.user.username} autorise ${label || discordId} sur la version de test`,
+        discordId,
+    });
+    return res.json({ success: true });
+});
+
+/** DELETE /api/admin/access/:discordId : retire l'accès, et coupe ses connexions en cours. */
+router.delete('/access/:discordId', (req, res) => {
+    const discordId = String(req.params.discordId || '').trim();
+    if (!accessGate.DISCORD_ID.test(discordId)) {
+        return res.status(400).json({ success: false, error: 'invalid_discord_id' });
+    }
+    const db = getDatabase();
+    const removed = db.removeAccess(discordId);
+    accessGate.reload();
+    const disconnected = accessGate.disconnect(discordId);
+    if (removed) {
+        db.logEvent({ type: 'access', message: `${req.user.username} retire l'accès de ${discordId} à la version de test`, discordId });
+    }
+    return res.json({ success: true, removed, disconnected });
 });
 
 module.exports = router;

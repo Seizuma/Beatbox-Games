@@ -6,6 +6,7 @@ import App from './App';
 import reportWebVitals from './reportWebVitals';
 import { BrowserRouter } from 'react-router-dom';
 import { migrateLegacyHashUrl } from './utils/legacyHashUrl';
+import AccessGate from './components/AccessGate';
 
 // ✅ NOUVEAU : Détection intelligente de l'environnement
 const getEnvironment = () => {
@@ -253,9 +254,12 @@ migrateLegacyHashUrl();
 const root = ReactDOM.createRoot(document.getElementById('root'));
 root.render(
   <React.StrictMode>
-    <BrowserRouter>
-      <App />
-    </BrowserRouter>
+    {/* Version de test : écran de connexion avant l'application (sans effet en production) */}
+    <AccessGate>
+      <BrowserRouter>
+        <App />
+      </BrowserRouter>
+    </AccessGate>
   </React.StrictMode>
 );
 

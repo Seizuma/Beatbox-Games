@@ -44,6 +44,16 @@ const corsOptions = {
 //test
 app.use(cors(corsOptions));
 app.use(express.json()); // ✅ NOUVEAU : Parser JSON pour les API
+
+// Version de test réservée aux comptes autorisés (ACCESS_GATE=true, sans effet sinon).
+// Avant les fichiers statiques et les routes : rien ne passe sans accès.
+const accessGate = require('./services/accessGate');
+app.use(accessGate.httpGate);
+app.use('/api/access', require('./routes/access'));
+if (accessGate.enabled()) {
+    console.log('🔒 ACCESS_GATE=true : site réservé aux comptes de la liste d’accès (admin > Accès) et aux administrateurs.');
+}
+
 app.use(express.static('public'));
 
 const contactService = require('./services/contactService');
@@ -441,6 +451,10 @@ const socketConfig = {
 };
 
 const io = new Server(server, socketConfig);
+
+// Version de test : connexion temps réel refusée aux comptes non autorisés
+io.use(accessGate.socketGate);
+accessGate.setIo(io);
 
 // ✅ NOUVEAU : Middleware Socket.io pour l'authentification Discord
 io.use((socket, next) => {

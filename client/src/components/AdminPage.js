@@ -14,8 +14,11 @@ import { authFetch } from './admin/adminApi';
 import PhotoReview from './admin/PhotoReview';
 import TitleReview from './admin/TitleReview';
 import ArtistsTab from './admin/ArtistsTab';
+import AccessTab from './admin/AccessTab';
+import { ACCESS_GATE_ENABLED } from './AccessGate';
 
-const TABS = ['overview', 'players', 'games', 'rooms', 'log', 'artists', 'data', 'maintenance'];
+// « Accès testeurs » : seulement sur la version de test (REACT_APP_ACCESS_GATE=true)
+const TABS = ['overview', 'players', 'games', 'rooms', 'log', 'artists', 'data', 'maintenance', ...(ACCESS_GATE_ENABLED ? ['access'] : [])];
 const DATA_SECTIONS = ['photos', 'titles'];
 
 const formatBytes = (bytes) => {
@@ -623,6 +626,7 @@ function AdminContent() {
                 {tab === 'artists' && <ArtistsTab />}
                 {tab === 'data' && <DataTab />}
                 {tab === 'maintenance' && <MaintenanceTab />}
+                {tab === 'access' && <AccessTab />}
             </div>
         </>
     );

@@ -70,7 +70,10 @@ router.get('/discord/callback', async (req, res) => {
         // 6. Rediriger avec le token
         // Page de retour : un chemin simple du site (« profile », « contact »…), jamais une adresse
         // arbitraire, car elle est réinjectée dans la page de redirection ci-dessous
-        const redirectPage = /^[a-z0-9-]+(\/[a-z0-9-]+)*$/i.test(state || '') ? state : 'profile';
+        // « home » : retour à l'accueil (écran de connexion de la version de test, qui sait où reprendre)
+        const redirectPage = state === 'home'
+            ? ''
+            : (/^[a-z0-9-]+(\/[a-z0-9-]+)*$/i.test(state || '') ? state : 'profile');
         // Le token voyage dans le fragment (#) : jamais envoyé à un serveur, donc absent des journaux d'accès
         const redirectUrl = `${CONFIG.CLIENT_URL}/${redirectPage}#token=${encodeURIComponent(jwt)}&success=true`;
 

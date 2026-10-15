@@ -262,6 +262,20 @@ class DatabaseService {
             )
         `);
 
+        // Comptes Discord autorisés sur un serveur protégé (ACCESS_GATE=true, version de test).
+        // Les administrateurs (ADMIN_DISCORD_IDS) passent toujours, sans figurer ici.
+        this.db.exec(`
+            CREATE TABLE IF NOT EXISTS access_allowlist (
+                discord_id TEXT PRIMARY KEY,
+                label TEXT,
+                username TEXT,
+                avatar TEXT,
+                added_by TEXT,
+                added_at INTEGER NOT NULL,
+                last_seen_at INTEGER
+            )
+        `);
+
         // Index pour optimiser les requêtes
         this.db.exec(`
             CREATE INDEX IF NOT EXISTS idx_beatboxdle_user ON beatboxdle_results(discord_id, mode, puzzle_number DESC);
@@ -279,6 +293,60 @@ class DatabaseService {
         `);
 
         logger.info('✅ Tables créées/vérifiées');
+    }
+
+    // ---- Liste d'accès de la version de test (services/accessGate.js)
+
+    listAccess() {
+        return this.db.prepare(`
+            SELECT a.discord_id AS discordId, a.label, a.added_by AS addedBy, a.added_at AS addedAt,
+                   a.last_seen_at AS lastSeenAt,
+                   COALESCE(a.username, u.username) AS username,
+                   COALESCE(a.avatar, u.avatar) AS avatar
+            FROM access_allowlist a
+            LEFT JOIN users u ON u.discord_id = a.discord_id
+            ORDER BY a.added_at DESC
+        `).all();
+    }
+
+    listAccessIds() {
+        return this.db.prepare('SELECT discord_id FROM access_allowlist').all().map((row) => row.discord_id);
+    }
+
+    /** Ajoute un compte, ou met à jour sa note s'il est déjà dans la liste. */
+    upsertAccess({ discordId, label = null, addedBy = null }) {
+        this.db.prepare(`
+            INSERT INTO access_allowlist (discord_id, label, added_by, added_at)
+            VALUES (?, ?, ?, ?)
+            ON CONFLICT(discord_id) DO UPDATE SET label = excluded.label
+        `).run(discordId, label, addedBy, Date.now());
+    }
+
+    removeAccess(discordId) {
+        return this.db.prepare('DELETE FROM access_allowlist WHERE discord_id = ?').run(discordId).changes > 0;
+    }
+
+    /** Dernière visite d'un compte autorisé, avec son nom Discord du moment. */
+    touchAccess(discordId, username, avatar) {
+        this.db.prepare(`
+            UPDATE access_allowlist SET last_seen_at = ?, username = COALESCE(?, username), avatar = COALESCE(?, avatar)
+            WHERE discord_id = ?
+        `).run(Date.now(), username || null, avatar || null, discordId);
+    }
+
+    /** Comptes refusés récemment (journal), absents de la liste : à autoriser en un clic. */
+    getRecentAccessDenials(limit = 15) {
+        return this.db.prepare(`
+            SELECT l.discord_id AS discordId, MAX(l.created_at) AS lastAttemptAt, COUNT(*) AS attempts,
+                   (SELECT context FROM activity_log l2 WHERE l2.type = 'access_denied' AND l2.discord_id = l.discord_id
+                    ORDER BY l2.created_at DESC LIMIT 1) AS context
+            FROM activity_log l
+            WHERE l.type = 'access_denied' AND l.discord_id IS NOT NULL
+              AND l.discord_id NOT IN (SELECT discord_id FROM access_allowlist)
+            GROUP BY l.discord_id
+            ORDER BY lastAttemptAt DESC
+            LIMIT ?
+        `).all(limit);
     }
 
     // Méthodes pour gérer les utilisateurs
