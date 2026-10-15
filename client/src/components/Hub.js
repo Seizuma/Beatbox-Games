@@ -20,7 +20,7 @@ function HubContent() {
 
     return (
         <>
-            <SEO title={t('hub.seoTitle')} description={t('hub.seoDescription')} url="https://beatboxgames.com" />
+            <SEO title={t('hub.seoTitle')} description={t('hub.seoDescription')} path="/" />
 
             <div className="mx-auto max-w-site px-4 pb-16 pt-6 sm:px-6 sm:pt-12">
                 {/* En-tête : le titre, et à droite « J'ai un code » pour qui arrive avec une invitation */}

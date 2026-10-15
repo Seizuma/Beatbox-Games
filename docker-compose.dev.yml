@@ -47,6 +47,10 @@ services:
         - REACT_APP_API_URL=https://dev.beatboxgames.com
         - GENERATE_SOURCEMAP=true
     container_name: beatbox-games-dev-client
+    environment:
+      # Lus par le modèle client/nginx/default.conf.template
+      - APP_ENV=development
+      - SERVER_UPSTREAM=beatbox-games-dev-server:4000
     ports:
       - "8081:80"
     restart: unless-stopped

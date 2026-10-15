@@ -2,140 +2,94 @@
 <html lang="fr">
 
 <head>
-  <!-- Méta-données de base -->
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
 
-  <!-- Titre optimisé SEO - Focus Beatbox -->
-  <title>BeatBox Games - Blind Test Musical & Univers Beatbox | Jeu Multijoueur Gratuit</title>
-
-  <!-- Description méta optimisée beatbox -->
+  <!-- Valeurs par défaut : chaque page les remplace (composant SEO) une fois l'application chargée.
+       Les robots qui n'exécutent pas JavaScript (aperçus de liens) lisent celles-ci. -->
+  <title>BeatBox Games — jeux de beatbox en ligne : Blind Test, Buzzer Battle, Beatboxdle</title>
   <meta name="description"
-    content="Plongez dans l'univers du beatbox avec BeatBox Games ! Blind Test musical multijoueur, découvrez les plus grands beatboxers, créez votre room privée et défiez vos amis. Jeu gratuit sans inscription." />
+    content="Jeux gratuits autour des plus grands beatboxers : reconnais-les à l'oreille au Blind Test, à la photo au Buzzer Battle, et trouve le beatboxer du jour au Beatboxdle. Entre amis, jusqu'à 10 joueurs, sans inscription." />
+  <meta name="robots" content="index, follow, max-snippet:-1, max-image-preview:large" />
+  <!-- Adresse canonique et versions fr / en : posées par le composant SEO, propres à chaque page
+       (index.html sert toutes les adresses, une valeur fixe ici les rattacherait toutes à l'accueil) -->
 
-  <!-- Mots-clés beatbox optimisés -->
-  <meta name="keywords"
-    content="beatbox, beatboxer, blind test, jeu musical, human beatbox, beatmaking, vocal percussion, battle beatbox, freestyle beatbox, multijoueur, en ligne, gratuit, party game, musique urbaine, hip hop, beatbox français, beatbox battle, sound effects" />
-
-  <!-- Méta-données Open Graph - Version beatbox -->
-  <meta property="og:title" content="BeatBox Games - L'Univers du Beatbox en Ligne" />
-  <meta property="og:description"
-    content="Découvrez le meilleur jeu beatbox ! Blind Test musical avec les plus grands beatboxers, créez votre room et battez vos amis. Univers beatbox complet avec 50+ artistes." />
-  <meta property="og:image" content="https://beatboxgames.com/og-beatbox-image.jpg" />
-  <meta property="og:url" content="https://beatboxgames.com" />
-  <meta property="og:type" content="website" />
+  <!-- Aperçus de partage (Discord, WhatsApp, Instagram, Facebook, X…) -->
   <meta property="og:site_name" content="BeatBox Games" />
+  <meta property="og:type" content="website" />
+  <meta property="og:title" content="BeatBox Games — jeux de beatbox en ligne" />
+  <meta property="og:description"
+    content="Blind Test, Buzzer Battle et Beatboxdle : reconnais les plus grands beatboxers, seul chaque jour ou avec jusqu'à 10 amis. Gratuit, sans inscription." />
+  <meta property="og:image" content="https://beatboxgames.com/og-beatbox-image.jpg" />
+  <meta property="og:image:width" content="1200" />
+  <meta property="og:image:height" content="630" />
+  <meta property="og:image:alt" content="BeatBox Games — Blind Test, Buzzer Battle, Beatboxdle" />
   <meta property="og:locale" content="fr_FR" />
-
-  <!-- Twitter Cards - Version beatbox -->
+  <meta property="og:locale:alternate" content="en_US" />
   <meta name="twitter:card" content="summary_large_image" />
-  <meta name="twitter:title" content="BeatBox Games - L'Univers du Beatbox en Ligne" />
+  <meta name="twitter:title" content="BeatBox Games — jeux de beatbox en ligne" />
   <meta name="twitter:description"
-    content="Le premier jeu beatbox multijoueur ! Blind Test avec les légendes du beatbox, battles en ligne, et défis musicaux entre amis." />
+    content="Blind Test, Buzzer Battle et Beatboxdle : reconnais les plus grands beatboxers, seul chaque jour ou avec jusqu'à 10 amis." />
   <meta name="twitter:image" content="https://beatboxgames.com/og-beatbox-image.jpg" />
 
-  <!-- Données structurées JSON-LD optimisées beatbox -->
+  <!-- Données structurées : le site et son éditeur -->
   <script type="application/ld+json">
     {
-        "@context": "https://schema.org",
-        "@type": "WebApplication",
-        "name": "BeatBox Games",
-        "alternateName": ["Beatbox Online", "Blind Test Beatbox", "Jeu Beatbox"],
-        "description": "Jeu multijoueur dédié à l'univers du beatbox. Blind Test musical, découverte des plus grands beatboxers, battles en ligne et défis musicaux.",
-        "url": "https://beatboxgames.com",
-        "applicationCategory": "Game",
-        "operatingSystem": "Web Browser",
-        "browserRequirements": "Chrome, Firefox, Safari, Edge",
-        "keywords": ["beatbox", "beatboxer", "human beatbox", "vocal percussion", "blind test", "battle beatbox", "freestyle"],
-        "offers": {
-            "@type": "Offer",
-            "price": "0",
-            "priceCurrency": "EUR",
-            "description": "Jeu gratuit sans inscription"
+      "@context": "https://schema.org",
+      "@graph": [
+        {
+          "@type": "WebSite",
+          "@id": "https://beatboxgames.com/#website",
+          "name": "BeatBox Games",
+          "url": "https://beatboxgames.com/",
+          "inLanguage": ["fr", "en"],
+          "description": "Jeux en ligne gratuits autour du beatbox : Blind Test, Buzzer Battle et Beatboxdle.",
+          "publisher": { "@id": "https://beatboxgames.com/#organization" }
         },
-        "creator": {
-            "@type": "Organization",
-            "name": "BeatBox Games",
-            "description": "Plateforme dédiée à l'univers du beatbox et des jeux musicaux"
-        },
-        "gameItem": {
-            "@type": "Game",
-            "name": "BeatBox Blind Test",
-            "description": "Jeu musical multijoueur centré sur l'univers du beatbox. Les joueurs doivent reconnaître des beatboxers célèbres, leurs techniques et leurs performances.",
-            "numberOfPlayers": "2-8 joueurs",
-            "genre": ["Beatbox", "Quiz Musical", "Party Game", "Multijoueur", "Hip Hop"],
-            "gamePlatform": "Web Browser",
-            "audience": {
-                "@type": "Audience",
-                "audienceType": "Beatbox enthusiasts, music lovers, gamers"
-            }
-        },
-        "about": [
-            {
-                "@type": "Thing",
-                "name": "Beatbox",
-                "description": "Art vocal consistant à reproduire des sons d'instruments et des rythmes avec la bouche"
-            },
-            {
-                "@type": "Thing", 
-                "name": "Human Beatbox",
-                "description": "Technique vocale de percussion humaine"
-            }
-        ],
-        "aggregateRating": {
-            "@type": "AggregateRating",
-            "ratingValue": "4.8",
-            "ratingCount": "150"
+        {
+          "@type": "Organization",
+          "@id": "https://beatboxgames.com/#organization",
+          "name": "BeatBox Games",
+          "url": "https://beatboxgames.com/",
+          "logo": "https://beatboxgames.com/beatbox-logo-512x512.png"
         }
+      ]
     }
-    </script>
+  </script>
 
-  <!-- Favicon et icônes - MISE À JOUR -->
-  <link rel="icon" href="%PUBLIC_URL%/favicon.ico" />
-  <link rel="apple-touch-icon" sizes="180x180" href="%PUBLIC_URL%/apple-touch-icon.png" />
+  <!-- Icônes et application installable -->
+  <link rel="icon" href="%PUBLIC_URL%/favicon.ico" sizes="any" />
   <link rel="icon" type="image/png" sizes="32x32" href="%PUBLIC_URL%/favicon-32x32.png" />
   <link rel="icon" type="image/png" sizes="16x16" href="%PUBLIC_URL%/favicon-16x16.png" />
-  <link rel="icon" type="image/png" sizes="192x192" href="%PUBLIC_URL%/android-chrome-192x192.png" />
+  <link rel="apple-touch-icon" sizes="180x180" href="%PUBLIC_URL%/apple-touch-icon.png" />
   <link rel="manifest" href="%PUBLIC_URL%/site.webmanifest" />
-  <link rel="shortcut icon" href="%PUBLIC_URL%/favicon.ico" />
 
-  <!-- Canonical URL pour éviter le contenu dupliqué -->
-  <link rel="canonical" href="https://beatboxgames.com" />
+  <!-- Polices Google (importées par index.css) : connexion ouverte dès le départ -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 
-  <!-- Robots et indexation -->
-  <meta name="robots" content="index, follow, max-snippet:-1, max-image-preview:large" />
-  <meta name="googlebot" content="index, follow" />
-
-  <!-- Langue et localisation -->
-  <meta name="language" content="French" />
-  <meta name="geo.region" content="FR" />
-  <meta name="geo.placename" content="France" />
-
-  <!-- Performance et PWA -->
   <!-- Valeur de départ ; siteTheme.js la met à jour selon le thème et la surface -->
   <meta name="theme-color" content="#0A0E1C" />
   <meta name="msapplication-TileColor" content="#0F1B3D" />
   <meta name="msapplication-TileImage" content="%PUBLIC_URL%/android-chrome-192x192.png" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="default" />
   <meta name="apple-mobile-web-app-title" content="BeatBox Games" />
-
-  <!-- Préconnexion pour améliorer les performances -->
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link rel="preconnect" href="https://cdnjs.cloudflare.com" />
-
-  <!-- DNS Prefetch pour les domaines externes -->
-  <link rel="dns-prefetch" href="//fonts.googleapis.com" />
-  <link rel="dns-prefetch" href="//cdnjs.cloudflare.com" />
 </head>
 
 <body>
   <noscript>
-    <div style="padding: 20px; text-align: center; font-family: Arial, sans-serif;">
-      <h1>BeatBox Games - L'Univers du Beatbox en Ligne</h1>
-      <p>Vous devez activer JavaScript pour jouer au Blind Test beatbox.</p>
-      <p>Découvrez les plus grands beatboxers, créez
-        votre room privée et défiez vos amis.</p>
+    <div style="max-width: 640px; margin: 0 auto; padding: 24px; font-family: Arial, sans-serif; line-height: 1.5;">
+      <h1>BeatBox Games — jeux de beatbox en ligne</h1>
+      <p>Des jeux gratuits autour des plus grands beatboxers, à jouer seul ou avec jusqu'à 10 amis, sans
+        inscription. Active JavaScript pour jouer.</p>
+      <ul>
+        <li><a href="/blindtest-online">Blind Test</a> : écoute des extraits et reconnais le beatboxer.</li>
+        <li><a href="/buzzer-battle">Buzzer Battle</a> : une photo floue se précise, buzze le premier.</li>
+        <li><a href="/beatboxdle">Beatboxdle</a> : trouve le beatboxer du jour, au nom ou aux indices.</li>
+        <li><a href="/stats">Classements</a> · <a href="/credits">Les beatboxers</a></li>
+      </ul>
     </div>
   </noscript>
   <div id="root"></div>

@@ -7,7 +7,7 @@ function DiscordLoginButton({ className = "", size = "normal", redirectPath = "p
     // Si l'utilisateur est connecté, afficher seulement sa photo
     if (isAuthenticated && user) {
         const handleProfileClick = () => {
-            window.location.href = '/#/profile';
+            window.location.href = '/profile';
         };
 
         return (

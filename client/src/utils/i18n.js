@@ -1,5 +1,6 @@
 // src/utils/i18n.js
 import { useState, useEffect } from 'react';
+import { readLanguage } from './language';
 
 // Dictionnaire des traductions
 const translations = {
@@ -405,24 +406,24 @@ const translations = {
 
         // SEO
         seoCreateRoom: {
-            title: "Créer une Room Beatbox - BeatBox Games | Blind Test Musical",
-            description: "Créez votre room de Blind Test beatbox privée ! Invitez vos amis dans l'univers du beatbox, découvrez les plus grands beatboxers. Jeu gratuit sans inscription.",
-            keywords: "créer room beatbox, party game beatbox, quiz musical beatbox, jeu entre amis, beatbox multijoueur, human beatbox"
+            title: "Blind Test beatbox en ligne | BeatBox Games",
+            description: "Écoute trois extraits par manche et trouve le beatboxer avant les autres : 5, 3 ou 1 point. Jusqu’à 10 joueurs, salle privée ou partie rapide, gratuit."
         },
         seoLobby: {
-            title: "Room Beatbox {room} - BeatBox Games | En attente des joueurs",
-            description: "Rejoignez la room beatbox {room} ! Mode {mode}. Partagez le code avec vos amis pour une battle épique.",
-            keywords: "rejoindre room beatbox, code room, lobby multijoueur, battle beatbox, freestyle beatbox"
+            title: "Salle {room} — Blind Test beatbox | BeatBox Games",
+            description: "Salle de Blind Test beatbox {room} : partage le code avec tes amis et lancez la partie."
         },
         seoGame: {
-            title: "Battle Beatbox en cours - Room {room} | BeatBox Games",
-            description: "Battle de Blind Test beatbox en cours ! Devinez les beatboxers parmi {count} légendes. 3 niveaux de difficulté, système de points en temps réel.",
-            keywords: "battle beatbox en cours, deviner beatboxer, quiz musical en direct, freestyle battle"
+            title: "Partie en cours — salle {room} | BeatBox Games",
+            description: "Blind Test beatbox en cours dans la salle {room}."
         },
         seoResults: {
-            title: "Résultats Battle Beatbox - Room {room} | BeatBox Games",
-            description: "Découvrez le classement final de votre battle beatbox ! Rejouer une nouvelle partie ou créer une nouvelle room pour défier vos amis.",
-            keywords: "résultats battle beatbox, classement final, rejouer beatbox"
+            title: "Résultats — salle {room} | BeatBox Games",
+            description: "Classement final de la partie de Blind Test beatbox de la salle {room}."
+        },
+        seoBuzzer: {
+            title: "Buzzer Battle — devine le beatboxer sur photo | BeatBox Games",
+            description: "Une photo floue se précise : buzze le premier et donne le nom du beatboxer. +2 si c’est juste, −1 sinon. Par événement ou par pays, jusqu’à 10 joueurs."
         },
         seoCredits: {
             title: "Crédits Artistes Beatbox - BeatBox Games | Liste complète des beatboxers",
@@ -968,24 +969,24 @@ const translations = {
 
         // SEO
         seoCreateRoom: {
-            title: "Create a Beatbox Room - BeatBox Games | Musical Blind Test",
-            description: "Create your private Beatbox Blind Test room! Invite your friends to the beatbox universe, discover the greatest beatboxers. Free game without registration.",
-            keywords: "create beatbox room, beatbox party game, musical quiz beatbox, multiplayer game, human beatbox"
+            title: "Online beatbox Blind Test | BeatBox Games",
+            description: "Hear three clips per round and name the beatboxer before everyone else: 5, 3 or 1 point. Up to 10 players, private room or quick play, free."
         },
         seoLobby: {
-            title: "Beatbox Room {room} - BeatBox Games | Waiting for players",
-            description: "Join beatbox room {room}! {mode} mode. Share the code with your friends for an epic battle.",
-            keywords: "join beatbox room, room code, multiplayer lobby, beatbox battle, freestyle beatbox"
+            title: "Room {room} — beatbox Blind Test | BeatBox Games",
+            description: "Beatbox Blind Test room {room}: share the code with your friends and start the game."
         },
         seoGame: {
-            title: "Beatbox Battle in Progress - Room {room} | BeatBox Games",
-            description: "Beatbox Blind Test battle in progress! Guess the beatboxers among {count} legends. 3 difficulty levels, real-time scoring system.",
-            keywords: "beatbox battle in progress, guess beatboxer, live musical quiz, freestyle battle"
+            title: "Game in progress — room {room} | BeatBox Games",
+            description: "Beatbox Blind Test in progress in room {room}."
         },
         seoResults: {
-            title: "Beatbox Battle Results - Room {room} | BeatBox Games",
-            description: "Discover the final ranking of your beatbox battle! Play again or create a new room to challenge your friends.",
-            keywords: "beatbox battle results, final ranking, play again beatbox"
+            title: "Results — room {room} | BeatBox Games",
+            description: "Final ranking of the beatbox Blind Test game in room {room}."
+        },
+        seoBuzzer: {
+            title: "Buzzer Battle — name the beatboxer from a photo | BeatBox Games",
+            description: "A blurry photo sharpens: buzz first and name the beatboxer. +2 if right, −1 if wrong. By event or by country, up to 10 players."
         },
         seoCredits: {
             title: "Beatbox Artist Credits - BeatBox Games | Complete beatboxers list",
@@ -1133,12 +1134,6 @@ const translations = {
     },
 };
 
-// Fonction pour détecter la langue du navigateur
-const detectBrowserLanguage = () => {
-    const language = navigator.language || navigator.userLanguage;
-    return language.toLowerCase().startsWith('fr') ? 'fr' : 'en';
-};
-
 // Fonction pour interpoler les variables dans les chaînes
 const interpolate = (str, variables = {}) => {
     return str.replace(/\{(\w+)\}/g, (match, key) => {
@@ -1148,14 +1143,8 @@ const interpolate = (str, variables = {}) => {
 
 // Hook personnalisé pour l'i18n
 export const useI18n = () => {
-    const [language, setLanguage] = useState(() => {
-        // Priorité : localStorage > langue du navigateur > français par défaut
-        const savedLanguage = localStorage.getItem('beatbox_language');
-        if (savedLanguage && ['fr', 'en'].includes(savedLanguage)) {
-            return savedLanguage;
-        }
-        return detectBrowserLanguage();
-    });
+    // Priorité : ?lang= dans l'adresse > choix enregistré > langue du navigateur
+    const [language, setLanguage] = useState(readLanguage);
 
     useEffect(() => {
         localStorage.setItem('beatbox_language', language);

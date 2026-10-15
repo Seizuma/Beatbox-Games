@@ -103,7 +103,7 @@ export const useGameLogic = ({
     const backToCreate = useCallback(() => {
         clearUserSession();
         if (window.history.replaceState) {
-            window.history.replaceState({}, document.title, window.location.pathname + '#/blindtest-online');
+            window.history.replaceState(window.history.state, document.title, '/blindtest-online');
         }
         setView(VIEWS.CREATE);
     }, [clearUserSession, setView, VIEWS]);

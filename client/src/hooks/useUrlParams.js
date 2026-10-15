@@ -163,7 +163,7 @@ export const useUrlParams = (getUserSession, clearUserSession) => {
                     }
 
                     console.log('🧹 Nettoyage URL:', window.location.href, '→', cleanedUrl);
-                    window.history.replaceState({}, '', cleanedUrl);
+                    window.history.replaceState(window.history.state, '', cleanedUrl);
                 }
             } catch (error) {
                 console.error('❌ Erreur lors du nettoyage URL:', error);

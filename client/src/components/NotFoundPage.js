@@ -10,7 +10,7 @@ function NotFoundContent() {
 
     return (
         <>
-            <SEO title={t('notFound.seoTitle')} description={t('notFound.text')} />
+            <SEO title={t('notFound.seoTitle')} description={t('notFound.text')} noindex />
             <PageContainer>
                 <div className="mx-auto flex max-w-lg flex-col items-center py-10 text-center">
                     <BulbRing progress={0} size={132}>

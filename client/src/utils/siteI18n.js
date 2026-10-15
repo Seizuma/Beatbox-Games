@@ -1,4 +1,5 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
+import { readLanguage } from './language';
 
 // Même clé que useI18n : la langue choisie sur le site est reprise dans les jeux
 const STORAGE_KEY = 'beatbox_language';
@@ -47,9 +48,9 @@ const strings = {
         hub: {
             title: 'Les jeux beatbox à jouer entre amis',
             intro: 'Crée une salle, envoie le code, jouez ensemble. Jusqu’à 10 joueurs, rien à installer.',
-            seoTitle: 'BeatBox Games — Blind Test et Buzzer Battle beatbox entre amis',
+            seoTitle: 'BeatBox Games — Blind Test, Buzzer Battle et Beatboxdle',
             gamesLabel: 'Les jeux',
-            seoDescription: 'Deux jeux multijoueurs gratuits autour des plus grands beatboxers : Blind Test et Buzzer Battle. Crée une salle, partage le code et joue avec jusqu’à 10 amis.',
+            seoDescription: 'Jeux de beatbox gratuits : reconnais les plus grands beatboxers à l’oreille, à la photo ou dans l’énigme du jour. Entre amis jusqu’à 10, sans inscription.',
             public: {
                 title: 'Salles ouvertes',
                 summary: '{rooms} salle(s) · {players} joueur(s)',
@@ -107,8 +108,18 @@ const strings = {
                 title: 'Son titre le plus marquant, du championnat du monde au championnat national. Vert : exactement le même titre. Orange : même rang ailleurs (champion GBB / champion du monde, champion de France / champion de Belgique). La flèche indique un titre plus ou moins prestigieux.',
                 twin: 'Quatre verts sans victoire : un autre beatboxer a exactement les mêmes indices. Ce n’est pas la réponse : cherche son sosie.',
             },
-            seoTitle: 'Beatboxdle — l’énigme beatbox du jour | BeatBox Games',
-            seoDescription: 'Le jeu quotidien du beatbox : trouve le beatboxer du jour, au nom ou aux indices. Nouvelle énigme chaque jour à minuit.',
+            seoTitle: 'Beatboxdle — le beatboxer du jour à deviner | BeatBox Games',
+            seoDescription: 'Chaque jour, deux beatboxers à trouver : l’un lettre par lettre, l’autre aux indices (pays, première battle, meilleur titre). Nouvelle énigme à minuit.',
+            seoMode: {
+                letters: {
+                    title: 'Beatboxdle Lettres — le beatboxer du jour | BeatBox Games',
+                    description: 'Devine le nom du beatboxer du jour en 6 essais, guidé par les couleurs : vert, orange, gris. Nouvelle énigme chaque jour à minuit.',
+                },
+                clues: {
+                    title: 'Beatboxdle Indices — le beatboxer du jour | BeatBox Games',
+                    description: 'Devine le beatboxer du jour en 8 essais en comparant pays, genre, première battle et meilleur titre. Nouvelle énigme chaque jour à minuit.',
+                },
+            },
             modeLabel: 'Mode de jeu',
             meta: 'N° {number} · {mode}',
             unavailable: 'Le Beatboxdle n’est pas disponible pour le moment. Reviens dans un instant.',
@@ -338,8 +349,8 @@ const strings = {
             notRanked: 'Pas encore classé',
         },
         stats: {
-            seoTitle: 'Classements et statistiques — BeatBox Games',
-            seoDescription: 'Classements des joueurs, beatboxers les plus faciles et les plus durs à reconnaître, statistiques du Blind Test et du Buzzer Battle.',
+            seoTitle: 'Classements et statistiques beatbox | BeatBox Games',
+            seoDescription: 'Classements des joueurs du Blind Test, du Buzzer Battle et du Beatboxdle, du jour et de la semaine, et les beatboxers les plus durs à reconnaître.',
             title: 'Classements',
             intro: 'Les meilleurs joueurs connectés avec Discord, et ce que les parties disent des beatboxers.',
             gameTabs: 'Choix du jeu',
@@ -443,8 +454,8 @@ const strings = {
             visibilityLabel: 'Apparaître dans la recherche et laisser les autres joueurs voir mes statistiques. Ton pseudo et ton avatar Discord restent visibles dans les classements dans tous les cas.',
         },
         beatboxer: {
-            seoTitle: '{name} — fiche beatboxer | BeatBox Games',
-            seoDescription: 'Pays, catégorie, palmarès de {name}, et où le croiser dans les jeux de BeatBox Games.',
+            seoTitle: '{name} — beatboxer, palmarès et fiche | BeatBox Games',
+            seoDescription: 'Fiche de {name} : pays, catégorie, palmarès en battle (GBB, championnats) et où l’entendre ou le reconnaître dans les jeux de BeatBox Games.',
             allArtists: 'Tous les artistes',
             missingTitle: 'Fiche introuvable',
             missingText: 'Ce beatboxer n’a pas encore de fiche, ou il a été retiré des jeux.',
@@ -476,8 +487,8 @@ const strings = {
             },
         },
         credits: {
-            seoTitle: 'Les artistes — BeatBox Games',
-            seoDescription: 'Tous les beatboxers que l’on peut entendre dans le Blind Test de BeatBox Games, et les crédits audio du site.',
+            seoTitle: 'Les beatboxers du site : fiches et crédits | BeatBox Games',
+            seoDescription: 'Tous les beatboxers présents dans les jeux : fiches avec pays, catégorie et palmarès, extraits du Blind Test et crédits audio.',
             title: 'Les {count} artistes',
             intro: 'Tous les beatboxers qu’on peut entendre dans le Blind Test. Merci à eux pour leur talent.',
             search: 'Rechercher un artiste',
@@ -843,9 +854,9 @@ const strings = {
         hub: {
             title: 'Beatbox games to play with friends',
             intro: 'Create a room, send the code, play together. Up to 10 players, nothing to install.',
-            seoTitle: 'BeatBox Games — Beatbox Blind Test and Buzzer Battle with friends',
+            seoTitle: 'BeatBox Games — Blind Test, Buzzer Battle and Beatboxdle',
             gamesLabel: 'The games',
-            seoDescription: 'Two free multiplayer games about the greatest beatboxers: Blind Test and Buzzer Battle. Create a room, share the code and play with up to 10 friends.',
+            seoDescription: 'Free beatbox games: recognise the greatest beatboxers by ear, by photo or in the daily puzzle. Up to 10 friends, no sign-up.',
             public: {
                 title: 'Open rooms',
                 summary: '{rooms} room(s) · {players} player(s)',
@@ -903,8 +914,18 @@ const strings = {
                 title: 'Their most notable title, from world to national championships. Green: the exact same title. Orange: same rank elsewhere (GBB champion / world champion, French champion / Belgian champion). The arrow points to a more or less prestigious title.',
                 twin: 'Four greens but no win: another beatboxer has the exact same clues. Not the answer: find their look-alike.',
             },
-            seoTitle: 'Beatboxdle — the daily beatbox puzzle | BeatBox Games',
-            seoDescription: 'The daily beatbox game: find today’s beatboxer, by name or by clues. A new puzzle every day at midnight.',
+            seoTitle: 'Beatboxdle — guess today’s beatboxer | BeatBox Games',
+            seoDescription: 'Two beatboxers to find every day: one letter by letter, one from clues (country, first battle, best title). A new puzzle at midnight.',
+            seoMode: {
+                letters: {
+                    title: 'Beatboxdle Letters — today’s beatboxer | BeatBox Games',
+                    description: 'Guess today’s beatboxer name in 6 tries, guided by colours: green, orange, grey. A new puzzle every day at midnight.',
+                },
+                clues: {
+                    title: 'Beatboxdle Clues — today’s beatboxer | BeatBox Games',
+                    description: 'Guess today’s beatboxer in 8 tries by comparing country, gender, first battle and best title. A new puzzle every day at midnight.',
+                },
+            },
             modeLabel: 'Game mode',
             meta: 'No. {number} · {mode}',
             unavailable: 'Beatboxdle is unavailable right now. Come back in a moment.',
@@ -1132,8 +1153,8 @@ const strings = {
             notRanked: 'Not ranked yet',
         },
         stats: {
-            seoTitle: 'Rankings and statistics — BeatBox Games',
-            seoDescription: 'Player rankings, easiest and hardest beatboxers to recognise, Blind Test and Buzzer Battle statistics.',
+            seoTitle: 'Beatbox rankings and statistics | BeatBox Games',
+            seoDescription: 'Daily and weekly rankings for the Blind Test, Buzzer Battle and Beatboxdle, and the beatboxers players find hardest to recognise.',
             title: 'Rankings',
             intro: 'The best players logged in with Discord, and what the games say about the beatboxers.',
             gameTabs: 'Choose a game',
@@ -1237,8 +1258,8 @@ const strings = {
             visibilityLabel: 'Show up in search and let other players see my statistics. Your nickname and Discord avatar stay visible in the rankings either way.',
         },
         beatboxer: {
-            seoTitle: '{name} — beatboxer card | BeatBox Games',
-            seoDescription: 'Country, category and results of {name}, and where to meet them in the BeatBox Games games.',
+            seoTitle: '{name} — beatboxer profile and results | BeatBox Games',
+            seoDescription: '{name}’s profile: country, category, battle results (GBB, championships) and where to hear or spot them in the BeatBox Games games.',
             allArtists: 'All artists',
             missingTitle: 'Card not found',
             missingText: 'This beatboxer has no card yet, or was removed from the games.',
@@ -1270,8 +1291,8 @@ const strings = {
             },
         },
         credits: {
-            seoTitle: 'The artists — BeatBox Games',
-            seoDescription: 'Every beatboxer you can hear in the BeatBox Games Blind Test, and the site’s audio credits.',
+            seoTitle: 'The beatboxers on the site: profiles and credits | BeatBox Games',
+            seoDescription: 'Every beatboxer in the games: profiles with country, category and results, Blind Test clips and audio credits.',
             title: 'The {count} artists',
             intro: 'Every beatboxer you can hear in the Blind Test. Thanks to them for their talent.',
             search: 'Search for an artist',
@@ -1602,16 +1623,8 @@ const lookup = (dictionary, key) =>
 const interpolate = (text, variables) =>
     text.replace(/\{(\w+)\}/g, (match, name) => (variables[name] !== undefined ? variables[name] : match));
 
-const readInitialLanguage = () => {
-    try {
-        const saved = localStorage.getItem(STORAGE_KEY);
-        if (SUPPORTED.includes(saved)) return saved;
-    } catch (error) {
-        // localStorage indisponible (navigation privée stricte) : on se rabat sur le navigateur
-    }
-    const browser = (typeof navigator !== 'undefined' && navigator.language) || 'fr';
-    return browser.toLowerCase().startsWith('fr') ? 'fr' : 'en';
-};
+// ?lang= dans l'adresse, puis le choix enregistré, puis le navigateur
+const readInitialLanguage = readLanguage;
 
 const SiteI18nContext = createContext(null);
 
@@ -1653,6 +1666,12 @@ export function createSiteT(language = 'fr') {
         const value = lookup(dictionary, key) ?? lookup(strings.fr, key);
         return typeof value === 'string' ? interpolate(value, variables) : key;
     };
+}
+
+/** Langue de « la chaîne » si l'on est dans SiteShell, sinon null (plateau des jeux). */
+export function useOptionalSiteLanguage() {
+    const context = useContext(SiteI18nContext);
+    return context ? context.language : null;
 }
 
 export function useSiteI18n() {

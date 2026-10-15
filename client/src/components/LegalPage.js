@@ -23,7 +23,7 @@ function LegalDocument() {
 
     return (
         <>
-            <SEO title={`${t('legalPageTitle')} — BeatBox Games`} description={t('legalIntroText')} url="https://beatboxgames.com/#/legal" />
+            <SEO title={`${t('legalPageTitle')} — BeatBox Games`} description={t('legalIntroText')} />
             <LegalLayout title={t('legalPageTitle')} sections={sections}>
                 <LegalSection id="legal-about" title={sections[0].title}>
                     <p>{t('legalIntroText')}</p>

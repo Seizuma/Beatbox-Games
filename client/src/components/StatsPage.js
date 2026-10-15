@@ -276,7 +276,7 @@ function StatsContent() {
 
     return (
         <>
-            <SEO title={t('stats.seoTitle')} description={t('stats.seoDescription')} url="https://beatboxgames.com/#/stats" />
+            <SEO title={t('stats.seoTitle')} description={t('stats.seoDescription')} />
             <PageContainer>
                 <PageHeader title={t('stats.title')} intro={t('stats.intro')}>
                     <Segmented

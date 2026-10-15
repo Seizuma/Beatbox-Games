@@ -248,7 +248,8 @@ class OnlineRoom {
         this.quickModeSelection = null;
         this.createdAt = Date.now();
         this.lastActivity = Date.now();
-        this.shareLink = `${CONFIG.CLIENT_URL}/#/blindtest-online?room=${code}`;
+        // Lien d'invitation : aperçu personnalisé puis redirection vers la salle (routes/invite.js)
+        this.shareLink = `${CONFIG.CLIENT_URL}/invite/${code}`;
         this.gameMode = gameMode;
 
         // Configuration du nombre d'artistes

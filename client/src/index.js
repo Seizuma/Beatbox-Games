@@ -4,7 +4,8 @@ import ReactDOM from 'react-dom/client';
 import './index.css';
 import App from './App';
 import reportWebVitals from './reportWebVitals';
-import { HashRouter } from 'react-router-dom';
+import { BrowserRouter } from 'react-router-dom';
+import { migrateLegacyHashUrl } from './utils/legacyHashUrl';
 
 // ✅ NOUVEAU : Détection intelligente de l'environnement
 const getEnvironment = () => {
@@ -245,13 +246,16 @@ configureEnvironment(ENVIRONMENT);
 configureConsole(ENVIRONMENT);
 configureErrorHandling(ENVIRONMENT);
 
+// Anciennes adresses en #/ (liens partagés, favoris) : réécrites avant le premier rendu
+migrateLegacyHashUrl();
+
 // ✅ Démarrage de l'application React
 const root = ReactDOM.createRoot(document.getElementById('root'));
 root.render(
   <React.StrictMode>
-    <HashRouter>
+    <BrowserRouter>
       <App />
-    </HashRouter>
+    </BrowserRouter>
   </React.StrictMode>
 );
 

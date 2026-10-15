@@ -1,0 +1,82 @@
+# Configuration nginx du client (application React).
+#
+# Modèle rendu au démarrage du conteneur par l'image officielle nginx (envsubst) :
+#   ${SERVER_UPSTREAM}  serveur Node de l'environnement (ex. beatbox-games-prod-server:4000)
+#   ${APP_ENV}          production | preprod | development
+#
+# - Vraies adresses (/beatboxdle, /beatboxer/…) : toute page inconnue sert index.html,
+#   le routeur React affiche la bonne page.
+# - /invite/ (aperçus des liens d'invitation) et /sitemap.xml sont générés par le serveur Node.
+# - Hors production, le site est fermé aux moteurs de recherche (robots.txt et X-Robots-Tag).
+
+map "${APP_ENV}" $robots_tag {
+    production "";
+    default    "noindex, nofollow";
+}
+
+server {
+    listen 80;
+    server_name _;
+    root /usr/share/nginx/html;
+    index index.html;
+
+    gzip on;
+    gzip_comp_level 6;
+    gzip_min_length 1024;
+    gzip_types text/plain text/css text/xml application/javascript application/json application/xml application/manifest+json image/svg+xml;
+
+    # Résolution DNS de Docker à la demande : nginx démarre même si le serveur Node n'est pas encore prêt
+    resolver 127.0.0.11 valid=30s ipv6=off;
+    # Redirections relatives : derrière Nginx Proxy Manager, une adresse absolue repasserait en http
+    absolute_redirect off;
+    set $app_server http://${SERVER_UPSTREAM};
+
+    add_header X-Environment "${APP_ENV}" always;
+    add_header X-Robots-Tag $robots_tag always;
+
+    # Aperçus personnalisés des liens d'invitation (server/routes/invite.js)
+    # (en-têtes X-Forwarded-* et X-Real-IP : ceux de Nginx Proxy Manager, transmis tels quels)
+    location ^~ /invite/ {
+        proxy_pass $app_server;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $http_x_real_ip;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $http_x_forwarded_proto;
+    }
+    location = /invite {
+        return 302 /;
+    }
+
+    # Plan du site avec toutes les fiches beatboxer (server/routes/seo.js)
+    location = /sitemap.xml {
+        proxy_pass $app_server;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $http_x_real_ip;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $http_x_forwarded_proto;
+    }
+
+    location = /robots.txt {
+        default_type text/plain;
+        if ($robots_tag) {
+            return 200 "User-agent: *\nDisallow: /\n";
+        }
+        try_files $uri =404;
+    }
+
+    # Fichiers du build, dont le nom change à chaque version : cache d'un an
+    location /static/ {
+        add_header Cache-Control "public, max-age=31536000, immutable";
+        add_header X-Environment "${APP_ENV}" always;
+        add_header X-Robots-Tag $robots_tag always;
+        try_files $uri =404;
+    }
+
+    # Pages de l'application et fichiers publics : toujours revalidés, index.html en dernier recours
+    location / {
+        add_header Cache-Control "no-cache";
+        add_header X-Environment "${APP_ENV}" always;
+        add_header X-Robots-Tag $robots_tag always;
+        try_files $uri /index.html;
+    }
+}

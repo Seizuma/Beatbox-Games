@@ -9,6 +9,7 @@ import BlindTestRulesModal from './BlindTestRulesModal';
 import BlindTestSettingsModal from './BlindTestSettingsModal';
 import { PublicRoomBanner } from '../show/PublicPlay';
 import { createShowT, MAX_PLAYERS } from '../../utils/showI18n';
+import { inviteLink } from '../../utils/inviteLink';
 
 // Nombre de pupitres affichés au minimum, les places vides invitent à partager la salle
 const MIN_SEATS = 4;
@@ -52,7 +53,9 @@ const LobbyView = ({
     const newNameId = useId();
     const [showRules, setShowRules] = useState(false);
 
-    const sharing = useRoomSharing({ roomCode: room, shareLink, shareText: st('lobby.shareText', { room }) });
+    // Lien d'invitation avec aperçu personnalisé ; celui du serveur en secours
+    const invite = inviteLink('blindtest', room, language) || shareLink;
+    const sharing = useRoomSharing({ roomCode: room, shareLink: invite, shareText: st('lobby.shareText', { room }) });
 
     const playerList = Array.isArray(players) ? players.filter(Boolean) : [];
     const playerCount = playerList.length;

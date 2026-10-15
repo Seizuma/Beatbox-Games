@@ -238,7 +238,7 @@ function ContactContent() {
 
     return (
         <>
-            <SEO title={t('contact.seoTitle')} description={t('contact.intro')} url="https://beatboxgames.com/#/contact" />
+            <SEO title={t('contact.seoTitle')} description={t('contact.intro')} />
             <PageContainer>
                 <div className="max-w-2xl">
                     <PageHeader title={t('contact.title')} intro={t('contact.intro')} />

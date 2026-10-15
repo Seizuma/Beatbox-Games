@@ -631,7 +631,7 @@ function AdminContent() {
 function AdminPage() {
     return (
         <SiteShell>
-            <SEO title="Administration — BeatBox Games" description="Espace d'administration" />
+            <SEO title="Administration — BeatBox Games" description="Espace d'administration" noindex />
             <PageContainer>
                 <AdminContent />
             </PageContainer>

@@ -46,7 +46,7 @@ export const useSocket = ({
 
         // Nettoyer l'URL
         if (window.history.replaceState) {
-            window.history.replaceState({}, document.title, window.location.pathname + '#/blindtest-online');
+            window.history.replaceState(window.history.state, document.title, '/blindtest-online');
         }
 
         setView(VIEWS.CREATE);

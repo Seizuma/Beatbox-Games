@@ -11,6 +11,7 @@ import BuzzerRulesModal from './BuzzerRulesModal';
 import BuzzerSettingsModal, { BUZZER_MODES as MODES, poolKey } from './BuzzerSettingsModal';
 import { PublicRoomBanner } from '../show/PublicPlay';
 import { createShowT, MAX_PLAYERS } from '../../utils/showI18n';
+import { inviteLink } from '../../utils/inviteLink';
 
 const MIN_SEATS = 4;
 
@@ -54,8 +55,9 @@ function BuzzerLobbyView({
         excluded: gameState?.excludedBeatboxers || [],
     };
 
-    const shareLink = `${window.location.origin}/#/buzzer-battle?room=${roomCode}`;
-    const sharing = useRoomSharing({ roomCode, shareLink, shareText: `Buzzer Battle : ${roomCode}` });
+    // Lien d'invitation avec aperçu personnalisé (hôte, joueurs, thème)
+    const shareLink = inviteLink('buzzer', roomCode, language);
+    const sharing = useRoomSharing({ roomCode, shareLink, shareText: st('lobby.shareTextBuzzer', { room: roomCode }) });
 
     const reportError = (message) => {
         if (onError) onError(message);

@@ -57,7 +57,7 @@ function CreditsContent() {
 
     return (
         <>
-            <SEO title={t('credits.seoTitle')} description={t('credits.seoDescription')} url="https://beatboxgames.com/#/credits" />
+            <SEO title={t('credits.seoTitle')} description={t('credits.seoDescription')} />
             <PageContainer>
                 <PageHeader title={t('credits.title', { count: ARTISTS.length })} intro={t('credits.intro')}>
                     <div className="flex w-full items-center gap-2 rounded-lg border border-site-line bg-site-surface px-3 focus-within:outline focus-within:outline-2 focus-within:outline-site-ink md:w-72">

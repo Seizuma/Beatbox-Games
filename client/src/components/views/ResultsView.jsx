@@ -30,7 +30,7 @@ function RecapRow({ entry, round, pseudo, st }) {
                 {/* Nouvel onglet : la salle reste ouverte pour la revanche */}
                 {card?.slug ? (
                     <a
-                        href={`#/beatboxer/${encodeURIComponent(card.slug)}`}
+                        href={`/beatboxer/${encodeURIComponent(card.slug)}`}
                         target="_blank"
                         rel="noreferrer"
                         className="block truncate font-brand text-lg leading-tight underline decoration-show-yellow decoration-2 underline-offset-4"

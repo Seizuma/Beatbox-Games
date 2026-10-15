@@ -120,7 +120,7 @@ export default function ResultModal({ t, language, answer, solved, guesses, puzz
             solved,
             maxAttempts: puzzle.maxAttempts,
             modeLabel,
-            url: 'https://beatboxgames.com/#/beatboxdle',
+            url: 'https://beatboxgames.com/beatboxdle',
         });
 
         try {

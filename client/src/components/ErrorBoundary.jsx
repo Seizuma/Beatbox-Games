@@ -69,7 +69,7 @@ class ErrorBoundary extends React.Component {
                             {text.reload}
                         </button>
                         <a
-                            href="/#/"
+                            href="/"
                             className="rounded-lg border border-site-line bg-site-surface px-4 py-2.5 text-sm font-bold text-site-ink transition-colors hover:bg-site-tint"
                         >
                             {text.home}

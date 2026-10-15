@@ -68,8 +68,11 @@ router.get('/discord/callback', async (req, res) => {
         console.log(`✅ Utilisateur Discord connecté: ${userInfo.username}#${userInfo.discriminator}`);
 
         // 6. Rediriger avec le token
-        const redirectPage = state || 'profile';
-        const redirectUrl = `${CONFIG.CLIENT_URL}/#/${redirectPage}?token=${jwt}&success=true`;
+        // Page de retour : un chemin simple du site (« profile », « contact »…), jamais une adresse
+        // arbitraire, car elle est réinjectée dans la page de redirection ci-dessous
+        const redirectPage = /^[a-z0-9-]+(\/[a-z0-9-]+)*$/i.test(state || '') ? state : 'profile';
+        // Le token voyage dans le fragment (#) : jamais envoyé à un serveur, donc absent des journaux d'accès
+        const redirectUrl = `${CONFIG.CLIENT_URL}/${redirectPage}#token=${encodeURIComponent(jwt)}&success=true`;
 
         res.status(200).send(`
         <!DOCTYPE html>

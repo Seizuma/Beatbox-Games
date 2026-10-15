@@ -32,7 +32,7 @@ function PrivacyDocument() {
 
     return (
         <>
-            <SEO title={`${t('privacyPageTitle')} — BeatBox Games`} description={t('privacyIntroText')} url="https://beatboxgames.com/#/privacy" />
+            <SEO title={`${t('privacyPageTitle')} — BeatBox Games`} description={t('privacyIntroText')} />
             <LegalLayout title={t('privacyPageTitle')} updated={updated} sections={sections}>
                 <div className="rounded-xl border border-site-line bg-site-surface p-5">
                     <h2 className="text-base font-bold">{t('privacyBriefTitle')}</h2>

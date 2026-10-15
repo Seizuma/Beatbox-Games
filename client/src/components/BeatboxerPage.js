@@ -233,7 +233,18 @@ function BeatboxerContent() {
             <SEO
                 title={t('beatboxer.seoTitle', { name: beatboxer.name })}
                 description={t('beatboxer.seoDescription', { name: beatboxer.name })}
-                url={`https://beatboxgames.com/#/beatboxer/${beatboxer.slug}`}
+                path={`/beatboxer/${beatboxer.slug}`}
+                jsonLd={{
+                    '@context': 'https://schema.org',
+                    '@type': 'ProfilePage',
+                    mainEntity: {
+                        '@type': 'Person',
+                        name: beatboxer.name,
+                        jobTitle: 'Beatboxer',
+                        ...(country ? { nationality: { '@type': 'Country', name: country } } : {}),
+                        url: `https://beatboxgames.com/beatboxer/${beatboxer.slug}`,
+                    },
+                }}
             />
 
             <Link to="/credits" className="inline-flex min-h-[2.75rem] items-center gap-1.5 text-sm font-semibold text-site-muted hover:text-site-ink">

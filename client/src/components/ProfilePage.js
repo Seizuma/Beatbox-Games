@@ -372,7 +372,7 @@ function ProfileContent() {
 
     return (
         <>
-            <SEO title={t('profile.seoTitle')} description={t('profile.guestText')} url="https://beatboxgames.com/#/profile" />
+            <SEO title={t('profile.seoTitle')} description={t('profile.guestText')} noindex />
             <PageContainer>
                 {isAuthenticated && user ? <ConnectedProfile /> : <GuestProfile pending={pending} />}
                 {!pending && <BeatboxdleProfileStats />}

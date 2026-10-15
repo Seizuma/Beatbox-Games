@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import SEO from './components/SEO';
+import SEO, { GAME_OG_IMAGES } from './components/SEO';
 import SiteShell from './components/site/SiteShell';
 import ModeCard from './components/beatboxdle/ModeCard';
 import DayLeaderboard from './components/beatboxdle/DayLeaderboard';
@@ -135,7 +135,9 @@ function BeatboxdleHome() {
             <SEO
                 title={t('beatboxdle.seoTitle')}
                 description={t('beatboxdle.seoDescription')}
-                url="https://beatboxgames.com/beatboxdle"
+                path="/beatboxdle"
+                image={GAME_OG_IMAGES.beatboxdle}
+                imageAlt="Beatboxdle — BeatBox Games"
             />
 
             <div className="mx-auto flex max-w-xl flex-col gap-6 px-4 pb-16 pt-8 sm:px-6 sm:pt-12">

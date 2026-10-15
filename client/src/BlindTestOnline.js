@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useMemo, useCallback } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { getInitialPlayerName, savePlayerName } from './utils/playerName';
-import SEO from './components/SEO';
+import SEO, { GAME_OG_IMAGES } from './components/SEO';
 import { useI18n } from './utils/i18n';
 
 // Import des hooks personnalisés
@@ -182,7 +182,7 @@ function BlindTestOnline() {
 
                 // Redirection si nécessaire
                 if (redirectPath === 'profile') {
-                    window.location.href = '/#/profile';
+                    window.location.href = '/profile';
                     return;
                 }
             } else {
@@ -280,51 +280,16 @@ function BlindTestOnline() {
         }
     }, [error]);
 
-    // ✅ SEO DYNAMIQUE
+    // SEO : seule la page de création est indexée ; une salle (attente, partie, résultats)
+    // a un titre à elle dans l'onglet mais reste hors des moteurs
     const getSEOData = useCallback(() => {
-        const baseData = {
-            keywords: "beatbox, beatboxer, blind test, jeu musical, human beatbox, multijoueur, gratuit"
-        };
-
-        switch (view) {
-            case VIEWS.CREATE:
-                return {
-                    ...t('seoCreateRoom'),
-                    ...baseData,
-                    url: "https://beatboxgames.com/#/blindtest-online"
-                };
-            case VIEWS.LOBBY:
-                const mode = gameMode === 'quick' ? t('quickMode') : t('normalMode');
-                const lobbyData = t('seoLobby', { room, mode });
-                return {
-                    ...lobbyData,
-                    ...baseData,
-                    url: `https://beatboxgames.com/#/blindtest-online?room=${room}${gameMode !== 'normal' ? `&mode=${gameMode}` : ''}`
-                };
-            case VIEWS.GAME:
-                const count = gameMode === 'quick' ? '10' : '50+';
-                const gameData = t('seoGame', { room, count });
-                return {
-                    ...gameData,
-                    ...baseData,
-                    url: `https://beatboxgames.com/#/blindtest-online?room=${room}${gameMode !== 'normal' ? `&mode=${gameMode}` : ''}`
-                };
-            case VIEWS.RESULTS:
-                const resultsData = t('seoResults', { room });
-                return {
-                    ...resultsData,
-                    ...baseData,
-                    url: `https://beatboxgames.com/#/blindtest-online?room=${room}${gameMode !== 'normal' ? `&mode=${gameMode}` : ''}`
-                };
-            default:
-                return {
-                    title: "BeatBox Games - Blind Test Musical & Univers Beatbox | Jeu Multijoueur Gratuit",
-                    description: "Plongez dans l'univers du beatbox avec BeatBox Games ! Blind Test musical multijoueur, découvrez les plus grands beatboxers, créez votre room privée et défiez vos amis.",
-                    ...baseData,
-                    url: "https://beatboxgames.com/#/blindtest-online"
-                };
+        const inRoom = room && [VIEWS.LOBBY, VIEWS.GAME, VIEWS.RESULTS].includes(view);
+        if (!inRoom) {
+            return { title: t('seoCreateRoom.title'), description: t('seoCreateRoom.description'), noindex: false };
         }
-    }, [view, gameMode, room, t]);
+        const key = view === VIEWS.LOBBY ? 'seoLobby' : view === VIEWS.GAME ? 'seoGame' : 'seoResults';
+        return { title: t(`${key}.title`, { room }), description: t(`${key}.description`, { room }), noindex: true };
+    }, [view, room, t]);
 
     const seoData = getSEOData();
 
@@ -395,7 +360,7 @@ function BlindTestOnline() {
             <ArtistRevealOverlay artistRevealState={artistRevealState} language={language} pseudo={pseudo} />
 
             {/* Vue principale */}
-            <SEO {...seoData} />
+            <SEO {...seoData} language={language} path="/blindtest-online" image={GAME_OG_IMAGES.blindtest} imageAlt="Blind Test — BeatBox Games" />
 
             {view === VIEWS.LOADING && (
                 <LoadingView

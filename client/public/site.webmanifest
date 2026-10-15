@@ -1,7 +1,7 @@
 {
-    "name": "BeatBox Games - Blind Test & Beatbox",
+    "name": "BeatBox Games",
     "short_name": "BeatBox Games",
-    "description": "Jeu musical multijoueur : Blind Test et univers Beatbox",
+    "description": "Jeux de beatbox en ligne : Blind Test, Buzzer Battle et Beatboxdle",
     "icons": [
         {
             "src": "/android-chrome-192x192.png",

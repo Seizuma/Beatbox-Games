@@ -255,4 +255,10 @@ function search(query, limit = 8) {
     return [...starts.sort(rank), ...contains.sort(rank)].slice(0, limit).map(summary);
 }
 
-module.exports = { slugify, find, slugFor, summary, detail, search };
+/** Adresses de toutes les fiches, pour le plan du site. */
+function slugs() {
+    const { bySlug } = ensureIndex();
+    return Array.from(bySlug.keys()).filter(Boolean).sort();
+}
+
+module.exports = { slugify, find, slugFor, summary, detail, search, slugs };

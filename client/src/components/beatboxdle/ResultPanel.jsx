@@ -68,7 +68,7 @@ export default function ResultPanel({ t, language, answer, solved, guesses, puzz
             solved,
             maxAttempts: puzzle.maxAttempts,
             modeLabel,
-            url: 'https://beatboxgames.com/#/beatboxdle',
+            url: 'https://beatboxgames.com/beatboxdle',
         });
 
         // Partage natif sur mobile, presse-papiers ailleurs

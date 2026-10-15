@@ -163,6 +163,12 @@ const beatboxersRoutes = require('./routes/beatboxers');
 app.use('/api/beatboxers', beatboxersRoutes);
 
 // Espace d'administration (accès restreint par ADMIN_DISCORD_IDS)
+// Aperçus des liens d'invitation et plan du site (transmis par le client nginx)
+const inviteRoutes = require('./routes/invite');
+app.use('/invite', inviteRoutes);
+const seoRoutes = require('./routes/seo');
+app.use(seoRoutes);
+
 const adminRoutes = require('./routes/admin');
 const { logAdminConfiguration } = require('./middleware/adminAuth');
 app.use('/api/admin', adminRoutes);

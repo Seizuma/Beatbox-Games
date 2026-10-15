@@ -57,6 +57,7 @@ function PlayerContent() {
             <SEO
                 title={t('player.seoTitle', { name: player.username })}
                 description={t('player.seoDescription', { name: player.username })}
+                noindex
             />
 
             <div className="flex flex-col gap-5 sm:flex-row sm:items-center">

@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import SEO from './components/SEO';
+import SEO, { GAME_OG_IMAGES } from './components/SEO';
 import { useI18n } from './utils/i18n';
 import socketBuzzer from './buzzer-socket';
 
@@ -745,9 +745,15 @@ function BuzzerBattle() {
 
     return (
         <>
+            {/* Seule la page de création est indexée ; une salle reste hors des moteurs */}
             <SEO
-                title="Buzzer Battle - BeatBox Games"
-                description="Devinez les beatboxers avant vos adversaires dans ce jeu de rapidité !"
+                title={currentView === VIEWS.CREATE || !roomCode ? t('seoBuzzer.title') : `${roomCode} — Buzzer Battle | BeatBox Games`}
+                description={t('seoBuzzer.description')}
+                path="/buzzer-battle"
+                image={GAME_OG_IMAGES.buzzer}
+                imageAlt="Buzzer Battle — BeatBox Games"
+                language={language}
+                noindex={currentView !== VIEWS.CREATE}
             />
 
             <GameToast message={notice} />

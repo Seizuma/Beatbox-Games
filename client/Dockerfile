@@ -26,8 +26,12 @@ ARG REACT_APP_ENV=production
 
 COPY --from=builder /app/build /usr/share/nginx/html
 
-# En-tête pour identifier l'environnement (production, preprod, development)
-RUN echo "add_header X-Environment \"$REACT_APP_ENV\" always;" >> /etc/nginx/conf.d/default.conf
+# Configuration nginx : vraies adresses, /invite/ et /sitemap.xml transmis au serveur Node,
+# moteurs de recherche bloqués hors production, en-tête X-Environment. Rendue au démarrage
+# avec ces variables (docker-compose les précise pour chaque environnement).
+COPY nginx/default.conf.template /etc/nginx/templates/default.conf.template
+ENV APP_ENV=$REACT_APP_ENV \
+    SERVER_UPSTREAM=beatbox-games-prod-server:4000
 
 EXPOSE 80
 CMD ["nginx", "-g", "daemon off;"]

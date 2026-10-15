@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, Navigate, useParams } from 'react-router-dom';
-import SEO from './components/SEO';
+import SEO, { GAME_OG_IMAGES } from './components/SEO';
 import SiteShell from './components/site/SiteShell';
 import LettersGrid from './components/beatboxdle/LettersGrid';
 import CluesGrid from './components/beatboxdle/CluesGrid';
@@ -278,9 +278,11 @@ function BeatboxdleContent() {
     return (
         <>
             <SEO
-                title={t('beatboxdle.seoTitle')}
-                description={t('beatboxdle.seoDescription')}
-                url="https://beatboxgames.com/beatboxdle"
+                title={t(`beatboxdle.seoMode.${mode}.title`)}
+                description={t(`beatboxdle.seoMode.${mode}.description`)}
+                path={`/beatboxdle/${mode}`}
+                image={GAME_OG_IMAGES.beatboxdle}
+                imageAlt="Beatboxdle — BeatBox Games"
             />
 
             {/* Page de jeu : pas d'onglets ni de pied de page, le clavier occupe le bas de l'écran */}

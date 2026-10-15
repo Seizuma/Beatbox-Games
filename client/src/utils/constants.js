@@ -41,5 +41,5 @@ export const BROWSER_DETECTION = {
 };
 
 export const URLS = {
-    BASE_URL: "https://beatboxgames.com/#/blindtest-online"
+    BASE_URL: "https://beatboxgames.com/blindtest-online"
 };
