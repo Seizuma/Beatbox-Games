@@ -60,7 +60,7 @@ class PartyGame {
         this.deadline = null;
         this.players = [];
         this.hostId = null;
-        this.settings = { turns: 10, board: 'openmic' };
+        this.settings = { turns: 10, board: 'setup' };
         this.board = getBoard(this.settings.board);
         this.timers = new Set();
         this.token = 0;

@@ -5,6 +5,9 @@ import React from 'react';
 const STROKE_ICONS = {
     'arrow-left': <path d="M19 12H5M11 6l-6 6 6 6" />,
     'arrow-right': <path d="M5 12h14M13 6l6 6-6 6" />,
+    'arrow-up': <path d="M12 19V5M6 11l6-6 6 6" />,
+    'arrow-down': <path d="M12 5v14M6 13l6 6 6-6" />,
+    map: <path d="M3 6.5l6-2.5 6 2.5 6-2.5v13.5l-6 2.5-6-2.5-6 2.5zM9 4v13.5M15 6.5V20" />,
     'chevron-down': <path d="M6 9l6 6 6-6" />,
     'chevron-right': <path d="M9 6l6 6-6 6" />,
     zap: <path d="M13 3L5 13.5h6L10 21l8-10.5h-6L13 3z" />,

@@ -1,19 +1,25 @@
-/* Beatbox Party : habillage pixel art (police Silkscreen chargée par BeatboxParty.js) */
+/* Beatbox Party : habillage.
+   Le pixel art vit dans le monde du jeu (plateau, scènes, personnages). L'interface,
+   elle, reprend la grammaire du site : Bowlby One pour les titres et les grands
+   boutons, Albert Sans pour le reste, boutons pilules jaunes, écrans LCD des pupitres. */
 
 .party {
-    --px-bg: #141833;
-    --px-panel: #1F2550;
-    --px-panel-2: #272D5E;
-    --px-line: #3B4480;
-    --px-shadow: #0B0E22;
+    --px-bg: #0A0F27;
+    --px-panel: #121A3D;
+    --px-panel-2: #1A2452;
+    --px-line: rgba(255, 255, 255, 0.09);
+    --px-shadow: #04060F;
     --px-ink: #EEF1FA;
     --px-muted: #A9B3DA;
     --px-yellow: #FFC72C;
     --px-yellow-deep: #C99400;
-    --px-red: #F0533F;
+    --px-red: #E8402F;
     --px-blue: #4C8DFF;
-    --px-green: #35C877;
+    --px-green: #2DBE6C;
+    --px-pink: #FF5FA8;
+    --px-lcd: #060E2B;
     color: var(--px-ink);
+    font-family: 'Albert Sans', system-ui, -apple-system, 'Segoe UI', sans-serif;
 }
 
 .party-pixel {
@@ -21,60 +27,112 @@
     image-rendering: crisp-edges;
 }
 
-.party-font {
-    font-family: 'Silkscreen', 'Courier New', ui-monospace, monospace;
+/* Titres */
+.party-display {
+    font-family: 'Bowlby One', Impact, system-ui, sans-serif;
     font-weight: 400;
-    letter-spacing: 0.02em;
+    letter-spacing: 0.01em;
+    line-height: 1.02;
+}
+.party-kicker {
+    font-size: 0.78rem;
+    font-weight: 800;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--px-muted);
 }
 
-/* Panneau à bord net et ombre portée dure */
+/* Panneau de studio : métal sombre, liseré clair en haut */
 .party-panel {
-    background: var(--px-panel);
-    border: 3px solid var(--px-line);
-    box-shadow: 0 4px 0 var(--px-shadow);
-    border-radius: 6px;
+    position: relative;
+    background: linear-gradient(180deg, rgba(25, 35, 80, 0.94) 0%, rgba(14, 20, 50, 0.96) 100%);
+    border: 1px solid var(--px-line);
+    border-radius: 1.1rem;
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.07), 0 14px 34px rgba(2, 4, 14, 0.45);
 }
 
+/* Écran LCD des pupitres : chiffres jaunes sur fond nuit */
+.party-lcd {
+    background: var(--px-lcd);
+    border-radius: 0.6rem;
+    box-shadow: inset 0 2px 6px rgba(0, 0, 0, 0.7), 0 1px 0 rgba(255, 255, 255, 0.06);
+    color: var(--px-yellow);
+}
+.party-lcd-digits {
+    font-family: 'Bowlby One', Impact, system-ui, sans-serif;
+    font-variant-numeric: tabular-nums;
+    text-shadow: 0 0 10px rgba(255, 199, 44, 0.45);
+}
+
+.party-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    border-radius: 9999px;
+    padding: 0.3rem 0.75rem;
+    font-size: 0.8rem;
+    font-weight: 800;
+    background: rgba(10, 15, 39, 0.82);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    color: var(--px-ink);
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.35);
+    backdrop-filter: blur(6px);
+}
+
+/* Boutons : mêmes pilules que les autres jeux du site */
 .party-btn {
-    font-family: 'Silkscreen', 'Courier New', ui-monospace, monospace;
     display: inline-flex;
     align-items: center;
     justify-content: center;
     gap: 0.5rem;
-    min-height: 2.9rem;
-    padding: 0.55rem 1.1rem;
-    border-radius: 6px;
-    border: 3px solid var(--px-shadow);
+    min-height: 2.75rem;
+    padding: 0.6rem 1.25rem;
+    border-radius: 9999px;
     background: var(--px-yellow);
-    color: #1A1C2C;
-    box-shadow: 0 4px 0 var(--px-yellow-deep), 0 4px 0 3px var(--px-shadow);
-    transition: transform 0.05s, box-shadow 0.05s;
+    color: #0A1B45;
+    font-weight: 800;
+    font-size: 0.95rem;
+    line-height: 1;
+    box-shadow: 0 3px 0 var(--px-yellow-deep);
+    transition: transform 0.06s, box-shadow 0.06s, filter 0.15s;
     cursor: pointer;
     user-select: none;
     -webkit-user-select: none;
     touch-action: manipulation;
 }
+.party-btn:hover:not(:disabled) { filter: brightness(1.05); }
 .party-btn:active:not(:disabled) {
-    transform: translateY(4px);
-    box-shadow: 0 0 0 var(--px-yellow-deep), 0 0 0 3px var(--px-shadow);
+    transform: translateY(3px);
+    box-shadow: 0 0 0 var(--px-yellow-deep);
 }
 .party-btn:disabled {
     opacity: 0.45;
     cursor: not-allowed;
 }
 .party-btn-ghost {
-    background: var(--px-panel-2);
+    background: rgba(255, 255, 255, 0.08);
     color: var(--px-ink);
-    box-shadow: 0 4px 0 var(--px-shadow);
-    border-color: var(--px-line);
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.16), 0 3px 0 rgba(0, 0, 0, 0.35);
 }
-.party-btn-ghost:active:not(:disabled) {
-    box-shadow: 0 0 0 var(--px-shadow);
+.party-btn-ghost:active:not(:disabled) { box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.16); }
+.party-btn-white {
+    background: #F4F6FC;
+    color: #0A1B45;
+    box-shadow: 0 3px 0 #9DA8C9;
 }
 .party-btn-big {
-    min-height: 4rem;
-    font-size: 1.35rem;
-    padding: 0.8rem 1.6rem;
+    min-height: 3.6rem;
+    padding: 0.85rem 1.8rem;
+    font-family: 'Bowlby One', Impact, system-ui, sans-serif;
+    font-weight: 400;
+    font-size: 1.3rem;
+    box-shadow: 0 4px 0 var(--px-yellow-deep), 0 10px 26px rgba(255, 199, 44, 0.22);
+}
+.party-btn-big.party-btn-ghost { box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.16), 0 4px 0 rgba(0, 0, 0, 0.35); }
+.party-btn-icon {
+    min-height: 2.6rem;
+    min-width: 2.6rem;
+    padding: 0;
 }
 .party :focus-visible {
     outline: 3px solid var(--px-yellow);
@@ -84,52 +142,86 @@
 .party-input {
     width: 100%;
     min-height: 2.9rem;
-    padding: 0.5rem 0.8rem;
-    border-radius: 6px;
-    border: 3px solid var(--px-line);
-    background: #0F1330;
+    padding: 0.55rem 0.9rem;
+    border-radius: 0.8rem;
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    background: var(--px-lcd);
     color: var(--px-ink);
     font-size: 1rem;
+    font-weight: 600;
+    box-shadow: inset 0 2px 5px rgba(0, 0, 0, 0.5);
 }
 .party-input:focus {
     outline: none;
     border-color: var(--px-yellow);
 }
 
-/* Le plateau */
-.party-board {
-    position: relative;
-    overflow: hidden;
-    border-radius: 6px;
-    border: 3px solid var(--px-line);
-    box-shadow: 0 4px 0 var(--px-shadow);
-    background: #0E1230;
-    touch-action: pan-y;
+/* Choix d'une option (nombre de tours…) */
+.party-option {
+    min-height: 2.75rem;
+    padding: 0 1rem;
+    border-radius: 9999px;
+    font-weight: 800;
+    font-size: 0.9rem;
+    background: rgba(255, 255, 255, 0.06);
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.14);
 }
-.party-board canvas {
-    display: block;
-    transform-origin: 0 0;
-    will-change: transform;
+.party-option[aria-checked='true'] {
+    background: var(--px-yellow);
+    color: #0A1B45;
+    box-shadow: 0 3px 0 var(--px-yellow-deep);
 }
 
 @keyframes party-pop {
-    0% { transform: scale(0.6); opacity: 0; }
-    60% { transform: scale(1.08); opacity: 1; }
+    0% { transform: scale(0.7); opacity: 0; }
+    60% { transform: scale(1.06); opacity: 1; }
     100% { transform: scale(1); }
 }
-.party-pop {
-    animation: party-pop 0.28s steps(4) both;
-}
+.party-pop { animation: party-pop 0.32s cubic-bezier(0.2, 1.4, 0.4, 1) both; }
 
-@keyframes party-blink {
-    50% { opacity: 0.35; }
-}
-.party-blink {
-    animation: party-blink 1s steps(2) infinite;
-}
+@keyframes party-blink { 50% { opacity: 0.45; } }
+.party-blink { animation: party-blink 1.2s ease-in-out infinite; }
 
-@media (prefers-reduced-motion: reduce) {
-    .party-pop, .party-blink { animation: none; }
+/* ------------------------------------------------------------------ */
+/* Scènes (accueil, salon, fin) : une fenêtre sur le décor du plateau   */
+/* ------------------------------------------------------------------ */
+
+.party-scene {
+    position: relative;
+    width: 100%;
+    overflow: hidden;
+    background: #05060e;
+}
+.party-scene-pixel,
+.party-scene-glow {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+}
+.party-scene-pixel { image-rendering: pixelated; }
+.party-scene-glow { mix-blend-mode: screen; pointer-events: none; }
+.party-scene::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    background: radial-gradient(ellipse at 50% 40%, transparent 55%, rgba(4, 6, 18, 0.55) 100%);
+}
+.party-scene-label {
+    position: absolute;
+    z-index: 2;
+    transform: translate(-50%, 0.35rem);
+    white-space: nowrap;
+    max-width: 9rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    padding: 0.15rem 0.55rem;
+    border-radius: 9999px;
+    font-size: 0.78rem;
+    font-weight: 800;
+    background: rgba(5, 8, 24, 0.85);
+    border: 1px solid rgba(255, 255, 255, 0.14);
 }
 
 /* ------------------------------------------------------------------ */
@@ -141,7 +233,7 @@
     height: calc(100dvh - 3.5rem);
     min-height: 30rem;
     overflow: hidden;
-    background: #0B0E22;
+    background: #030409;
     user-select: none;
     -webkit-user-select: none;
 }
@@ -151,24 +243,30 @@
     overflow: hidden;
     touch-action: none;
 }
-.party-board-view canvas {
+.party-board-pixel {
     position: absolute;
     left: 0;
     top: 0;
     transform-origin: 0 0;
     will-change: transform;
+    image-rendering: pixelated;
 }
-/* Vignette autour du plateau, plus marquée au tour du joueur */
-.party-screen::after {
+.party-board-glow,
+.party-board-shade {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+}
+.party-board-glow { mix-blend-mode: screen; }
+.party-screen.is-my-turn::after {
     content: '';
     position: absolute;
     inset: 0;
     pointer-events: none;
-    box-shadow: inset 0 0 120px rgba(5, 7, 20, 0.85);
-    transition: box-shadow 0.4s;
-}
-.party-screen.is-my-turn::after {
-    box-shadow: inset 0 0 0 4px rgba(255, 199, 44, 0.55), inset 0 0 120px rgba(5, 7, 20, 0.85);
+    box-shadow: inset 0 0 0 3px rgba(255, 199, 44, 0.6), inset 0 0 60px rgba(255, 199, 44, 0.18);
+    animation: party-blink 2.4s ease-in-out infinite;
 }
 
 .party-screen-top {
@@ -181,26 +279,17 @@
     z-index: 4;
     white-space: nowrap;
 }
-.party-chip {
-    background: #1A1C2C;
-    color: var(--px-ink);
-    border: 2px solid var(--px-line);
-    border-radius: 6px;
-    padding: 0.25rem 0.6rem;
-    font-size: 0.85rem;
-    box-shadow: 0 3px 0 var(--px-shadow);
-}
 
-/* Joueurs : deux colonnes en haut à gauche et à droite (écran large), une rangée (téléphone) */
+/* Joueurs : pupitres dans les coins (écran large), une rangée (téléphone) */
 .party-hud-corner {
     position: absolute;
     z-index: 5;
-    width: 15rem;
+    width: 15.5rem;
 }
 .party-hud-tl { top: 0.75rem; left: 0.75rem; }
 .party-hud-tr { top: 0.75rem; right: 0.75rem; }
-.party-hud-bl { top: 5.6rem; left: 0.75rem; }
-.party-hud-br { top: 5.6rem; right: 0.75rem; }
+.party-hud-bl { top: 6rem; left: 0.75rem; }
+.party-hud-br { top: 6rem; right: 0.75rem; }
 .party-hud-row {
     position: absolute;
     top: 0.5rem;
@@ -212,126 +301,170 @@
     gap: 0.35rem;
 }
 .party-hud-row.is-inline { position: static; }
-.party-screen .party-hud-row ~ .party-banner-layer { top: 4rem; }
 .party-hud-card {
+    position: relative;
     display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    padding: 0.35rem 0.6rem 0.35rem 0.35rem;
-    background: rgba(20, 24, 51, 0.92);
-    border: 3px solid var(--pc);
-    border-radius: 8px;
-    box-shadow: 0 4px 0 var(--px-shadow);
+    align-items: stretch;
+    gap: 0.55rem;
+    padding: 0.4rem 0.5rem 0.4rem 0.4rem;
+    background: linear-gradient(180deg, rgba(25, 35, 80, 0.92), rgba(12, 18, 46, 0.94));
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 0.9rem;
+    box-shadow: 0 8px 22px rgba(2, 4, 14, 0.5);
     color: var(--px-ink);
-    transition: transform 0.15s steps(3), box-shadow 0.15s;
+    overflow: hidden;
+    transition: transform 0.2s cubic-bezier(0.2, 1.4, 0.4, 1), box-shadow 0.2s;
+    backdrop-filter: blur(6px);
+}
+/* Bandeau lumineux à la couleur du joueur, comme les pupitres */
+.party-hud-card::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: 0;
+    height: 3px;
+    background: var(--pc);
+    box-shadow: 0 0 12px var(--pc);
 }
 .party-hud-card.is-active {
-    transform: scale(1.06);
-    box-shadow: 0 0 0 3px #1A1C2C, 0 0 0 6px var(--pc), 0 6px 0 var(--px-shadow);
+    transform: scale(1.05);
+    border-color: var(--pc);
+    box-shadow: 0 0 0 2px var(--pc), 0 0 28px color-mix(in srgb, var(--pc) 45%, transparent), 0 8px 22px rgba(2, 4, 14, 0.5);
 }
 .party-hud-card.is-compact {
     flex-direction: column;
     align-items: stretch;
-    gap: 0.15rem;
-    padding: 0.25rem;
+    gap: 0.2rem;
+    padding: 0.35rem 0.3rem 0.3rem;
     text-align: center;
 }
-.party-hud-card.is-compact .party-hud-portrait { align-self: center; height: 32px; }
-.party-hud-card.is-compact .flex { justify-content: center; }
 .party-hud-portrait {
-    height: 46px;
-    overflow: hidden;
     flex-shrink: 0;
-    border-radius: 4px;
-    background: color-mix(in srgb, var(--pc) 22%, #141833);
+    border-radius: 0.6rem;
+    overflow: hidden;
+    background: radial-gradient(circle at 50% 30%, color-mix(in srgb, var(--pc) 40%, #141b44), #0a0f27 75%);
+    display: flex;
+    align-items: flex-end;
+    justify-content: center;
 }
-.party-hud-portrait canvas { margin-top: -6px; }
-.party-hud-card.is-compact .party-hud-portrait canvas { margin-top: -4px; }
+.party-hud-card.is-compact .party-hud-portrait { align-self: center; }
 .party-hud-rank {
+    display: inline-flex;
+    align-items: center;
+    border-radius: 9999px;
+    padding: 0.05rem 0.45rem;
+    font-size: 0.68rem;
+    font-weight: 800;
     background: var(--pc);
-    color: #1A1C2C;
-    border-radius: 4px;
-    padding: 0.05rem 0.3rem;
-    font-size: 0.75rem;
+    color: #0A1B45;
 }
-@keyframes party-flash-up { 0%, 100% { color: inherit; } 30% { color: #FFE08A; transform: translateY(-2px); } }
-@keyframes party-flash-down { 0%, 100% { color: inherit; } 30% { color: #FF9384; transform: translateY(2px); } }
-.party-flash-up { animation: party-flash-up 0.5s steps(4); }
-.party-flash-down { animation: party-flash-down 0.5s steps(4); }
+.party-hud-stats {
+    display: flex;
+    align-items: center;
+    gap: 0.7rem;
+    padding: 0.2rem 0.55rem;
+    margin-top: 0.25rem;
+}
+.party-hud-card.is-compact .party-hud-stats { justify-content: center; gap: 0.45rem; padding: 0.15rem 0.3rem; margin-top: 0.1rem; }
+@keyframes party-flash-up { 0%, 100% { color: inherit; transform: none; } 30% { color: #FFF2B0; transform: translateY(-2px) scale(1.15); } }
+@keyframes party-flash-down { 0%, 100% { color: inherit; transform: none; } 30% { color: #FF9384; transform: translateY(2px) scale(0.95); } }
+.party-flash-up { animation: party-flash-up 0.5s ease-out; display: inline-flex; }
+.party-flash-down { animation: party-flash-down 0.5s ease-out; display: inline-flex; }
 
 /* Bandeaux d'annonce */
 .party-banner-layer {
     position: absolute;
     left: 0;
     right: 0;
-    top: 30%;
+    top: 28%;
     z-index: 8;
     display: flex;
     justify-content: center;
     pointer-events: none;
     padding: 0 0.75rem;
 }
+.party-banner-layer.is-low { top: auto; bottom: 9.5rem; }
+.party-screen .party-hud-row ~ .party-banner-layer { top: 5rem; }
 @keyframes party-banner-in {
-    0% { transform: translateX(-60vw) skewX(-12deg); opacity: 0; }
-    55% { transform: translateX(12px) skewX(-4deg); opacity: 1; }
-    75% { transform: translateX(-4px) skewX(0); }
-    100% { transform: translateX(0); }
+    0% { transform: translateX(-40vw) skewX(-10deg); opacity: 0; }
+    60% { transform: translateX(10px) skewX(-3deg); opacity: 1; }
+    100% { transform: none; }
 }
 .party-banner {
+    position: relative;
     display: flex;
     align-items: center;
-    gap: 1rem;
-    max-width: 40rem;
-    padding: 0.9rem 1.4rem 0.9rem 1rem;
-    background: rgba(13, 16, 38, 0.96);
-    border: 4px solid #1A1C2C;
-    border-left: 12px solid var(--bc);
-    border-radius: 8px;
-    box-shadow: 0 0 0 3px var(--bc), 0 10px 0 rgba(0, 0, 0, 0.45);
-    animation: party-banner-in 0.45s steps(9) both;
+    gap: 1.1rem;
+    max-width: 42rem;
+    padding: 1rem 1.6rem 1rem 1rem;
+    background: linear-gradient(100deg, rgba(10, 15, 39, 0.97) 0%, rgba(20, 30, 72, 0.97) 100%);
+    border-radius: 1.25rem;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    box-shadow: 0 0 0 2px var(--bc), 0 0 40px color-mix(in srgb, var(--bc) 40%, transparent), 0 18px 40px rgba(0, 0, 0, 0.5);
+    animation: party-banner-in 0.42s cubic-bezier(0.2, 1.2, 0.4, 1) both;
 }
-.party-banner-portrait { flex-shrink: 0; margin: -2.5rem 0 -1rem; }
+.party-banner-portrait { flex-shrink: 0; margin: -2.6rem 0 -1rem; filter: drop-shadow(0 6px 10px rgba(0, 0, 0, 0.5)); }
 .party-banner-title {
-    font-size: clamp(1.6rem, 5vw, 2.6rem);
-    line-height: 1.05;
+    font-family: 'Bowlby One', Impact, system-ui, sans-serif;
+    font-size: clamp(1.7rem, 5vw, 2.8rem);
+    line-height: 1;
+    text-shadow: 0 0 22px color-mix(in srgb, var(--bc) 55%, transparent);
 }
 
-/* Boîte de dialogue */
+/* Boîte de dialogue en bas : console du joueur */
 .party-dock {
     position: absolute;
     left: 50%;
     bottom: max(0.75rem, env(safe-area-inset-bottom));
     transform: translateX(-50%);
-    width: min(44rem, calc(100% - 1.5rem));
+    width: min(46rem, calc(100% - 1.5rem));
     z-index: 6;
-    padding: 0.85rem 1rem;
-    background: rgba(13, 16, 38, 0.95);
-    border: 4px solid #1A1C2C;
-    border-radius: 10px;
-    box-shadow: 0 0 0 3px #EEF1FA, 0 8px 0 rgba(0, 0, 0, 0.45);
+    padding: 0.9rem 1rem;
+    background: linear-gradient(180deg, rgba(25, 35, 80, 0.95), rgba(10, 15, 39, 0.97));
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 1.25rem;
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08), 0 18px 40px rgba(0, 0, 0, 0.55);
+    backdrop-filter: blur(8px);
     user-select: auto;
+}
+.party-dock-text {
+    font-size: 1.05rem;
+    font-weight: 800;
 }
 .party-dock-timer {
     position: absolute;
-    left: 0.6rem;
-    right: 0.6rem;
-    top: -0.9rem;
-    height: 6px;
-    background: #1A1C2C;
-    border-radius: 3px;
+    left: 1.1rem;
+    right: 1.1rem;
+    top: -0.45rem;
+    height: 5px;
+    background: rgba(4, 6, 18, 0.9);
+    border-radius: 9999px;
     overflow: hidden;
 }
 .party-dock-timer div {
     height: 100%;
+    border-radius: 9999px;
     transition: width 0.2s linear;
 }
+.party-key {
+    display: inline-flex;
+    align-items: center;
+    border-radius: 0.35rem;
+    padding: 0.05rem 0.4rem;
+    font-family: 'Albert Sans', system-ui, sans-serif;
+    font-size: 0.68rem;
+    font-weight: 800;
+    background: rgba(10, 27, 69, 0.18);
+    border: 1px solid rgba(10, 27, 69, 0.3);
+}
+
 @media (prefers-reduced-motion: reduce) {
-    .party-banner, .party-flash-up, .party-flash-down { animation: none; }
+    .party-pop, .party-blink, .party-banner, .party-flash-up, .party-flash-down, .party-screen.is-my-turn::after { animation: none; }
 }
 @media (max-width: 759px) {
-    .party-screen-top { top: 7.4rem; }
+    .party-screen-top { top: 7.6rem; }
     .party-banner-layer { top: 34%; }
-    .party-banner { gap: 0.6rem; padding: 0.7rem 0.9rem 0.7rem 0.6rem; }
-    .party-dock .party-btn-big { font-size: 1.05rem; min-height: 3.4rem; padding: 0.6rem 1rem; }
+    .party-banner { gap: 0.7rem; padding: 0.75rem 1rem 0.75rem 0.7rem; }
+    .party-dock .party-btn-big { font-size: 1.1rem; min-height: 3.2rem; padding: 0.6rem 1.1rem; }
 }
-.party-banner-layer.is-low { top: auto; bottom: 9.5rem; }

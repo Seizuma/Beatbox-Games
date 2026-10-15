@@ -8,6 +8,7 @@
  */
 
 const { PartyGame } = require('./PartyGame');
+const { getBoard } = require('./boards');
 
 const games = new Map();
 const CODE_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
@@ -115,6 +116,11 @@ function handlePartySocketConnection(socket, io) {
         });
         if (result.error) return reply(callback, { ok: false, error: result.error });
         return enter(game, result.player, callback);
+    });
+
+    // Plan du plateau, pour les scènes de l'accueil (avant d'entrer dans une salle)
+    socket.on('party:board', (payload = {}, callback) => {
+        reply(callback, { ok: true, board: getBoard(String((payload && payload.id) || 'setup')) });
     });
 
     socket.on('party:leave', (payload, callback) => {

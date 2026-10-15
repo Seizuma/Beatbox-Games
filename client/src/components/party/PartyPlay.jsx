@@ -3,6 +3,7 @@ import PartyBoard, { choiceDirections } from './board/PartyBoard';
 import PixelCharacter from './PixelCharacter';
 import MinigameStage from './minigames/MinigameStage';
 import { PLAYER_COLORS } from './characters/pixelRig';
+import Icon from '../icons/Icon';
 import { isMusicOn, jingle, setMusicFinale, setMusicOn, sfx, startMusic, stopMusic, unlockAudio } from './partySfx';
 
 // L'écran de jeu, construit comme un Mario Party :
@@ -87,23 +88,26 @@ function useSecondsLeft(deadline, clockOffset) {
     return Math.max(0, (deadline - (now + clockOffset)) / 1000);
 }
 
-function CoinIcon({ size = 14 }) {
+// Pièce de Hype et Micro d'or : les mêmes objets que sur le plateau, en pixel art
+export function CoinIcon({ size = 14 }) {
     return (
-        <svg viewBox="0 0 5 5" width={size} height={size} className="party-pixel shrink-0" shapeRendering="crispEdges" aria-hidden="true">
-            <path d="M1 0h3v1H1zM0 1h1v3H0zM4 1h1v3H4zM1 4h3v1H1z" fill="#1A1C2C" />
-            <path d="M1 1h3v3H1z" fill="#FFC72C" />
-            <path d="M2 2h1v1H2z" fill="#FFF1B0" />
-            <path d="M3 1h1v3H3z" fill="#C99400" />
+        <svg viewBox="0 0 6 6" width={size} height={size} className="party-pixel shrink-0" shapeRendering="crispEdges" aria-hidden="true">
+            <path d="M1 0h4v1H1zM0 1h1v4H0zM5 1h1v4H5zM1 5h4v1H1z" fill="#120E26" />
+            <path d="M1 1h4v4H1z" fill="#FFC72C" />
+            <path d="M1 1h3v1H1zM1 2h1v2H1z" fill="#FFE07A" />
+            <path d="M2 2h1v1H2z" fill="#FFFFFF" />
+            <path d="M4 3h1v2H4zM2 4h2v1H2z" fill="#C98A00" />
         </svg>
     );
 }
 
-function MicIcon({ size = 14 }) {
+export function MicIcon({ size = 14 }) {
     return (
-        <svg viewBox="0 0 5 7" width={size * 0.75} height={size} className="party-pixel shrink-0" shapeRendering="crispEdges" aria-hidden="true">
-            <path d="M1 0h3v1H1zM0 1h1v2H0zM4 1h1v2H4zM1 3h3v1H1zM2 4h1v3H2z" fill="#1A1C2C" />
-            <path d="M1 1h3v2H1z" fill="#FFC72C" />
-            <path d="M1 1h1v1H1z" fill="#FFF1B0" />
+        <svg viewBox="0 0 6 9" width={size * 0.67} height={size} className="party-pixel shrink-0" shapeRendering="crispEdges" aria-hidden="true">
+            <path d="M1 0h4v1H1zM0 1h1v3H0zM5 1h1v3H5zM1 4h4v1H1zM2 5h2v4H2z" fill="#120E26" />
+            <path d="M1 1h4v3H1z" fill="#FFC72C" />
+            <path d="M1 1h2v1H1zM1 2h1v1H1z" fill="#FFF4C7" />
+            <path d="M4 2h1v2H4z" fill="#C98A00" />
         </svg>
     );
 }
@@ -117,32 +121,29 @@ function PlayerCard({ player, rank, active, isMe, t, compact, orderRoll }) {
     const [stars, starFlash] = useRollingNumber(player.stars);
     const color = PLAYER_COLORS[player.seat];
     return (
-        <div
-            className={`party-hud-card ${active ? 'is-active' : ''} ${compact ? 'is-compact' : ''}`}
-            style={{ '--pc': color }}
-        >
-            <div className="party-hud-portrait">
-                <PixelCharacter id={player.characterId} color={color} pose={active ? 'beatbox' : 'idle'} base={false} scale={compact ? 1.25 : 1.75} />
+        <div className={`party-hud-card ${active ? 'is-active' : ''} ${compact ? 'is-compact' : ''}`} style={{ '--pc': color }}>
+            <div className="party-hud-portrait" style={{ width: compact ? 48 : 52, height: compact ? 40 : 52 }}>
+                <PixelCharacter id={player.characterId} color={color} pose={active ? 'beatbox' : 'idle'} crop="bust" scale={1} />
             </div>
             <div className="min-w-0 flex-1">
-                <div className="flex items-center gap-1.5">
-                    <span className="party-font party-hud-rank">{t(`screen.rank.${rank}`)}</span>
-                    {!compact && <span className="truncate text-sm font-bold">{player.name}</span>}
-                    {isMe && !compact && <span className="party-font text-[0.6rem] text-[color:var(--px-yellow)]">{t('lobby.you')}</span>}
+                <div className={`flex items-center gap-1.5 ${compact ? 'justify-center' : ''}`}>
+                    <span className="party-hud-rank">{t(`screen.rank.${rank}`)}</span>
+                    {!compact && <span className="truncate text-sm font-extrabold">{player.name}</span>}
+                    {isMe && !compact && <span className="text-[0.65rem] font-extrabold uppercase text-[color:var(--px-yellow)]">{t('lobby.you')}</span>}
                 </div>
-                {compact && <p className="truncate text-[0.7rem] font-bold leading-tight">{player.name}</p>}
-                <div className="party-font flex items-center gap-3 leading-none">
-                    <span className={`flex items-center gap-1 ${starFlash === 'up' ? 'party-flash-up' : ''}`}>
+                {compact && <p className="truncate text-[0.7rem] font-extrabold leading-tight">{player.name}</p>}
+                <div className="party-lcd party-hud-stats leading-none">
+                    <span className={`items-center gap-1 ${starFlash === 'up' ? 'party-flash-up' : 'flex'}`}>
                         <MicIcon size={compact ? 12 : 15} />
-                        <span className={compact ? 'text-sm' : 'text-lg'}>{stars}</span>
+                        <span className={`party-lcd-digits ${compact ? 'text-sm' : 'text-lg'}`}>{stars}</span>
                     </span>
-                    <span className={`flex items-center gap-1 ${hypeFlash === 'up' ? 'party-flash-up' : hypeFlash === 'down' ? 'party-flash-down' : ''}`}>
+                    <span className={`items-center gap-1 ${hypeFlash === 'up' ? 'party-flash-up' : hypeFlash === 'down' ? 'party-flash-down' : 'flex'}`}>
                         <CoinIcon size={compact ? 11 : 14} />
-                        <span className={compact ? 'text-sm' : 'text-lg'}>{hype}</span>
+                        <span className={`party-lcd-digits ${compact ? 'text-sm' : 'text-lg'}`}>{hype}</span>
                     </span>
-                    {orderRoll != null && <span className="text-sm text-[color:var(--px-green)]">D{orderRoll}</span>}
+                    {orderRoll != null && <span className="party-lcd-digits rounded bg-white px-1 text-sm text-[#0A1B45]">{orderRoll}</span>}
                 </div>
-                {!player.isBot && !player.connected && <p className="party-font text-[0.6rem] text-[color:var(--px-red)]">{t('lobby.offline')}</p>}
+                {!player.isBot && !player.connected && <p className="mt-0.5 text-[0.65rem] font-extrabold text-[color:var(--px-red)]">{t('lobby.offline')}</p>}
             </div>
         </div>
     );
@@ -177,7 +178,7 @@ function Hud({ state, myId, t, compact, inline }) {
 // Bandeaux d'annonce
 // ---------------------------------------------------------------------------
 
-function Banner({ banner }) {
+function Banner({ banner, compact }) {
     if (!banner) return null;
     const color = banner.color || 'var(--px-yellow)';
     return (
@@ -185,16 +186,21 @@ function Banner({ banner }) {
             <div key={banner.id} className="party-banner" style={{ '--bc': color }}>
                 {banner.character && (
                     <div className="party-banner-portrait">
-                        <PixelCharacter id={banner.character} color={color} pose="cheer" scale={3} />
+                        <PixelCharacter id={banner.character} color={color} pose="present" crop="body" scale={compact ? 1 : 2} />
                     </div>
                 )}
                 <div className="min-w-0">
-                    {banner.kicker && <p className="party-font text-sm text-[color:var(--px-muted)] sm:text-base">{banner.kicker}</p>}
-                    <p className="party-font party-banner-title" style={{ color }}>{banner.title}</p>
-                    {banner.text && <p className="mt-1 text-base font-bold sm:text-lg">{banner.text}</p>}
+                    {banner.kicker && <p className="party-kicker">{banner.kicker}</p>}
+                    <p className="party-banner-title" style={{ color }}>{banner.title}</p>
+                    {banner.text && <p className="mt-1.5 text-base font-extrabold sm:text-lg">{banner.text}</p>}
                     {banner.list && (
-                        <ol className="party-font mt-2 flex flex-wrap gap-x-4 gap-y-1 text-base">
-                            {banner.list.map((item, i) => <li key={item.id} style={{ color: item.color }}>{i + 1}. {item.name}</li>)}
+                        <ol className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-base font-extrabold">
+                            {banner.list.map((item, i) => (
+                                <li key={item.id} className="flex items-center gap-1.5">
+                                    <span className="party-display text-lg" style={{ color: item.color }}>{i + 1}</span>
+                                    {item.name}
+                                </li>
+                            ))}
                         </ol>
                     )}
                 </div>
@@ -207,7 +213,7 @@ function Banner({ banner }) {
 // Boîte de dialogue (en bas)
 // ---------------------------------------------------------------------------
 
-const DIR_GLYPH = { left: '←', right: '→', up: '↑', down: '↓' };
+const DIR_ICON = { left: 'arrow-left', right: 'arrow-right', up: 'arrow-up', down: 'arrow-down' };
 
 function Dock({ state, myId, t, secondsLeft, actions, message, mapMode, onToggleMap, musicOn, onToggleMusic }) {
     const current = state.players.find((p) => p.id === state.currentPlayerId);
@@ -220,31 +226,33 @@ function Dock({ state, myId, t, secondsLeft, actions, message, mapMode, onToggle
         if (state.step === 'roll' && !rolled) {
             body = (
                 <div className="flex flex-wrap items-center gap-3">
-                    <p className="party-font text-base sm:text-lg">{t('board.orderRoll')}</p>
-                    <button type="button" className="party-btn party-btn-big" onClick={actions.roll}>{t('board.roll')}</button>
+                    <button type="button" className="party-btn party-btn-big" onClick={actions.roll}>
+                        {t('board.roll')} <span className="party-key hidden sm:inline-flex">{t('screen.rollHint')}</span>
+                    </button>
+                    <p className="party-dock-text">{t('board.orderRoll')}</p>
                 </div>
             );
-        } else body = <p className="party-font party-blink">{state.step === 'roll' ? t('board.orderWaiting') : message}</p>;
+        } else body = <p className="party-dock-text party-blink">{state.step === 'roll' ? t('board.orderWaiting') : message}</p>;
     } else if (mine && state.step === 'roll') {
         body = (
             <div className="flex flex-wrap items-center gap-3">
                 <button type="button" className="party-btn party-btn-big" onClick={actions.roll}>
-                    {t('board.roll')} <span className="hidden text-xs opacity-70 sm:inline">[{t('screen.rollHint')}]</span>
+                    {t('board.roll')} <span className="party-key hidden sm:inline-flex">{t('screen.rollHint')}</span>
                 </button>
-                <p className="party-font text-base text-[color:var(--px-yellow)]">{t('board.yourTurn')}</p>
+                <p className="party-display text-xl text-[color:var(--px-yellow)]">{t('board.yourTurn')}</p>
             </div>
         );
     } else if (mine && state.step === 'choice' && state.choice) {
         body = (
             <div className="flex flex-col gap-2">
-                <p className="party-font text-lg text-[color:var(--px-yellow)]">{t('board.choiceTitle')}</p>
+                <p className="party-display text-xl text-[color:var(--px-yellow)]">{t('board.choiceTitle')}</p>
                 <div className="grid gap-2 sm:grid-cols-2">
                     {choiceDirections(state).map((o) => (
-                        <button key={o.spaceId} type="button" className={`party-btn ${o.gate ? '' : 'party-btn-ghost'} !justify-start text-left`} disabled={!o.affordable} onClick={() => actions.choose(o.spaceId)}>
-                            <span className="text-2xl leading-none">{DIR_GLYPH[o.dir]}</span>
-                            <span className="flex flex-col">
-                                <span className="text-sm">{o.gate ? t('board.choiceGate') : t('board.choiceMain')}</span>
-                                <span className="font-show text-[0.7rem] font-bold normal-case opacity-80">
+                        <button key={o.spaceId} type="button" className={`party-btn ${o.gate ? '' : 'party-btn-white'} !justify-start !rounded-2xl !py-2 text-left`} disabled={!o.affordable} onClick={() => actions.choose(o.spaceId)}>
+                            <Icon name={DIR_ICON[o.dir]} size={22} />
+                            <span className="flex flex-col gap-0.5">
+                                <span className="text-[0.95rem]">{o.gate ? t('board.choiceGate') : t('board.choiceMain')}</span>
+                                <span className="text-[0.72rem] font-bold opacity-75">
                                     {o.gate ? t('board.choiceGateInfo', { n: o.gate }) : t('board.choiceMainInfo')}
                                     {!o.affordable && ` · ${t('board.notEnough')}`}
                                 </span>
@@ -252,13 +260,13 @@ function Dock({ state, myId, t, secondsLeft, actions, message, mapMode, onToggle
                         </button>
                     ))}
                 </div>
-                <p className="text-xs text-[color:var(--px-muted)]">{t('screen.choiceHint')}</p>
+                <p className="text-xs font-bold text-[color:var(--px-muted)]">{t('screen.choiceHint')}</p>
             </div>
         );
     } else if (mine && state.step === 'star' && state.starOffer && state.starOffer.affordable) {
         body = (
             <div className="flex flex-col gap-3">
-                <p className="party-font flex items-center gap-2 text-lg text-[color:var(--px-yellow)]"><MicIcon size={20} /> {t('board.starAsk', { price: state.starOffer.price })}</p>
+                <p className="party-dock-text flex items-center gap-2"><MicIcon size={22} /> {t('board.starAsk', { price: state.starOffer.price })}</p>
                 <div className="flex flex-wrap gap-3">
                     <button type="button" className="party-btn party-btn-big" onClick={() => actions.star(true)}>{t('board.buy')}</button>
                     <button type="button" className="party-btn party-btn-ghost" onClick={() => actions.star(false)}>{t('board.skip')}</button>
@@ -272,8 +280,9 @@ function Dock({ state, myId, t, secondsLeft, actions, message, mapMode, onToggle
         if (state.step === 'star' && state.starOffer) {
             text = state.starOffer.affordable ? t('board.waitingStar', { name }) : (mine ? t('board.starNoMoney', { price: state.starOffer.price }) : t('events.noMoney', { name }));
         }
-        if ((state.step === 'rolled' || state.step === 'moving') && state.roll && current) text = t('board.moving', { name, n: state.roll.value });
-        body = <p className={`party-font text-base sm:text-lg ${state.step === 'roll' && !mine ? 'party-blink' : ''}`}>{text || ' '}</p>;
+        if ((state.step === 'rolled' || state.step === 'moving') && state.roll && current) text = t(state.roll.value === 1 ? 'board.movingOne' : 'board.moving', { name, n: state.roll.value });
+        if (!text && current) text = mine ? t('board.yourTurn') : t('board.turnOf', { name });
+        body = <p className={`party-dock-text ${state.step === 'roll' && !mine ? 'party-blink' : ''}`}>{text || ' '}</p>;
     }
 
     const myDecision = mine && ['roll', 'choice', 'star'].includes(state.step);
@@ -282,17 +291,17 @@ function Dock({ state, myId, t, secondsLeft, actions, message, mapMode, onToggle
         <div className="party-dock">
             {myDecision && secondsLeft != null && (
                 <div className="party-dock-timer" aria-hidden="true">
-                    <div style={{ width: `${Math.min(100, (secondsLeft / duration) * 100)}%`, background: secondsLeft < 5 ? 'var(--px-red)' : 'var(--px-yellow)' }} />
+                    <div style={{ width: `${Math.min(100, (secondsLeft / duration) * 100)}%`, background: secondsLeft < 5 ? 'var(--px-red)' : 'var(--px-yellow)', boxShadow: `0 0 10px ${secondsLeft < 5 ? 'var(--px-red)' : 'var(--px-yellow)'}` }} />
                 </div>
             )}
             <div className="flex items-center gap-3">
                 <div className="min-w-0 flex-1">{body}</div>
                 <div className="flex shrink-0 flex-col gap-1.5">
-                    <button type="button" className="party-btn party-btn-ghost !min-h-[2.4rem] !px-3 text-xs" onClick={onToggleMap} aria-pressed={mapMode}>
-                        {mapMode ? t('screen.mapBack') : t('screen.map')}
+                    <button type="button" className="party-btn party-btn-ghost party-btn-icon" onClick={onToggleMap} aria-pressed={mapMode} aria-label={mapMode ? t('screen.mapBack') : t('screen.map')} title={mapMode ? t('screen.mapBack') : t('screen.map')}>
+                        <Icon name={mapMode ? 'close' : 'map'} size={18} />
                     </button>
-                    <button type="button" className="party-btn party-btn-ghost !min-h-[2.4rem] !px-3 text-xs" onClick={onToggleMusic} aria-label={musicOn ? t('screen.musicOn') : t('screen.musicOff')} title={musicOn ? t('screen.musicOn') : t('screen.musicOff')}>
-                        {musicOn ? '♪' : '♪̸'}
+                    <button type="button" className="party-btn party-btn-ghost party-btn-icon" onClick={onToggleMusic} aria-label={musicOn ? t('screen.musicOn') : t('screen.musicOff')} title={musicOn ? t('screen.musicOn') : t('screen.musicOff')}>
+                        <Icon name={musicOn ? 'volume' : 'volume-off'} size={18} />
                     </button>
                 </div>
             </div>
@@ -321,6 +330,8 @@ export default function PartyPlay({ state, myId, t, queue, clockOffset, actions 
     const [banner, setBanner] = useState(null);
     const [musicOn, setMusicOnState] = useState(isMusicOn());
     const bannerTimer = useRef(null);
+    const screenRef = useRef(null);
+    const [insets, setInsets] = useState(null);
     const stateRef = useRef(state);
     stateRef.current = state;
 
@@ -366,21 +377,40 @@ export default function PartyPlay({ state, myId, t, queue, clockOffset, actions 
                 break;
             }
             case 'finale':
-                show({ title: t('banner.finale'), text: t('banner.finaleText'), color: 'var(--px-red)' }, 2800);
+                show({ title: t('banner.finale'), text: t('banner.finaleText'), color: '#E8402F' }, 2800);
                 setMusicFinale(true);
                 break;
             case 'land':
-                if (event.kind === 'drop' && player) show({ title: t('banner.drop'), text: t('banner.dropText', { name: player.name }), color: 'var(--px-green)' }, 1700);
+                if (event.kind === 'drop' && player) show({ title: t('banner.drop'), text: t('banner.dropText', { name: player.name }), color: '#2DBE6C' }, 1700);
                 break;
             case 'star':
-                if (event.bought && player) show({ title: t('banner.bought', { name: player.name }), kicker: t('banner.starMoved'), color: 'var(--px-yellow)', low: true }, 2600);
+                if (event.bought && player) show({ title: t('banner.bought', { name: player.name }), kicker: t('banner.starMoved'), color: '#FFC72C', low: true }, 2600);
                 break;
             case 'minigame':
-                show({ title: t('banner.minigame'), text: t(`minigame.${event.id}.name`), color: 'var(--px-pink)' }, 1600);
+                show({ title: t('banner.minigame'), text: t(`minigame.${event.id}.name`), color: '#FF5FA8' }, 1600);
                 break;
             default:
         }
     }, [show, t, myId]);
+
+    // Place prise par la console (en bas) et la rangée de joueurs (en haut, sur téléphone)
+    useEffect(() => {
+        const root = screenRef.current;
+        if (!root || typeof ResizeObserver === 'undefined') return undefined;
+        const measure = () => {
+            const box = root.getBoundingClientRect();
+            const dock = root.querySelector('.party-dock');
+            const row = root.querySelector('.party-hud-row');
+            const bottom = dock ? box.bottom - dock.getBoundingClientRect().top : 0;
+            const top = row ? row.getBoundingClientRect().bottom - box.top : 0;
+            setInsets((prev) => (prev && Math.abs(prev.top - top) < 4 && Math.abs(prev.bottom - bottom) < 4 ? prev : { top, bottom }));
+        };
+        const observer = new ResizeObserver(measure);
+        observer.observe(root);
+        root.querySelectorAll('.party-dock, .party-hud-row').forEach((el) => observer.observe(el));
+        measure();
+        return () => observer.disconnect();
+    }, [state.phase, compact, state.step]);
 
     // Musique du plateau : pendant les tours, coupée pendant les mini-jeux
     useEffect(() => {
@@ -439,17 +469,17 @@ export default function PartyPlay({ state, myId, t, queue, clockOffset, actions 
     }
 
     return (
-        <div className={`party-screen ${myTurn ? 'is-my-turn' : ''}`} onPointerDown={unlockAudio}>
-            <PartyBoard state={state} queue={queue} myId={myId} mapMode={mapMode} onEvent={onEvent} onChoose={actions.choose} />
+        <div ref={screenRef} className={`party-screen ${myTurn ? 'is-my-turn' : ''}`} onPointerDown={unlockAudio}>
+            <PartyBoard state={state} queue={queue} myId={myId} mapMode={mapMode} onEvent={onEvent} onChoose={actions.choose} insets={insets} />
             <div className="party-screen-top">
-                <span className="party-font party-chip">
+                <span className="party-chip">
                     {state.turn > 0 ? t('board.turn', { turn: state.turn, total: state.settings.turns }) : t('board.orderTitle')}
                 </span>
-                {state.finale && <span className="party-font party-chip party-blink !bg-[color:var(--px-red)] !text-white">{t('board.finale')} ×2</span>}
-                {mapMode && <span className="party-font party-chip !bg-[color:var(--px-blue)] !text-white">{t('screen.mapBadge')}</span>}
+                {state.finale && <span className="party-chip party-blink !border-transparent !bg-[color:var(--px-red)] !text-white">{t('board.finale')} ×2</span>}
+                {mapMode && <span className="party-chip !border-transparent !bg-[color:var(--px-blue)] !text-white">{t('screen.mapBadge')}</span>}
             </div>
             <Hud state={state} myId={myId} t={t} compact={compact} />
-            <Banner banner={banner} />
+            <Banner banner={banner} compact={compact} />
             <Dock
                 state={state}
                 myId={myId}

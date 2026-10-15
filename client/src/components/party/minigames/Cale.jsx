@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { audioContext, sfx } from '../partySfx';
 import { isSfxMuted } from '../../../utils/gameSfx';
+import { drawText } from '../board/pixelFont';
 import { OUT, px, setupPixelCanvas, useFrame, useOnce, usePressKeys } from './shared';
 
 // Calé : quatre temps d'écoute (B, t, K, t), puis huit temps à frapper.
@@ -19,6 +20,8 @@ export default function Cale({ minigame, t, clock, onSubmit }) {
     const beatTime = (k) => (k + 0.5) * beatMs;
     const offsets = useRef(Array(beats).fill(null));
     const [feedback, setFeedback] = useState(null);
+    const [listening, setListening] = useState(true);
+    const listeningRef = useRef(true);
     const scheduled = useRef(false);
     const feedbackTimer = useRef(null);
     const say = (text) => {
@@ -76,37 +79,50 @@ export default function Cale({ minigame, t, clock, onSubmit }) {
         if (!done && elapsed > beatTime(total - 1) + beatMs * 0.6) finish();
         const ctx = setupPixelCanvas(canvasRef.current, CW, CH);
         if (!ctx) return;
-        px(ctx, 0, 0, CW, CH, '#141833');
-        px(ctx, 0, 28, CW, 12, '#1F2550');
-        px(ctx, 0, 27, CW, 1, '#3B4480');
-        px(ctx, 0, 40, CW, 1, '#3B4480');
-        // Ligne de frappe
+        // Écran LCD de la loopstation : piste, ligne de frappe, temps qui défilent
+        px(ctx, 0, 0, CW, CH, '#04171a');
+        for (let x = 0; x < CW; x += 6) px(ctx, x, 0, 1, CH, '#062224');
+        px(ctx, 0, 26, CW, 16, '#0a2f2d');
+        px(ctx, 0, 25, CW, 1, '#1b5a55');
+        px(ctx, 0, 42, CW, 1, '#1b5a55');
         const flash = Math.max(0, 1 - ((elapsed % beatMs) / beatMs) * 3);
-        px(ctx, HIT_X - 1, 22, 3, 24, flash > 0.5 ? '#FFFFFF' : '#FFC72C');
+        px(ctx, HIT_X - 2, 18, 5, 32, flash > 0.5 ? '#FFFFFF' : '#FFC72C');
+        px(ctx, HIT_X - 4, 16, 9, 2, '#FFC72C');
+        px(ctx, HIT_X - 4, 50, 9, 2, '#FFC72C');
         for (let k = 0; k < total; k += 1) {
             const x = HIT_X + ((beatTime(k) - elapsed) / beatMs) * SPACING;
-            if (x < -6 || x > CW + 6) continue;
-            const listening = k < countIn;
-            const hit = !listening && offsets.current[k - countIn] != null;
-            const color = listening ? '#5A6178' : hit ? '#35C877' : '#FF86B4';
-            px(ctx, x - 5, 29, 11, 10, OUT);
-            px(ctx, x - 4, 30, 9, 8, color);
-            ctx.font = '8px Silkscreen, monospace';
-            ctx.textBaseline = 'top';
-            ctx.fillStyle = OUT;
-            ctx.fillText(listening ? ['B', 't', 'K', 't'][k] : '', x - 2, 30);
+            if (x < -8 || x > CW + 8) continue;
+            const listen = k < countIn;
+            const hit = !listen && offsets.current[k - countIn] != null;
+            const color = listen ? '#3fbfae' : hit ? '#2CC873' : '#3E7BFF';
+            const light = listen ? '#9ff2e2' : hit ? '#97F2BF' : '#9CC0FF';
+            // Petit pad rond, comme les cases du plateau
+            for (let j = -6; j <= 6; j += 1) {
+                const half = Math.round(Math.sqrt(Math.max(0, 1 - (j / 6.5) ** 2)) * 8);
+                px(ctx, x - half - 1, 34 + j, half * 2 + 2, 1, OUT);
+            }
+            for (let j = -5; j <= 5; j += 1) {
+                const half = Math.round(Math.sqrt(Math.max(0, 1 - (j / 5.5) ** 2)) * 7);
+                px(ctx, x - half, 34 + j, half * 2, 1, j < -2 ? light : color);
+            }
+            if (listen) drawText(ctx, ['B', 'T', 'K', 'T'][k], x, 31, OUT, { font: 'tiny', outline: null, shadow: false });
         }
-        ctx.font = '8px Silkscreen, monospace';
-        ctx.fillStyle = '#A9B3DA';
-        ctx.fillText(elapsed < beatTime(countIn) - beatMs / 2 ? t('minigame.cale.listen') : t('minigame.cale.go'), 6, 6);
+        const nowListening = elapsed < beatTime(countIn) - beatMs / 2;
+        if (nowListening !== listeningRef.current) {
+            listeningRef.current = nowListening;
+            setListening(nowListening);
+        }
     });
 
     return (
         <div className="mx-auto flex w-full max-w-[640px] flex-col gap-4">
+            <p className={`text-center text-sm font-extrabold uppercase tracking-[0.12em] ${listening ? 'text-[#5FE0C8]' : 'text-[color:var(--px-yellow)]'}`}>
+                {listening ? t('minigame.cale.listen') : t('minigame.cale.go')}
+            </p>
             <div className="party-panel overflow-hidden p-0" role="presentation" onPointerDown={tap}>
                 <canvas ref={canvasRef} className="party-pixel block h-auto w-full" style={{ aspectRatio: `${CW} / ${CH}` }} aria-hidden="true" />
             </div>
-            <p className="party-font h-8 text-center text-2xl text-[color:var(--px-yellow)]" aria-live="polite">{feedback || ''}</p>
+            <p className="party-display h-9 text-center text-3xl text-[color:var(--px-yellow)]" aria-live="polite">{feedback || ''}</p>
             <button type="button" className="party-btn party-btn-big w-full" disabled={done} onPointerDown={(event) => { event.preventDefault(); tap(); }}>
                 {t('minigame.cale.tap')}
             </button>

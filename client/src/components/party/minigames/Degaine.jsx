@@ -45,21 +45,24 @@ export default function Degaine({ minigame, players, myId, t, clock, onSubmit })
             <div
                 role="presentation"
                 onPointerDown={press}
-                className="party-panel flex min-h-[15rem] cursor-pointer select-none flex-col items-center justify-center gap-3 p-4 text-center"
-                style={go && phase !== 'tooSoon' ? { background: '#FFC72C', color: '#1A1C2C' } : undefined}
+                className="party-panel flex min-h-[16rem] cursor-pointer select-none flex-col items-center justify-center gap-3 overflow-hidden p-4 text-center transition-colors"
+                style={go && phase !== 'tooSoon'
+                    ? { background: 'radial-gradient(circle at 50% 40%, #FFE07A 0%, #FFC72C 45%, #C98A00 100%)', color: '#0A1B45' }
+                    : phase === 'tooSoon' ? { background: 'linear-gradient(180deg, #5a1a14, #2a0c0a)' } : undefined}
             >
-                <p className={`party-font ${go ? 'party-pop text-5xl sm:text-7xl' : 'text-xl text-[color:var(--px-muted)] sm:text-2xl'}`}>
+                <p className={`party-display ${go ? 'party-pop text-6xl sm:text-8xl' : 'party-blink text-2xl text-[color:var(--px-muted)] sm:text-3xl'}`}>
                     {phase === 'tooSoon' ? t('minigame.degaine.tooSoon') : go ? t('minigame.degaine.go') : t('minigame.degaine.wait')}
                 </p>
-                {reaction != null && <p className="party-font text-2xl">{t('minigame.display.ms', { n: reaction })}</p>}
+                {reaction != null && <p className="party-display text-3xl">{t('minigame.display.ms', { n: reaction })}</p>}
                 <div className="flex items-end justify-center gap-1 sm:gap-3">
                     {players.map((p) => (
                         <PixelCharacter
                             key={p.id}
                             id={p.characterId}
                             color={PLAYER_COLORS[p.seat]}
-                            pose={p.id === myId && phase === 'sent' ? 'beatbox' : p.id === myId && phase === 'tooSoon' ? 'sad' : go ? 'hop' : 'idle'}
-                            scale={2}
+                            pose={p.id === myId && phase === 'sent' ? 'cheer' : p.id === myId && phase === 'tooSoon' ? 'shock' : go ? 'diceHit' : 'think'}
+                            crop="body"
+                            scale={1}
                         />
                     ))}
                 </div>

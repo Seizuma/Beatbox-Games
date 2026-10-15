@@ -19,7 +19,6 @@ import './components/party/party.css';
 // salle à chaque changement ; ce composant choisit l'écran selon la phase.
 
 const SESSION_KEY = 'party_session';
-const FONT_HREF = 'https://fonts.googleapis.com/css2?family=Silkscreen&display=swap';
 
 const readSession = () => {
     try { return JSON.parse(localStorage.getItem(SESSION_KEY) || 'null'); } catch (error) { return null; }
@@ -33,23 +32,12 @@ const writeSession = (value) => {
     }
 };
 
-function usePixelFont() {
-    useEffect(() => {
-        if (document.querySelector(`link[href="${FONT_HREF}"]`)) return;
-        const link = document.createElement('link');
-        link.rel = 'stylesheet';
-        link.href = FONT_HREF;
-        document.head.appendChild(link);
-    }, []);
-}
-
 function BeatboxPartyGame() {
     const { language, isEnglish, switchLanguage } = useI18n();
     const t = useMemo(() => createPartyT(language), [language]);
     const navigate = useNavigate();
     const location = useLocation();
     const initialCode = useMemo(() => (new URLSearchParams(location.search).get('room') || '').toUpperCase().slice(0, 5), [location.search]);
-    usePixelFont();
 
     const [state, setState] = useState(null);
     const [myId, setMyId] = useState(null);
@@ -59,6 +47,8 @@ function BeatboxPartyGame() {
     const [discordName, setDiscordName] = useState(null);
     const [notice, setNotice] = useState('');
     const [clockOffset, setClockOffset] = useState(0);
+    // Plan du plateau pour les scènes de l'accueil (en partie, il arrive avec l'état)
+    const [lobbyBoard, setLobbyBoard] = useState(null);
     const queue = useRef([]);
     const noticeTimer = useRef(null);
 
@@ -104,6 +94,9 @@ function BeatboxPartyGame() {
             setConnected(true);
             partySocket.emit('discord:getInfo', (response) => {
                 if (response && response.success && response.user) setDiscordName(response.user.username);
+            });
+            partySocket.request('party:board', { id: 'setup' }).then((response) => {
+                if (response && response.ok) setLobbyBoard(response.board);
             });
             rejoin();
         };
@@ -167,6 +160,7 @@ function BeatboxPartyGame() {
     };
 
     const inRoom = Boolean(state && myId);
+    const board = (state && state.board) || lobbyBoard;
     const inGame = inRoom && state.phase !== 'lobby' && state.phase !== 'end';
     // Plateau en plein cadre ; les mini-jeux gardent leur propre mise en page
     const fullScreen = inRoom && (state.phase === 'order' || state.phase === 'turn' || state.phase === 'minigame');
@@ -179,13 +173,14 @@ function BeatboxPartyGame() {
     let content;
     if (!inRoom) {
         content = restoring || !connected ? (
-            <p className="party-font party-blink py-16 text-center text-[color:var(--px-muted)]">{restoring ? t('home.rejoining') : t('home.connecting')}</p>
+            <p className="party-blink py-16 text-center font-extrabold text-[color:var(--px-muted)]">{restoring ? t('home.rejoining') : t('home.connecting')}</p>
         ) : (
-            <PartyHome t={t} language={language} discordName={discordName} initialCode={initialCode} busy={busy} onCreate={create} onJoin={join} />
+            <PartyHome board={board} t={t} language={language} discordName={discordName} initialCode={initialCode} busy={busy} onCreate={create} onJoin={join} />
         );
     } else if (state.phase === 'lobby') {
         content = (
             <PartyLobby
+                board={board}
                 state={state}
                 myId={myId}
                 t={t}
@@ -198,7 +193,7 @@ function BeatboxPartyGame() {
             />
         );
     } else if (state.phase === 'end') {
-        content = <PartyEnd state={state} myId={myId} t={t} onRematch={() => act('party:rematch')} onLeave={() => { leaveRoom(); navigate('/'); }} />;
+        content = <PartyEnd board={board} state={state} myId={myId} t={t} onRematch={() => act('party:rematch')} onLeave={() => { leaveRoom(); navigate('/'); }} />;
     } else {
         content = <PartyPlay state={state} myId={myId} t={t} queue={queue} clockOffset={clockOffset} actions={actions} />;
     }
@@ -222,7 +217,7 @@ function BeatboxPartyGame() {
                 noindex
             />
             <GameToast message={notice} />
-            {!fullScreen && <span className="party-font mb-4 inline-block rounded-md bg-[color:var(--px-yellow)] px-2 py-0.5 text-xs text-[#1A1C2C]">{t('testBadge')}</span>}
+            {!fullScreen && <span className="mb-4 inline-block rounded-full bg-[color:var(--px-yellow)] px-2.5 py-0.5 text-xs font-extrabold text-[#0A1B45]">{t('testBadge')}</span>}
             {content}
         </GameShell>
     );

@@ -57,7 +57,7 @@ export function setupPixelCanvas(canvas, width, height) {
     return ctx;
 }
 
-export const OUT = '#1A1C2C';
+export const OUT = '#120E26';
 
 export function px(ctx, x, y, w, h, color) {
     ctx.fillStyle = color;
