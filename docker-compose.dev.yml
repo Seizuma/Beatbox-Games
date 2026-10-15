@@ -1,35 +1,44 @@
-# docker-compose.dev.yml
+# docker-compose.dev.yml (Dev : https://dev.beatboxgames.com, branche dev)
+#
+# Même architecture que la production, avec ses propres conteneurs, sa propre
+# base de données (volume beatbox-data-dev) et ses propres secrets
+# (/etc/beatbox-games/.env.dev). Se déploie depuis le clone de travail du VPS,
+# sur la branche dev : ./deploy.sh dev
 services:
   server-dev:
     build:
       context: ./server
       dockerfile: Dockerfile
     container_name: beatbox-games-dev-server
-    ports:
-      - "4001:4000"
+    expose:
+      - "4000"
     volumes:
       - ./server/public:/app/public
       - beatbox-data-dev:/app/data
       - ./server/beatbox_artists:/app/beatbox_artists
     env_file:
-      - .env.dev
+      - /etc/beatbox-games/.env.dev
     environment:
-      - NODE_ENV=development
+      # Node en mode production (comme la prod), configuration « staging » du serveur :
+      # adresses dev.beatboxgames.com, journaux détaillés
+      - NODE_ENV=production
+      - STAGING=true
       - BASE_URL=https://dev.beatboxgames.com
       - CLIENT_URL=https://dev.beatboxgames.com
+      # Le vrai Google Sheet n'est modifié que par la production
+      - SHEET_SYNC=false
       - DISABLE_CONSOLE=false
       - LOG_LEVEL=DEBUG
     restart: unless-stopped
     mem_limit: 512m
     memswap_limit: 512m
     networks:
-      - dev-network
-      - proxy-network
+      - shared-network
     logging:
       driver: "json-file"
       options:
-        max-size: "50m"
-        max-file: "3"
+        max-size: "20m"
+        max-file: "2"
     healthcheck:
       test: ["CMD", "node", "-e", "fetch('http://localhost:4000/health').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"]
       interval: 30s
@@ -42,53 +51,35 @@ services:
       context: ./client
       dockerfile: Dockerfile
       args:
-        - NODE_ENV=development
-        - REACT_APP_ENV=development
+        - NODE_ENV=production
+        - REACT_APP_ENV=staging
         - REACT_APP_API_URL=https://dev.beatboxgames.com
         - GENERATE_SOURCEMAP=true
     container_name: beatbox-games-dev-client
     environment:
-      # Lus par le modèle client/nginx/default.conf.template
+      # Lus par le modèle client/nginx/default.conf.template (hors production : fermé aux moteurs)
       - APP_ENV=development
       - SERVER_UPSTREAM=beatbox-games-dev-server:4000
-    ports:
-      - "8081:80"
+    expose:
+      - "80"
     restart: unless-stopped
     mem_limit: 256m
     memswap_limit: 256m
     depends_on:
       - server-dev
     networks:
-      - dev-network
-      - proxy-network
+      - shared-network
     logging:
       driver: "json-file"
       options:
         max-size: "20m"
         max-file: "2"
 
-  autoheal-dev:
-    image: willfarrell/autoheal:latest
-    container_name: beatbox-games-dev-autoheal
-    environment:
-      - AUTOHEAL_CONTAINER_LABEL=dev
-    volumes:
-      - /var/run/docker.sock:/var/run/docker.sock
-    restart: unless-stopped
-    networks:
-      - dev-network
-      - proxy-network
-    logging:
-      driver: "json-file"
-      options:
-        max-size: "5m"
-        max-file: "1"
-
+# Le réseau de la production, déjà relié à Nginx Proxy Manager : la prod doit tourner.
+# L'autoheal de la production (AUTOHEAL_CONTAINER_LABEL=all) surveille aussi ces conteneurs.
 networks:
-  dev-network:
-    name: beatbox-games-dev-network
-    driver: bridge
-  proxy-network:
+  shared-network:
+    name: shared-network
     external: true
 
 volumes:

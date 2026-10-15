@@ -100,8 +100,10 @@ show_help() {
     echo "  🎵 Production: https://beatboxgames.com"
     echo ""
     echo "ARCHITECTURE:"
-    echo "  master → dev / preprod / production"
-    echo "  (branches develop et preprod supprimees)"
+    echo "  branche dev    → dev.beatboxgames.com      (dossier de travail : clone sur dev)"
+    echo "  branche master → beatboxgames.com, preprod (dossier de prod : clone sur master)"
+    echo "  On travaille sur dev ; on fusionne dev dans master pour mettre en production."
+    echo "  Le script ne change jamais de branche : il refuse de déployer depuis le mauvais dossier."
 }
 
 # ✅ ANALYSE DE L'ESPACE DISQUE
@@ -212,7 +214,7 @@ setup_environment() {
             ENVIRONMENT="dev"
             COMPOSE_FILE="docker-compose.dev.yml"
             PROJECT_NAME="beatbox-games-dev"
-            BRANCH="master"
+            BRANCH="dev"
             log_dev "=== CONFIGURATION DEV ==="
             log_dev "🔧 Environnement: dev.beatboxgames.com"
             log_dev "🏷️ Projet Docker: $PROJECT_NAME"
@@ -294,14 +296,23 @@ deploy_environment() {
     log_info "🔀 Mise à jour du code depuis GitHub..."
     log_info "Branch cible: $BRANCH"
     
-    # Vérifier qu'on est sur la bonne branche
+    # Chaque environnement a son dossier, sur sa branche : le script ne change jamais
+    # de branche. Les fichiers suivis par git (server/public/audio…) sont montés
+    # directement dans les conteneurs : un checkout dans le dossier de prod
+    # changerait les fichiers de la prod en marche.
     CURRENT_BRANCH=$(git branch --show-current)
     if [ "$CURRENT_BRANCH" != "$BRANCH" ]; then
-        log_warning "Switching from $CURRENT_BRANCH to $BRANCH"
-        if ! git checkout $BRANCH; then
-            log_error "Échec du checkout vers $BRANCH"
-            exit 1
+        log_error "Ce dossier est sur la branche « $CURRENT_BRANCH », $ENVIRONMENT se déploie depuis « $BRANCH »."
+        if [ "$BRANCH" = "dev" ]; then
+            log_error "Lance ./deploy.sh dev depuis le clone de travail (branche dev), pas depuis celui de la prod."
+        else
+            log_error "Lance ./deploy.sh $ENVIRONMENT depuis le clone de production (branche master)."
         fi
+        exit 1
+    fi
+    if [ -n "$(git status --porcelain --untracked-files=no)" ]; then
+        log_warning "Fichiers suivis modifiés directement sur le VPS (ils ne viennent pas de GitHub) :"
+        git status --short --untracked-files=no | head -10
     fi
     
     # Pull depuis la branche
@@ -599,6 +610,9 @@ fi
 log_success "Prérequis OK"
 
 # Exécution
+# Accolades : bash lit tout ce bloc avant de l'exécuter. Le git pull du déploiement
+# peut réécrire ce fichier pendant qu'il tourne sans perturber la suite.
+{
 case $COMMAND in
     dev|preprod|production)
         deploy_environment $COMMAND
@@ -629,3 +643,5 @@ esac
 
 echo ""
 log_success "🎯 Opération terminée avec succès!"
+exit 0
+}

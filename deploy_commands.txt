@@ -1,15 +1,39 @@
-# Staging (développement)
-./deploy.sh staging                    # Déploiement complet staging
-./deploy.sh staging --no-build         # Sans rebuild
-./deploy.sh staging --force            # Avec nettoyage forcé
+# BeatBox Games — branches et déploiement
+#
+# dev    → https://dev.beatboxgames.com   (on travaille ici)
+# master → https://beatboxgames.com       (ce que voient les joueurs)
+#
+# Sur le VPS, deux dossiers (deux clones du dépôt), chacun sur sa branche
+# (chemins à adapter à ton VPS) :
+#   ~/beatbox-games      → master : ./deploy.sh production (et preprod)
+#   ~/beatbox-games-dev  → dev    : ./deploy.sh dev
+# deploy.sh ne change jamais de branche et refuse de déployer depuis le mauvais dossier.
 
-# Production
-./deploy.sh production                 # Avec confirmation
-./deploy.sh production --yes           # Sans confirmation
-./deploy.sh production --no-build      # Sans rebuild
+# 1. Travailler (sur ton poste)
+git checkout dev
+git pull
+# … modifications, commits …
+git push origin dev
 
-# Management
-./deploy.sh status                     # Statut des deux environnements
-./deploy.sh logs                       # Logs interactifs
+# 2. Tester sur dev.beatboxgames.com (sur le VPS)
+cd ~/beatbox-games-dev && ./deploy.sh dev
+
+# 3. Mettre en production quand dev est validé (sur ton poste)
+git checkout master
+git pull
+git merge dev
+git push origin master
+git checkout dev
+
+# 4. Déployer la production (sur le VPS)
+cd ~/beatbox-games && ./deploy.sh production
+
+# Correctif urgent en production : le faire sur master, déployer, puis le
+# reporter sur dev pour ne pas le perdre au prochain merge :
+#   git checkout dev && git merge master && git push origin dev
+
+# Gestion
+./deploy.sh status                     # État des environnements
+./deploy.sh logs                       # Journaux (choix interactif)
 ./deploy.sh stop                       # Arrêt sélectif
 ./deploy.sh cleanup --force            # Nettoyage Docker
