@@ -25,15 +25,16 @@ const START_HYPE = 10;
 const TIMING = {
     orderRoll: 12000,
     orderReveal: 3500,
-    turnIntro: 1600,
-    roll: 20000,
-    rollReveal: 1200,
-    hop: 300,
+    starIntro: 3200,
+    turnIntro: 2400,
+    roll: 30000,
+    rollReveal: 1500,
+    hop: 340,
     afterMove: 250,
     choice: 15000,
     star: 15000,
-    starShow: 2400,
-    land: 1800,
+    starShow: 3000,
+    land: 2000,
     mgIntro: 10000,
     mgCountdown: 3000,
     mgGrace: 2500,
@@ -395,9 +396,16 @@ class PartyGame {
             this.order = [...this.players].sort((a, b) => this.orderRolls[b.id] - this.orderRolls[a.id]).map((p) => p.id);
             const token = this.setStep('order', 'reveal', this.ms(TIMING.orderReveal));
             this.publish({ type: 'order', order: this.order });
-            this.later(token, this.ms(TIMING.orderReveal), () => this.beginTurn(1));
+            this.later(token, this.ms(TIMING.orderReveal), () => this.revealStar());
         }
         return { ok: true };
+    }
+
+    // Comme dans Mario Party : avant le premier tour, la caméra montre où est le Micro d'or
+    revealStar() {
+        const token = this.setStep('order', 'starIntro', this.ms(TIMING.starIntro));
+        this.publish({ type: 'starIntro', spaceId: this.starSpace });
+        this.later(token, this.ms(TIMING.starIntro), () => this.beginTurn(1));
     }
 
     // -----------------------------------------------------------------------

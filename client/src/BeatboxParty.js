@@ -168,6 +168,8 @@ function BeatboxPartyGame() {
 
     const inRoom = Boolean(state && myId);
     const inGame = inRoom && state.phase !== 'lobby' && state.phase !== 'end';
+    // Plateau en plein cadre ; les mini-jeux gardent leur propre mise en page
+    const fullScreen = inRoom && (state.phase === 'order' || state.phase === 'turn' || state.phase === 'minigame');
 
     const handleQuit = () => {
         if (inRoom) leaveRoom();
@@ -210,7 +212,7 @@ function BeatboxPartyGame() {
             showSettings={false}
             quitConfirm={inGame ? { title: t('quitTitle'), text: t('quitText'), confirmLabel: t('quitConfirm'), cancelLabel: t('keepPlaying'), closeLabel: t('close') } : null}
             tools={<LanguageSwitch switchLanguage={switchLanguage} isEnglish={isEnglish} />}
-            contentClassName="party !max-w-6xl"
+            contentClassName={fullScreen ? 'party !max-w-none !p-0' : 'party !max-w-6xl'}
         >
             <SEO
                 title={inRoom ? `${state.code} · Beatbox Party | BeatBox Games` : 'Beatbox Party | BeatBox Games'}
@@ -220,7 +222,7 @@ function BeatboxPartyGame() {
                 noindex
             />
             <GameToast message={notice} />
-            <span className="party-font mb-4 inline-block rounded-md bg-[color:var(--px-yellow)] px-2 py-0.5 text-xs text-[#1A1C2C]">{t('testBadge')}</span>
+            {!fullScreen && <span className="party-font mb-4 inline-block rounded-md bg-[color:var(--px-yellow)] px-2 py-0.5 text-xs text-[#1A1C2C]">{t('testBadge')}</span>}
             {content}
         </GameShell>
     );
