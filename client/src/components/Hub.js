@@ -6,6 +6,8 @@ import JoinRoomForm from './site/JoinRoomForm';
 import RankingPreview from './site/RankingPreview';
 import PublicRooms, { quickPath, usePublicRooms } from './site/PublicRooms';
 import { useSiteI18n } from '../utils/siteI18n';
+import PartyTeaser from './party/PartyTeaser';
+import { PARTY_ENABLED } from './party/partyFlag';
 
 const GAMES = [
     { id: 'blindtest', path: '/blindtest-online' },
@@ -85,6 +87,9 @@ function HubContent() {
                         </div>
                     ))}
                 </section>
+
+                {/* Version de test uniquement : Beatbox Party, en développement */}
+                {PARTY_ENABLED && <PartyTeaser />}
 
                 {/* Sous les jeux : les salles ouvertes, puis le classement */}
                 <div className="mt-10 grid gap-10 border-t border-site-line pt-8 lg:grid-cols-2 lg:gap-12">

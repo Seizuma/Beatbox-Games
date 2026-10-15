@@ -5,6 +5,7 @@ const cors = require('cors');
 const path = require('path');
 const { handleOnlineSocketConnection } = require('./onlineGame');
 const { handleBuzzerSocketConnection } = require('./buzzer-socketHandler');
+const { handlePartySocketConnection } = require('./party/partySocketHandler');
 const { CONFIG, LOG_CONFIG, ENVIRONMENT } = require('./constants');
 const fs = require('fs');
 
@@ -640,6 +641,7 @@ io.on('connection', (socket) => {
     // Gestionnaire Online existant
     handleOnlineSocketConnection(socket, io);
     handleBuzzerSocketConnection(socket, io);
+    handlePartySocketConnection(socket, io);
 });
 
 // Port adapté selon l'environnement

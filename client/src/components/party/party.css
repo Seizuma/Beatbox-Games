@@ -1,0 +1,133 @@
+/* Beatbox Party : habillage pixel art (police Silkscreen chargée par BeatboxParty.js) */
+
+.party {
+    --px-bg: #141833;
+    --px-panel: #1F2550;
+    --px-panel-2: #272D5E;
+    --px-line: #3B4480;
+    --px-shadow: #0B0E22;
+    --px-ink: #EEF1FA;
+    --px-muted: #A9B3DA;
+    --px-yellow: #FFC72C;
+    --px-yellow-deep: #C99400;
+    --px-red: #F0533F;
+    --px-blue: #4C8DFF;
+    --px-green: #35C877;
+    color: var(--px-ink);
+}
+
+.party-pixel {
+    image-rendering: pixelated;
+    image-rendering: crisp-edges;
+}
+
+.party-font {
+    font-family: 'Silkscreen', 'Courier New', ui-monospace, monospace;
+    font-weight: 400;
+    letter-spacing: 0.02em;
+}
+
+/* Panneau à bord net et ombre portée dure */
+.party-panel {
+    background: var(--px-panel);
+    border: 3px solid var(--px-line);
+    box-shadow: 0 4px 0 var(--px-shadow);
+    border-radius: 6px;
+}
+
+.party-btn {
+    font-family: 'Silkscreen', 'Courier New', ui-monospace, monospace;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    min-height: 2.9rem;
+    padding: 0.55rem 1.1rem;
+    border-radius: 6px;
+    border: 3px solid var(--px-shadow);
+    background: var(--px-yellow);
+    color: #1A1C2C;
+    box-shadow: 0 4px 0 var(--px-yellow-deep), 0 4px 0 3px var(--px-shadow);
+    transition: transform 0.05s, box-shadow 0.05s;
+    cursor: pointer;
+    user-select: none;
+    -webkit-user-select: none;
+    touch-action: manipulation;
+}
+.party-btn:active:not(:disabled) {
+    transform: translateY(4px);
+    box-shadow: 0 0 0 var(--px-yellow-deep), 0 0 0 3px var(--px-shadow);
+}
+.party-btn:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+}
+.party-btn-ghost {
+    background: var(--px-panel-2);
+    color: var(--px-ink);
+    box-shadow: 0 4px 0 var(--px-shadow);
+    border-color: var(--px-line);
+}
+.party-btn-ghost:active:not(:disabled) {
+    box-shadow: 0 0 0 var(--px-shadow);
+}
+.party-btn-big {
+    min-height: 4rem;
+    font-size: 1.35rem;
+    padding: 0.8rem 1.6rem;
+}
+.party :focus-visible {
+    outline: 3px solid var(--px-yellow);
+    outline-offset: 3px;
+}
+
+.party-input {
+    width: 100%;
+    min-height: 2.9rem;
+    padding: 0.5rem 0.8rem;
+    border-radius: 6px;
+    border: 3px solid var(--px-line);
+    background: #0F1330;
+    color: var(--px-ink);
+    font-size: 1rem;
+}
+.party-input:focus {
+    outline: none;
+    border-color: var(--px-yellow);
+}
+
+/* Le plateau */
+.party-board {
+    position: relative;
+    overflow: hidden;
+    border-radius: 6px;
+    border: 3px solid var(--px-line);
+    box-shadow: 0 4px 0 var(--px-shadow);
+    background: #0E1230;
+    touch-action: pan-y;
+}
+.party-board canvas {
+    display: block;
+    transform-origin: 0 0;
+    will-change: transform;
+}
+
+@keyframes party-pop {
+    0% { transform: scale(0.6); opacity: 0; }
+    60% { transform: scale(1.08); opacity: 1; }
+    100% { transform: scale(1); }
+}
+.party-pop {
+    animation: party-pop 0.28s steps(4) both;
+}
+
+@keyframes party-blink {
+    50% { opacity: 0.35; }
+}
+.party-blink {
+    animation: party-blink 1s steps(2) infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .party-pop, .party-blink { animation: none; }
+}
