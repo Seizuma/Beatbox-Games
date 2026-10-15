@@ -15,6 +15,7 @@
  * dans un cookie HttpOnly posé par POST /api/access/session.
  */
 
+const jwt = require('jsonwebtoken');
 const { getDatabase } = require('./database');
 const { discordAuth } = require('./discordAuth');
 const { isAdmin } = require('../middleware/adminAuth');
@@ -62,10 +63,16 @@ function tokenFromRequest(req) {
     return readCookie(req.headers.cookie, COOKIE_NAME);
 }
 
+// Le cookie porte un jeton d'accès court (identifiant Discord et nom), signé avec le même
+// secret, et non le jeton de connexion complet : celui-ci contient la liste des serveurs
+// Discord du joueur et peut dépasser 5 Ko. Un cookie de cette taille est refusé par les
+// navigateurs (4 Ko maximum) et fait échouer Nginx Proxy Manager (« upstream sent too big
+// header », erreur 502).
 function setSessionCookie(res, token, user) {
     const maxAge = Math.max(0, (user.exp || 0) - Math.floor(Date.now() / 1000));
+    const access = jwt.sign({ discordId: user.discordId, username: user.username, scope: 'access' }, discordAuth.jwtSecret, { expiresIn: maxAge });
     const secure = String(CONFIG.BASE_URL || '').startsWith('https://') ? '; Secure' : '';
-    res.append('Set-Cookie', `${COOKIE_NAME}=${encodeURIComponent(token)}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${maxAge}${secure}`);
+    res.append('Set-Cookie', `${COOKIE_NAME}=${access}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${maxAge}${secure}`);
 }
 
 function clearSessionCookie(res) {
