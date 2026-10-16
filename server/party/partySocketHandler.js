@@ -159,10 +159,12 @@ function handlePartySocketConnection(socket, io) {
         if (game.step === 'wheel') return game.stopWheel(id);
         if (game.step === 'freestyle') return game.stopReel(id);
         if (game.step === 'steal') return game.mash(id);
-        return game.rollDice(id, String(p.die || 'pad'));
+        return game.rollDice(id);
     });
     action('party:wheel', (game, id) => game.stopWheel(id));
     action('party:reel', (game, id) => game.stopReel(id));
+    action('party:item', (game, id, p) => game.useItem(id, String(p.item || '')));
+    action('party:buy', (game, id, p) => game.buyItem(id, p.item ? String(p.item) : null));
     action('party:thief', (game, id, p) => game.chooseThief(id, String(p.choice || 'none')));
     action('party:victim', (game, id, p) => game.chooseVictim(id, String(p.playerId || '')));
     action('party:mash', (game, id) => game.mash(id));

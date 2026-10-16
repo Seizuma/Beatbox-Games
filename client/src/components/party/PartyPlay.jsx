@@ -5,7 +5,7 @@ import { PLAYER_COLORS } from './characters/pixelRig';
 import Icon from '../icons/Icon';
 import { Key, Lcd, LcdText, LoopPad, Panel, PlayerRing } from './ui/Hardware';
 import { isMusicOn, jingle, setMusicFinale, setMusicOn, sfx, startMusic, stopMusic, unlockAudio } from './partySfx';
-import { CoinIcon, MicIcon } from './PartyIcons';
+import { CoinIcon, ItemIcon, MicIcon } from './PartyIcons';
 import EventPanels, { useEventKeys } from './EventPanels';
 
 // L'écran de jeu, construit comme un Mario Party :
@@ -24,11 +24,15 @@ export function describeEvent(event, players, t) {
         case 'order': return t('events.order', { name: name(event.order[0]) });
         case 'roll': return t('events.roll', { name: name(event.playerId), n: event.value });
         case 'land':
+            if (event.trap) return t('events2.trapped', { name: name(event.playerId), owner: name(event.trap.owner), n: event.trap.amount });
             if (event.kind === 'drop') return t('events.drop', { name: name(event.playerId) });
             if (event.kind === 'red') return t('events.red', { name: name(event.playerId), n: Math.abs(event.delta) });
             return t(`events.${event.kind}`, { name: name(event.playerId), n: event.delta });
         case 'chose': return event.paid ? t('events.gate', { name: name(event.playerId), n: event.paid }) : '';
         case 'wheel': return t('events.wheel', { name: name(event.playerId), effect: t(`board.finaleEffect.${event.result}`) });
+        case 'useItem': return t('events2.useItem', { name: name(event.playerId), item: t(`items.${event.item}.name`) });
+        case 'buy': return t('events2.bought', { name: name(event.playerId), item: t(`items.${event.item}.name`) });
+        case 'shopOpen': return t('events2.shopVisit', { name: name(event.playerId) });
         case 'sampleSpin': return t('events2.sampleSpin', { name: name(event.playerId) });
         case 'sample': return t(`events2.sample.${event.result}.text`, { name: name(event.playerId), other: name(event.with), n: event.amount || event.value || 0 });
         case 'cutSpin': return t('events2.cutSpin', { name: name(event.playerId) });
@@ -131,6 +135,11 @@ function PlayerCard({ player, rank, active, isMe, t, compact, orderRoll }) {
                     </span>
                     {orderRoll != null && <LcdText text={`D${orderRoll}`} scale={compact ? 2 : 2} color="#F0AE22" />}
                 </Lcd>
+                {!compact && player.items && player.items.length > 0 && (
+                    <span className="party-hud-bag" aria-label={player.items.map((it) => t(`items.${it}.name`)).join(', ')}>
+                        {player.items.map((it, i) => <ItemIcon key={i} item={it} size={14} />)}
+                    </span>
+                )}
                 {offline && <p className="hw-label mt-0.5 !text-[0.62rem] !text-[color:var(--hw-red)]">{t('lobby.offline')}</p>}
             </div>
         </div>
@@ -274,6 +283,46 @@ function FinaleWheel({ state, t, clockOffset }) {
 }
 
 // ---------------------------------------------------------------------------
+// Au moment du dé : frapper le pad, ou ouvrir le sac
+// ---------------------------------------------------------------------------
+
+function RollMenu({ state, myId, t, actions }) {
+    const [open, setOpen] = useState(false);
+    const me = state.players.find((p) => p.id === myId);
+    const bag = (me && me.items) || [];
+    const size = state.bagSize || 3;
+    const canUse = (item) => !state.itemUsed && (item !== 'mic' || (me && me.hype >= state.starPrice));
+    return (
+        <div className="flex flex-wrap items-center justify-center gap-3">
+            <LoopPad color="amber" onClick={() => actions.roll()} hint={t('screen.rollHint')}>{t('board.dicePad')}</LoopPad>
+            <div className="flex flex-col gap-2">
+                <Key size="md" led="green" ledOn={bag.length > 0 && !state.itemUsed} disabled={!bag.length || state.itemUsed} aria-expanded={open} onClick={() => setOpen((o) => !o)}>
+                    <span className="flex items-center gap-1.5">
+                        {t('board.bag')}
+                        <span className="flex gap-0.5">
+                            {Array.from({ length: size }, (_, i) => (bag[i] ? <ItemIcon key={i} item={bag[i]} size={16} /> : <span key={i} className="party-bag-empty" />))}
+                        </span>
+                    </span>
+                </Key>
+                {open && bag.length > 0 && (
+                    <div className="party-bag-menu">
+                        {bag.map((item, i) => (
+                            <Key key={`${item}${i}`} size="sm" disabled={!canUse(item)} className="!justify-start !py-1.5 text-left" onClick={() => { setOpen(false); actions.item(item); }}>
+                                <ItemIcon item={item} size={20} />
+                                <span className="flex flex-col gap-0.5">
+                                    <span>{t(`items.${item}.name`)}</span>
+                                    <span className="font-sans text-[0.68rem] font-medium normal-case tracking-normal text-[color:var(--hw-silk-dim)]">{t(`items.${item}.info`)}</span>
+                                </span>
+                            </Key>
+                        ))}
+                    </div>
+                )}
+            </div>
+        </div>
+    );
+}
+
+// ---------------------------------------------------------------------------
 // Boîte de dialogue (en bas)
 // ---------------------------------------------------------------------------
 
@@ -300,25 +349,9 @@ function Dock({ state, myId, t, secondsLeft, actions, message, mapMode, onToggle
             controls = <LoopPad color="amber" onClick={() => actions.roll()} hint={t('screen.rollHint')}>{t('board.roll')}</LoopPad>;
         } else if (state.step === 'roll') text = t('board.orderWaiting');
     } else if (mine && state.step === 'roll') {
-        // Le pad REC/PLAY est le dé de base ; bloc-boucle et vinyle sont des dés spéciaux payants
-        const me = state.players.find((p) => p.id === myId);
-        const cost = state.dice || { block: 8, vinyl: 5 };
+        // Trois choix au plus : frapper le pad, ouvrir le sac (un objet par tour), voir la carte
         text = t('board.yourTurn');
-        controls = (
-            <div className="flex flex-wrap items-center justify-center gap-3">
-                <LoopPad color="amber" onClick={() => actions.roll('pad')} hint={t('screen.rollHint')}>{t('board.dicePad')}</LoopPad>
-                <div className="flex flex-col gap-2">
-                    {[['block', 'diceBlock', 'diceBlockInfo', 'green'], ['vinyl', 'diceVinyl', 'diceVinylInfo', 'red']].map(([die, label, info, led]) => (
-                        <Key key={die} size="md" led={led} ledOn={me && me.hype >= cost[die]} disabled={!me || me.hype < cost[die]} className="!justify-start !py-1.5 text-left" onClick={() => actions.roll(die)}>
-                            <span className="flex flex-col gap-0.5">
-                                <span>{t(`board.${label}`)}</span>
-                                <span className="font-sans text-[0.7rem] font-medium normal-case tracking-normal text-[color:var(--hw-silk-dim)]">{t(`board.${info}`, { n: cost[die] })}</span>
-                            </span>
-                        </Key>
-                    ))}
-                </div>
-            </div>
-        );
+        controls = <RollMenu state={state} myId={myId} t={t} actions={actions} />;
     } else if (mine && state.step === 'scratch') {
         text = t('board.scratchTitle');
         controls = <LoopPad color="red" spinning onClick={() => actions.roll()} hint={t('screen.rollHint')}>{t('board.scratch')}</LoopPad>;

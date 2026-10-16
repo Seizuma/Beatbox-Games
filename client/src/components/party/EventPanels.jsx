@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { PLAYER_COLORS } from './characters/pixelRig';
 import { Key, LoopPad, PlayerRing } from './ui/Hardware';
-import { CoinIcon, MicIcon } from './PartyIcons';
+import { CoinIcon, ItemIcon, MicIcon } from './PartyIcons';
 
 // Panneaux des évènements du plateau, au centre de l'écran : Sample ?, Coupure,
 // Freestyle !, Battle et le voleur de flow. Les choix du joueur concerné sont dans le
@@ -248,9 +248,46 @@ function ThiefPanel({ state, myId, t, actions }) {
     );
 }
 
+// ---------------------------------------------------------------------------
+// Le stand de merch : un achat par passage, 3 objets au plus dans le sac
+// ---------------------------------------------------------------------------
+
+function ShopPanel({ state, myId, t, actions }) {
+    const shop = state.shop;
+    if (!shop || state.step !== 'shop') return null;
+    const mine = shop.playerId === myId;
+    const me = playerOf(state, shop.playerId);
+    const full = me && me.items && me.items.length >= (state.bagSize || 3);
+    return (
+        <Panel kind="shop" title={t('shop.title')}>
+            {mine ? (
+                <div className="flex w-full flex-col gap-2">
+                    <p className="hw-text party-event-text">{full ? t('shop.full') : t('shop.ask')}</p>
+                    {shop.items.map((it) => (
+                        <Key key={it.id} size="sm" disabled={!it.ok || full} className="!justify-between !py-1.5 text-left" onClick={() => actions.buy(it.id)}>
+                            <span className="flex items-center gap-2">
+                                <ItemIcon item={it.id} size={22} />
+                                <span className="flex flex-col gap-0.5">
+                                    <span>{t(`items.${it.id}.name`)}</span>
+                                    <span className="font-sans text-[0.68rem] font-medium normal-case tracking-normal text-[color:var(--hw-silk-dim)]">{t(`items.${it.id}.info`)}</span>
+                                </span>
+                            </span>
+                            <span className="flex items-center gap-1"><CoinIcon size={14} />{it.price}</span>
+                        </Key>
+                    ))}
+                    <Key size="md" led="red" onClick={() => actions.buy(null)}>{t('board.skip')}</Key>
+                </div>
+            ) : (
+                <p className="hw-text party-event-text">{t('events2.shopVisit', { name: me ? me.name : '' })}</p>
+            )}
+        </Panel>
+    );
+}
+
 export default function EventPanels(props) {
     return (
         <>
+            <ShopPanel {...props} />
             <SamplePanel {...props} />
             <CutPanel {...props} />
             <FreestylePanel {...props} />

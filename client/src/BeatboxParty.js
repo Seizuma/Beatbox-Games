@@ -126,6 +126,8 @@ function BeatboxPartyGame() {
         roll: (die) => act('party:roll', die ? { die } : {}),
         wheel: () => act('party:wheel'),
         reel: () => act('party:reel'),
+        item: (item) => act('party:item', { item }),
+        buy: (item) => act('party:buy', { item }),
         thief: (choice) => act('party:thief', { choice }),
         victim: (playerId) => act('party:victim', { playerId }),
         mash: () => partySocket.emit('party:mash', {}),

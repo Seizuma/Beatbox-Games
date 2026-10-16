@@ -514,6 +514,23 @@ NPCS.thief = {
         L.rect(b.nx - 4, b.y1 - 9, 9, 4, dk(c.top, 0.25));
     },
 };
+// La vendeuse du stand de merch : bonnet jaune, tee-shirt du stand
+NPCS.merch = {
+    name: 'Merch', skin: '#E2AE86', hair: '#7A2E1C', hairH: '#9A4430', hairS: '#4E1C10', blush: '#E07B6E',
+    hat: '#FFC72C', top: '#35C877', accent: '#FFFFFF', pants: '#2C3248', shoe: '#FFFFFF', shoeA: '#35C877', sole: '#8C93AD',
+    clothes: 'tee', brows: 'up',
+    hairFront(L, hx, hy, c) {
+        const hat = shade3(c.hat);
+        L.poly([[hx - 1, hy + 5], [hx + 1, hy - 2], [hx + 6, hy - 5], [hx + 14, hy - 5], [hx + 19, hy - 2], [hx + 21, hy + 4]], (u, v, x) => (x % 3 === 0 ? dk(c.hat, 0.2) : hat(u * 2 - 1, v * 2 - 1)));
+        L.rect(hx - 1, hy + 3, 23, 4, (i, j) => (j === 0 ? lt(c.hat, 0.25) : i % 2 ? dk(c.hat, 0.25) : dk(c.hat, 0.1)));
+        L.rect(hx, hy + 7, 4, 5, c.hair);
+        L.rect(hx + 17, hy + 7, 3, 6, c.hair);
+    },
+    torsoDetail(L, b, c) {
+        L.rect(b.nx - 3, b.ny + 4, 7, 4, c.accent);
+        L.rect(b.nx - 2, b.ny + 5, 5, 2, '#FFC72C');
+    },
+};
 const lookup = (id) => CAST[id] || NPCS[id] || CAST.nova;
 
 export const CHARACTERS = Object.entries(CAST).map(([id, c]) => ({ id, name: c.name, tagline: c.tagline, color: c.top }));

@@ -416,6 +416,35 @@ function boothTop() {
     });
 }
 
+// Le stand de merch : enseigne, tee-shirts suspendus, table
+function standFront() {
+    return cached('standFront', 72, 92, (ctx, w, h) => {
+        R(ctx, 0, 0, w, h, '#14161c');
+        RR(ctx, 4, 4, w - 8, 18, 3, OUT);
+        RR(ctx, 5, 5, w - 10, 16, 3, '#0f2a1a');
+        pixText(ctx, 'MERCH', w / 2, 9, '#35c877', { font: 'tiny', scale: 2, outline: null, shadow: false });
+        // Tee-shirts suspendus
+        ['#FFC72C', '#4C8DFF', '#F0533F'].forEach((col, i) => {
+            const x = 8 + i * 20;
+            R(ctx, x + 2, 28, 12, 2, '#9a9aa2');
+            R(ctx, x, 30, 16, 5, col);
+            R(ctx, x + 3, 35, 10, 12, col);
+            R(ctx, x + 6, 39, 4, 3, '#ffffff');
+        });
+        // Table
+        R(ctx, 0, 56, w, 4, '#c8a46a');
+        R(ctx, 0, 60, w, h - 60, '#3a2c1c');
+        for (let x = 4; x < w; x += 10) R(ctx, x, 64, 6, 4, ['#FFC72C', '#4C8DFF', '#35C877', '#F0533F'][(x / 10) % 4 | 0]);
+        R(ctx, 0, h - 3, w, 3, '#050304');
+    });
+}
+function standTop() {
+    return cached('standTop', 72, 40, (ctx, w, h) => {
+        R(ctx, 0, 0, w, h, '#1e2a22');
+        for (let x = 0; x < w; x += 8) R(ctx, x, 0, 4, h, '#35c877');
+    });
+}
+
 // ---------------------------------------------------------------------------
 
 const worlds = new Map();
@@ -427,6 +456,9 @@ export function getWorld(board) {
     if (w) return w;
     const tops = [0, 1, 2].map((phase) => paintTop(board, phase));
     const statics = buildStatics();
+    if (board && board.shop) {
+        statics.push({ kind: 'box', x: board.shop.x, y: board.shop.y, w: 90, d: 50, h: 115, sprite: standTop(), front: standFront(), side: '#14161c', floor: true });
+    }
     if (board && board.thief) {
         statics.push({ kind: 'box', x: board.thief.x, y: board.thief.y, w: 80, d: 56, h: 130, sprite: boothTop(), front: boothFront(), side: '#1a0f14', floor: true, booth: true });
     }

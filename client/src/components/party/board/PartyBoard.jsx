@@ -225,6 +225,12 @@ export default function PartyBoard({ state, queue, myId, t = null, mapMode = fal
                     L.rings.push({ spaceId: event.spaceId, at: now, color: SPACE_COLORS[event.kind].ring });
                     sfx(event.kind === 'cut' ? 'loss' : 'reveal');
                 }
+                if (event.trap) {
+                    // Larsen piégé : les pièces filent vers celui qui l'a posé
+                    fly(spaceOf(event.spaceId), posOf(event.trap.owner), event.trap.amount, 500);
+                    float(`-${event.trap.amount}`, ['#FFB4A8', '#E8402F'], event.spaceId, 450, true);
+                    L.shakeUntil = now + 500;
+                }
                 if (event.recorded) {
                     // Boucle enregistrée sur la piste : anneau à la couleur du joueur
                     float('REC', ['#ffffff', '#ff6a5a'], event.spaceId, 350);
@@ -286,6 +292,20 @@ export default function PartyBoard({ state, queue, myId, t = null, mapMode = fal
                 break;
             case 'stealStart':
                 if (event.paid) float(`-${event.paid}`, ['#FFB4A8', '#E8402F'], player && player.space, 0, true);
+                break;
+            case 'useItem':
+                sfx('reveal');
+                if (event.item === 'pipe' || event.item === 'mic') {
+                    if (event.from != null) L.rings.push({ spaceId: event.from, at: now, color: '#35c877' });
+                    if (event.to != null) L.rings.push({ spaceId: event.to, at: now + 200, color: '#35c877' });
+                }
+                if (event.item === 'trap' && event.spaceId != null) L.rings.push({ spaceId: event.spaceId, at: now, color: SPACE_COLORS.red.ring });
+                if (event.item === 'mic') { L.focusStarUntil = now + 1600; L.focusStarDelay = now; }
+                break;
+            case 'buy':
+                if (event.price) float(`-${event.price}`, ['#FFB4A8', '#E8402F'], player && player.space, 0, true);
+                sfx('coin');
+                pose(event.playerId, 'cheer', 1200);
                 break;
             case 'steal':
                 if (event.kind === 'hype') fly(posOf(event.victimId), posOf(event.playerId), event.amount, 0);
@@ -465,6 +485,30 @@ export default function PartyBoard({ state, queue, myId, t = null, mapMode = fal
                     const pr = project(C3, sp.x, sp.y + r * 0.95, spaceTop(sp));
                     if (!pr) return;
                     drawBadge(px, pr.sx, pr.sy - 3, PLAYER_COLORS[owner.seat], plain(owner.name).replace(/[^A-Z0-9]/g, '').slice(0, 1) || '?');
+                } });
+            });
+            // La vendeuse du stand de merch
+            if (s.board.shop) {
+                const sh = s.board.shop;
+                const selling = s.step === 'shop';
+                list.push({ y: sh.y + 36, draw: () => drawFigure(getFrame('merch', selling ? 'present' : 'idle', t + 0.7, '#000000', { base: false, facing: -1 }), sh.x - 4, sh.y + 36, 0, 0) });
+            }
+            // Larsens piégés : un petit triangle à la couleur de celui qui l'a posé
+            Object.entries(s.traps || {}).forEach(([spaceId, id]) => {
+                const owner = s.players.find((q) => q.id === id);
+                const sp = owner && s.board.spaces[spaceId];
+                if (!sp) return;
+                const r = spaceRadius(sp);
+                list.push({ y: sp.y + r * 0.6, draw: () => {
+                    const pr = project(C3, sp.x + r * 0.55, sp.y + r * 0.55, spaceTop(sp));
+                    if (!pr) return;
+                    const bob = Math.round(Math.sin(t * 5 + sp.id) * 1.5);
+                    const x = Math.round(pr.sx);
+                    const y = Math.round(pr.sy - 10 + bob);
+                    P(px, [[x, y - 8], [x + 8, y + 5], [x - 8, y + 5]], '#0d0b14');
+                    P(px, [[x, y - 6], [x + 6, y + 4], [x - 6, y + 4]], PLAYER_COLORS[owner.seat]);
+                    R(px, x - 1, y - 3, 2, 4, '#ffffff');
+                    R(px, x - 1, y + 2, 2, 1, '#ffffff');
                 } });
             });
             // Le voleur de flow, devant sa loge

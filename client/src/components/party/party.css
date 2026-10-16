@@ -682,6 +682,10 @@
 .party-event.is-freestyle { --ev: #ffd23a; }
 .party-event.is-battle { --ev: #f08a24; }
 .party-event.is-thief { --ev: #ffc72c; }
+.party-event.is-shop { --ev: #35c877; }
+.party-bag-empty { display: inline-block; width: 16px; height: 16px; border-radius: 3px; background: #0d0d10; box-shadow: inset 0 0 0 1px #2c2c31; }
+.party-bag-menu { display: flex; flex-direction: column; gap: 0.35rem; }
+.party-hud-bag { display: flex; gap: 0.25rem; margin-top: 0.3rem; }
 .party-event-title { font-size: 2rem; color: var(--ev, var(--hw-amber)); }
 .party-event-big { font-size: clamp(1.4rem, 4.5vw, 2rem); color: var(--hw-silk); }
 .party-event-text { font-size: 1rem; }

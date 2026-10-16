@@ -20,7 +20,7 @@
  *          passer sur la piste d'un autre lui donne un pourboire
  *   gate   passage payant de l'ingé son (prix en Hype pour entrer sur cette route)
  *   place  lieu de passage : le joueur s'y arrête en passant, sans user de pas
- *          (thief : la loge du voleur de flow)
+ *          (thief : la loge du voleur de flow ; shop : le stand de merch)
  */
 
 // La loopstation (façon RC-505 MK2) posée sur la scène d'une battle : c'est elle, le plateau.
@@ -40,7 +40,7 @@ function buildSetup() {
         [30, T, 'start'],
         [158, T, 'blue', 1], [256, T, 'blue'], [354, T, 'blue', 2], [452, T, 'sample'], [550, T, 'blue', 3],
         [648, T, 'battle'], [746, T, 'drop', 4], [844, T, 'blue'], [942, T, 'blue', 5], [1070, T, 'red'],
-        [1070, 380, 'sample'], [1070, 292, 'blue'],
+        [1070, 380, 'sample'], [1070, 292, 'blue', null, 'shop'],
         [1070, TOP, 'drop'], [966, TOP, 'blue'], [862, TOP, 'freestyle'], [758, TOP, 'red'], [654, TOP, 'blue'],
         [550, TOP, 'blue'], [446, TOP, 'cut'], [342, TOP, 'blue'], [238, TOP, 'sample'], [134, TOP, 'battle'],
         [30, TOP, 'blue'], [30, 292, 'blue', null, 'thief'], [30, 380, 'red'],
@@ -80,9 +80,11 @@ function buildSetup() {
         start: 0,
         starPrice: 15,
         // Cases où le Micro d'or peut apparaître (jamais sur un lieu de passage)
-        starSpots: [2, 8, 12, 14, 17, 23],
+        starSpots: [2, 8, 14, 17, 20, 23],
         // La loge du voleur de flow, au bord de la scène, à côté de la case 24
         thief: { spaceId: 24, hypeCost: 5, micCost: 35, x: at(-58, 292)[0], y: at(-58, 292)[1] },
+        // Le stand de merch, de l'autre côté, à côté de la case 12
+        shop: { spaceId: 12, x: at(1158, 292)[0], y: at(1158, 292)[1] },
         defaultTurns: 10,
         spaces,
     };

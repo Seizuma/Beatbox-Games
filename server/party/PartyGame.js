@@ -20,13 +20,13 @@ const MAX_PLAYERS = 4;
 const TURN_OPTIONS = [5, 10, 15, 20];
 const MINIGAME_REWARDS = [10, 5, 2, 0];
 const START_HYPE = 10;
-// Les dés : le pad REC/PLAY (1 à 10) est le dé de base ; les deux autres sont spéciaux et se paient en Hype.
+// Les dés : le pad REC/PLAY (1 à 10) est le dé de base ; les deux autres sont des objets (ITEMS).
 //   block  bloc-boucle « double boucle » : deux boucles superposées, de 2 à 20
 //   vinyl  vinyle « scratch » : il tourne lentement de 1 à 6, le joueur l'arrête quand il veut
 const DICE = {
-    pad: { cost: 0 },
-    block: { cost: 8 },
-    vinyl: { cost: 5, period: 420, faces: 6 },
+    pad: {},
+    block: {},
+    vinyl: { period: 420, faces: 6 },
 };
 
 // Micros bonus de fin de partie (comme les étoiles bonus de Mario Party) : on en tire
@@ -64,6 +64,22 @@ const SAMPLES = { crowd: 3, encore: 2, screen: 2, swap: 2, feedback: 2, tipjar: 
 // Freestyle ! : trois rouleaux arrêtés par le joueur (qui donne, quoi, à qui)
 const FREESTYLE_GIFTS = ['h5', 'h10', 'h20', 'mic', 'swapHype', 'swapMics'];
 const REEL_PERIOD = 150;
+
+// Objets (« samples »), achetés au stand de merch, 3 au plus dans le sac, un par tour au moment du dé
+//   block  bloc-boucle : double dé, 2 à 20
+//   vinyl  vinyle : il tourne de 1 à 6, le joueur l'arrête
+//   trap   Larsen piégé : posé sur sa case, le prochain qui s'y arrête te donne 10 Hype
+//   pipe   échange de piste : échange de place avec un autre joueur au hasard
+//   mic    micro sans fil : file droit au Micro d'or
+const ITEMS = {
+    block: { price: 8 },
+    vinyl: { price: 5 },
+    trap: { price: 8 },
+    pipe: { price: 10 },
+    mic: { price: 25 },
+};
+const BAG_SIZE = 3;
+const TRAP_AMOUNT = 10;
 
 // Battle : chacun met la même mise (ou ce qu'il a), 70 % du pot au 1er, 30 % au 2e
 const BATTLE_STAKES = [5, 10, 15, 20];
@@ -103,6 +119,8 @@ const TIMING = {
     freestyleShow: 3400,
     battleIntro: 3400,
     battleShow: 0,
+    shop: 15000,
+    item: 1800,
     thief: 15000,
     thiefTarget: 15000,
     steal: 3200,
@@ -152,6 +170,9 @@ class PartyGame {
         this.freestyle = null;
         this.battle = null;
         this.thief = null;
+        this.shop = null;
+        this.traps = {};
+        this.itemUsed = false;
         this.roll = null;
         this.move = null;
         this.choice = null;
@@ -325,6 +346,7 @@ class PartyGame {
                 stars: p.stars,
                 space: p.space,
                 ready: p.ready,
+                items: p.items,
                 minigameWins: p.stats.minigameWins,
             })),
             starSpace: this.starSpace,
@@ -342,9 +364,13 @@ class PartyGame {
                 reels: this.freestyle.reels.map((r) => ({ slots: r.slots, spinAt: r.spinAt, period: r.period, index: r.index })),
             },
             battle: this.battle,
+            shop: this.shop,
+            traps: this.traps,
+            itemUsed: this.itemUsed,
+            items: ITEMS,
+            bagSize: BAG_SIZE,
             thief: this.thief && { ...this.thief, presses: undefined },
             roll: this.roll,
-            dice: { block: DICE.block.cost, vinyl: DICE.vinyl.cost },
             choice: this.choice,
             starOffer: this.starOffer,
             minigame: this.minigame && {
@@ -397,6 +423,7 @@ class PartyGame {
             stars: 0,
             space: null,
             ready: false,
+            items: [],
             stats: this.newStats(),
         };
         this.nextPlayerNumber += 1;
@@ -526,6 +553,7 @@ class PartyGame {
             p.stars = 0;
             p.space = this.board.start;
             p.ready = false;
+            p.items = [];
             p.stats = this.newStats();
         });
         this.starSpace = this.pickStarSpot(null);
@@ -632,39 +660,180 @@ class PartyGame {
         this.roll = null;
         this.choice = null;
         this.starOffer = null;
+        this.itemUsed = false;
         const token = this.setStep('turn', 'intro', this.ms(TIMING.turnIntro));
         this.publish({ type: 'turn', playerId: player.id, turn: this.turn });
         this.later(token, this.ms(TIMING.turnIntro), () => {
             const rollToken = this.setStep('turn', 'roll', this.ms(TIMING.roll));
             this.publish();
-            this.awaitPlayer(rollToken, player, this.ms(TIMING.roll), () => this.rollDice(player.id, this.botDie(player)));
+            this.awaitPlayer(rollToken, player, this.ms(TIMING.roll), () => this.botRoll(player));
         });
     }
 
-    // Les bots s'offrent parfois un dé spécial quand ils ont de quoi
-    botDie(player) {
-        if (!player.isBot) return 'pad';
-        if (player.hype >= DICE.block.cost + 12 && this.random() < 0.3) return 'block';
-        return 'pad';
+    // Au moment du dé, un bot utilise parfois un objet de son sac, puis lance
+    botRoll(player) {
+        if (this.phase !== 'turn' || this.step !== 'roll') return;
+        const item = player.isBot ? this.botItem(player) : null;
+        if (item) {
+            this.useItem(player.id, item);
+            // Le dé suit, sauf si l'objet a déjà déplacé le joueur (dé spécial, micro sans fil)
+            if (this.step === 'roll') this.later(this.token, this.ms(this.randInt(TIMING.botMin, TIMING.botMax)), () => this.rollDice(player.id));
+            return;
+        }
+        this.rollDice(player.id);
     }
 
-    rollDice(playerId, die = 'pad') {
+    // Distance (en cases) d'une case au Micro d'or
+    distanceToStar(from, hype = Infinity) {
+        if (from == null || this.starSpace == null) return null;
+        if (from === this.starSpace) return 0;
+        const seen = new Map([[from, 0]]);
+        const queue = [from];
+        while (queue.length) {
+            const id = queue.shift();
+            for (const n of this.board.spaces[id].next) {
+                if (seen.has(n) || (this.board.spaces[n].gate || 0) > hype) continue;
+                seen.set(n, seen.get(id) + 1);
+                if (n === this.starSpace) return seen.get(n);
+                queue.push(n);
+            }
+        }
+        return null;
+    }
+
+    botItem(player) {
+        const bag = player.items || [];
+        if (!bag.length) return null;
+        const dist = this.distanceToStar(player.space, player.hype);
+        const canBuy = player.hype >= this.starPrice();
+        if (bag.includes('mic') && canBuy && dist > 6) return 'mic';
+        if (bag.includes('pipe')) {
+            const closer = this.players.find((p) => p.id !== player.id && this.distanceToStar(p.space) < dist - 4);
+            if (closer && this.random() < 0.7) return 'pipe';
+        }
+        if (bag.includes('block') && canBuy && dist > 10 && dist <= 20) return 'block';
+        if (bag.includes('vinyl') && canBuy && dist <= 6) return 'vinyl';
+        if (bag.includes('trap') && this.random() < 0.4) return 'trap';
+        return null;
+    }
+
+    rollDice(playerId) {
         if (this.phase !== 'turn' || this.step !== 'roll') return { error: 'not_now' };
         const player = this.current();
         if (!player || player.id !== playerId) return { error: 'not_your_turn' };
-        const kind = DICE[die] ? die : 'pad';
-        if (player.hype < DICE[kind].cost) return { error: 'not_enough_hype' };
-        this.addHype(player, -DICE[kind].cost);
+        // Les dés spéciaux ne s'obtiennent plus qu'en objets (useItem)
+        return this.throwDie(player, 'pad');
+    }
+
+    throwDie(player, kind) {
         if (kind === 'vinyl') {
             // Le vinyle tourne : le joueur le scratche pour l'arrêter
-            this.roll = { playerId, die: kind, spinAt: this.now(), period: DICE.vinyl.period, faces: DICE.vinyl.faces, paid: DICE.vinyl.cost };
+            this.roll = { playerId: player.id, die: kind, spinAt: this.now(), period: DICE.vinyl.period, faces: DICE.vinyl.faces, paid: 0 };
             const token = this.setStep('turn', 'scratch', this.ms(TIMING.scratch));
-            this.publish({ type: 'spin', playerId, die: kind, paid: DICE.vinyl.cost });
+            this.publish({ type: 'spin', playerId: player.id, die: kind, paid: 0 });
             this.awaitPlayer(token, player, this.ms(TIMING.scratch), () => this.scratch(player.id));
             return { ok: true };
         }
         const value = kind === 'block' ? this.randInt(1, 10) + this.randInt(1, 10) : this.randInt(1, 10);
-        this.reveal(player, kind, value, DICE[kind].cost);
+        this.reveal(player, kind, value, 0);
+        return { ok: true };
+    }
+
+    // Un objet du sac, au moment du dé (un seul par tour)
+    useItem(playerId, item) {
+        if (this.phase !== 'turn' || this.step !== 'roll') return { error: 'not_now' };
+        const player = this.current();
+        if (!player || player.id !== playerId) return { error: 'not_your_turn' };
+        if (this.itemUsed) return { error: 'item_used' };
+        const index = (player.items || []).indexOf(item);
+        if (index < 0) return { error: 'no_item' };
+        if (item === 'mic' && player.hype < this.starPrice()) return { error: 'not_enough_hype' };
+        player.items.splice(index, 1);
+        this.itemUsed = true;
+        if (item === 'block' || item === 'vinyl') {
+            this.publish({ type: 'useItem', playerId, item });
+            return this.throwDie(player, item);
+        }
+        if (item === 'trap') {
+            this.traps[player.space] = player.id;
+            this.publish({ type: 'useItem', playerId, item, spaceId: player.space });
+            return this.resumeRoll(player);
+        }
+        if (item === 'pipe') {
+            const others = this.players.filter((p) => p.id !== player.id);
+            const other = others[this.randInt(0, others.length - 1)];
+            const from = player.space;
+            [player.space, other.space] = [other.space, player.space];
+            this.publish({ type: 'useItem', playerId, item, with: other.id, from, to: player.space });
+            return this.resumeRoll(player);
+        }
+        if (item === 'mic') {
+            // Micro sans fil : le joueur file au Micro d'or, puis son tour s'arrête là
+            const from = player.space;
+            player.space = this.starSpace;
+            this.move = { playerId, left: 0, choice: null };
+            const token = this.setStep('turn', 'itemWarp');
+            this.publish({ type: 'useItem', playerId, item, from, to: player.space });
+            this.later(token, this.ms(TIMING.item), () => this.openStarOffer(player));
+            return { ok: true };
+        }
+        return { ok: true };
+    }
+
+    // Après un objet qui ne lance pas de dé : le joueur lance son dé normalement
+    resumeRoll(player) {
+        const token = this.setStep('turn', 'roll', this.ms(TIMING.roll));
+        this.publish();
+        this.awaitPlayer(token, player, this.ms(TIMING.roll), () => this.rollDice(player.id));
+        return { ok: true };
+    }
+
+    // -----------------------------------------------------------------------
+    // Le stand de merch : on s'y arrête en passant, un achat par visite
+    // -----------------------------------------------------------------------
+
+    canShop(player) {
+        if (!this.board.shop || this.turn >= this.settings.turns) return false; // fermé au dernier tour
+        if ((player.items || []).length >= BAG_SIZE) return false;
+        return Object.values(ITEMS).some((it) => player.hype >= it.price);
+    }
+
+    openShop(player) {
+        const items = Object.entries(ITEMS).map(([id, it]) => ({ id, price: it.price, ok: player.hype >= it.price }));
+        this.shop = { playerId: player.id, items };
+        const token = this.setStep('turn', 'shop', this.ms(TIMING.shop));
+        this.publish({ type: 'shopOpen', playerId: player.id });
+        this.awaitPlayer(token, player, this.ms(TIMING.shop), () => this.buyItem(player.id, player.isBot ? this.botShop(player) : null));
+    }
+
+    botShop(player) {
+        // Garde de quoi acheter le Micro d'or avec le micro sans fil ; sinon un objet au hasard parmi ceux qu'il peut payer
+        const wish = Object.keys(ITEMS).filter((id) => !player.items.includes(id));
+        const affordable = wish.filter((id) => ITEMS[id].price <= player.hype - (id === 'mic' ? this.starPrice() : 6));
+        if (!affordable.length || this.random() < 0.25) return null;
+        if (affordable.includes('mic')) return 'mic';
+        return affordable[this.randInt(0, affordable.length - 1)];
+    }
+
+    buyItem(playerId, item) {
+        const shop = this.shop;
+        if (this.phase !== 'turn' || this.step !== 'shop' || !shop || shop.playerId !== playerId) return { error: 'not_now' };
+        const player = this.player(playerId);
+        let bought = null;
+        if (item && ITEMS[item]) {
+            if (player.hype < ITEMS[item].price) return { error: 'not_enough_hype' };
+            if (player.items.length >= BAG_SIZE) return { error: 'bag_full' };
+            this.addHype(player, -ITEMS[item].price);
+            player.items.push(item);
+            bought = item;
+        }
+        this.shop = null;
+        const token = this.setStep('turn', 'shopDone');
+        this.publish({ type: bought ? 'buy' : 'shopSkip', playerId, item: bought, price: bought ? ITEMS[bought].price : 0 });
+        this.later(token, this.ms(bought ? 900 : 300), () => {
+            if (this.move && this.move.left > 0) this.continueMove();
+            else this.land(player);
+        });
         return { ok: true };
     }
 
@@ -730,8 +899,12 @@ class PartyGame {
                 stop = 'thief';
                 break;
             }
+            if (next.place === 'shop' && this.canShop(player)) {
+                stop = 'shop';
+                break;
+            }
         }
-        if (m.left === 0 && stop !== 'star' && stop !== 'thief') stop = 'land';
+        if (m.left === 0 && !['star', 'thief', 'shop'].includes(stop)) stop = 'land';
 
         const token = this.setStep('turn', 'moving');
         if (path.length) this.publish({ type: 'move', playerId: player.id, path, effects, hopMs: this.ms(TIMING.hop) });
@@ -740,6 +913,7 @@ class PartyGame {
             if (stop === 'choice') this.openChoice(player);
             else if (stop === 'star') this.openStarOffer(player);
             else if (stop === 'thief') this.openThief(player);
+            else if (stop === 'shop') this.openShop(player);
             else this.land(player);
         });
     }
@@ -830,8 +1004,17 @@ class PartyGame {
         // Drop : le joueur prend la main sur les cinq pistes
         if (type === 'drop') Object.keys(this.trackOwners).forEach((k) => { this.trackOwners[k] = player.id; });
         delta = this.addHype(player, delta);
+        // Larsen piégé par un autre joueur : il touche jusqu'à 10 Hype
+        let trap = null;
+        const trapOwner = this.traps[space.id] && this.player(this.traps[space.id]);
+        if (trapOwner && trapOwner.id !== player.id) {
+            const amount = -this.addHype(player, -TRAP_AMOUNT);
+            this.addHype(trapOwner, amount);
+            delete this.traps[space.id];
+            trap = { owner: trapOwner.id, amount };
+        }
         const token = this.setStep('turn', 'landed');
-        this.publish({ type: 'land', playerId: player.id, spaceId: space.id, kind: type, delta, recorded });
+        this.publish({ type: 'land', playerId: player.id, spaceId: space.id, kind: type, delta, recorded, trap });
         if (type === 'sample') return this.later(token, this.ms(900), () => this.spinSample(player));
         if (type === 'cut') return this.later(token, this.ms(900), () => this.spinCut(player));
         if (type === 'freestyle') return this.later(token, this.ms(900), () => this.startFreestyle(player));
@@ -1333,6 +1516,7 @@ class PartyGame {
             p.hype = START_HYPE;
             p.stars = 0;
             p.ready = false;
+            p.items = [];
             p.stats = this.newStats();
         });
         this.setStep('lobby', null);
@@ -1341,4 +1525,4 @@ class PartyGame {
     }
 }
 
-module.exports = { PartyGame, CHARACTER_IDS, MAX_PLAYERS, TURN_OPTIONS, TIMING, DICE, BONUS_IDS };
+module.exports = { PartyGame, CHARACTER_IDS, MAX_PLAYERS, TURN_OPTIONS, TIMING, DICE, BONUS_IDS, ITEMS };
