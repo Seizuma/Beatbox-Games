@@ -156,8 +156,10 @@ function handlePartySocketConnection(socket, io) {
     action('party:roll', (game, id, p) => {
         if (game.phase === 'order') return game.rollForOrder(id);
         if (game.step === 'scratch') return game.scratch(id);
+        if (game.step === 'wheel') return game.stopWheel(id);
         return game.rollDice(id, String(p.die || 'pad'));
     });
+    action('party:wheel', (game, id) => game.stopWheel(id));
     action('party:choose', (game, id, p) => game.choose(id, p.spaceId));
     action('party:star', (game, id, p) => game.resolveStar(id, Boolean(p.buy)));
     action('party:ready', (game, id) => game.setReady(id));

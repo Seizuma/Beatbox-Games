@@ -26,6 +26,7 @@ export function describeEvent(event, players, t) {
             if (event.kind === 'red') return t('events.red', { name: name(event.playerId), n: Math.abs(event.delta) });
             return t(`events.${event.kind}`, { name: name(event.playerId), n: event.delta });
         case 'chose': return event.paid ? t('events.gate', { name: name(event.playerId), n: event.paid }) : '';
+        case 'wheel': return t('events.wheel', { name: name(event.playerId), effect: t(`board.finaleEffect.${event.result}`) });
         case 'star':
             return event.bought ? t('events.bought', { name: name(event.playerId) }) : t('events.declined', { name: name(event.playerId) });
         case 'starOffer': return event.affordable ? '' : t('events.noMoney', { name: name(event.playerId) });
@@ -207,6 +208,84 @@ function Banner({ banner, compact }) {
 }
 
 // ---------------------------------------------------------------------------
+// Roue du Rappel : tournée par le dernier, à 3 tours de la fin
+// ---------------------------------------------------------------------------
+
+const WHEEL_COLORS = { double: '#F0AE22', halfStar: '#E2402F', extraBonus: '#3F7EEA', redCut: '#7a2a8c', freestyle: '#2EB75E' };
+
+function FinaleWheel({ state, t, clockOffset }) {
+    const wheel = state.wheel;
+    const rotorRef = useRef(null);
+    const spinAt = wheel && wheel.spinAt;
+    const index = wheel && wheel.index;
+    const period = wheel && wheel.period;
+    useEffect(() => {
+        if (!wheel) return undefined;
+        const n = wheel.slots.length;
+        const step = 360 / n;
+        let raf = 0;
+        const loop = () => {
+            let pos = 0.5;
+            if (index != null) pos = index + 0.5;
+            else if (spinAt) pos = (Date.now() + clockOffset - spinAt) / period;
+            if (rotorRef.current) rotorRef.current.setAttribute('transform', `rotate(${(-pos * step).toFixed(2)})`);
+            raf = requestAnimationFrame(loop);
+        };
+        raf = requestAnimationFrame(loop);
+        return () => cancelAnimationFrame(raf);
+        // La roue est décrite par ses valeurs
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [spinAt, index, period, clockOffset]);
+    if (!wheel || !['wheel', 'wheelResult'].includes(state.step)) return null;
+    const n = wheel.slots.length;
+    const step = (Math.PI * 2) / n;
+    const spinner = state.players.find((p) => p.id === wheel.playerId);
+    const arc = (i) => {
+        const a0 = i * step - Math.PI / 2;
+        const a1 = (i + 1) * step - Math.PI / 2;
+        return `M0 0 L${Math.cos(a0) * 100} ${Math.sin(a0) * 100} A100 100 0 0 1 ${Math.cos(a1) * 100} ${Math.sin(a1) * 100} Z`;
+    };
+    return (
+        <div className="party-wheel-layer" aria-live="polite">
+            <div className={`party-wheel ${state.step === 'wheelResult' ? 'is-done' : ''}`}>
+                <p className="hw-title party-wheel-title">{t('banner.finale')}</p>
+                {spinner && <p className="hw-label !text-[0.7rem]">{spinner.name}</p>}
+                <svg viewBox="-112 -118 224 232" className="party-wheel-svg" role="img" aria-label={wheel.result ? t(`board.finaleEffect.${wheel.result}`) : t('banner.finale')}>
+                    <circle r="108" fill="#0b0b0d" stroke="#2c2c31" strokeWidth="3" />
+                    <g ref={rotorRef}>
+                        {wheel.slots.map((slot, i) => {
+                            const mid = (i + 0.5) * step - Math.PI / 2;
+                            const win = state.step === 'wheelResult' && i === wheel.index;
+                            return (
+                                <g key={i}>
+                                    <path d={arc(i)} fill={win ? '#fff4dc' : WHEEL_COLORS[slot] || '#555'} stroke="#0b0b0d" strokeWidth="2.5" />
+                                    <text
+                                        x={Math.cos(mid) * 62}
+                                        y={Math.sin(mid) * 62}
+                                        transform={`rotate(${(mid * 180) / Math.PI} ${Math.cos(mid) * 62} ${Math.sin(mid) * 62})`}
+                                        textAnchor="middle"
+                                        dominantBaseline="middle"
+                                        className="party-wheel-label"
+                                        fill="#141210"
+                                    >
+                                        {t(`board.wheelSlot.${slot}`)}
+                                    </text>
+                                </g>
+                            );
+                        })}
+                    </g>
+                    <circle r="20" fill="#18181b" stroke="#2c2c31" strokeWidth="3" />
+                    <path d="M-11 -118 L11 -118 L0 -96 Z" fill="#fff4dc" stroke="#0b0b0d" strokeWidth="2.5" />
+                </svg>
+                {state.step === 'wheelResult' && wheel.result && (
+                    <p className="hw-title hw-pop party-wheel-result">{t(`banner.wheel.${wheel.result}`)}</p>
+                )}
+            </div>
+        </div>
+    );
+}
+
+// ---------------------------------------------------------------------------
 // Boîte de dialogue (en bas)
 // ---------------------------------------------------------------------------
 
@@ -219,7 +298,16 @@ function Dock({ state, myId, t, secondsLeft, actions, message, mapMode, onToggle
 
     let text = message;
     let controls = null;
-    if (state.phase === 'order') {
+    const wheel = state.wheel;
+    const spinnerName = wheel ? ((state.players.find((p) => p.id === wheel.playerId) || {}).name || '') : '';
+    if (state.step === 'wheel' && wheel && wheel.playerId === myId) {
+        text = t('board.wheelTitle');
+        controls = <LoopPad color="red" spinning onClick={() => actions.wheel()} hint={t('screen.rollHint')}>{t('board.wheelStop')}</LoopPad>;
+    } else if (state.step === 'wheel' && wheel) {
+        text = t('board.wheelWaiting', { name: spinnerName });
+    } else if (state.step === 'wheelResult' && wheel && wheel.result) {
+        text = t('banner.wheelText.' + wheel.result, { price: state.starPrice });
+    } else if (state.phase === 'order') {
         const rolled = state.orderRolls[myId] != null;
         if (state.step === 'roll' && !rolled) {
             text = t('board.orderRoll');
@@ -287,8 +375,8 @@ function Dock({ state, myId, t, secondsLeft, actions, message, mapMode, onToggle
         if (!text && current) text = mine ? t('board.yourTurn') : t('board.turnOf', { name });
     }
 
-    const myDecision = mine && ['roll', 'scratch', 'choice', 'star'].includes(state.step);
-    const duration = { roll: 30, scratch: 8, choice: 15, star: 15 }[state.step] || 30;
+    const myDecision = (mine && ['roll', 'scratch', 'choice', 'star'].includes(state.step)) || (state.step === 'wheel' && wheel && wheel.playerId === myId);
+    const duration = { roll: 30, scratch: 8, choice: 15, star: 15, wheel: 12 }[state.step] || 30;
     const cells = 20;
     const lit = secondsLeft != null ? Math.ceil((Math.min(duration, secondsLeft) / duration) * cells) : 0;
     const choice = mine && state.step === 'choice';
@@ -390,8 +478,16 @@ export default function PartyPlay({ state, myId, t, queue, clockOffset, actions 
                 break;
             }
             case 'finale':
-                show({ title: t('banner.finale'), text: t('banner.finaleText'), color: '#E2402F' }, 2800);
+                show({
+                    title: t('banner.finale'),
+                    text: event.playerId === myId ? t('banner.finaleTextMe') : t('banner.finaleText', { name: player ? player.name : '' }),
+                    color: '#E2402F',
+                    player,
+                }, 2800);
                 setMusicFinale(true);
+                break;
+            case 'wheel':
+                sfx('star');
                 break;
             case 'land':
                 if (event.kind === 'drop' && player) show({ title: t('banner.drop'), text: t('banner.dropText', { name: player.name }), color: '#2EB75E' }, 1700);
@@ -450,6 +546,12 @@ export default function PartyPlay({ state, myId, t, queue, clockOffset, actions 
             const s = stateRef.current;
             const cur = s.players.find((p) => p.id === s.currentPlayerId);
             const mine = cur && cur.id === myId;
+            if (event.code === 'Space' && !event.repeat && tag !== 'BUTTON' && s.step === 'wheel' && s.wheel && s.wheel.playerId === myId) {
+                event.preventDefault();
+                unlockAudio();
+                actions.wheel();
+                return;
+            }
             if (event.code === 'Space' && !event.repeat && tag !== 'BUTTON') {
                 const orderRoll = s.phase === 'order' && s.step === 'roll' && s.orderRolls[myId] == null;
                 if ((mine && (s.step === 'roll' || s.step === 'scratch')) || orderRoll) {
@@ -488,11 +590,17 @@ export default function PartyPlay({ state, myId, t, queue, clockOffset, actions 
                 <span className="hw-chip">
                     <LcdText text={state.turn > 0 ? t('board.turn', { turn: state.turn, total: state.settings.turns }) : t('board.orderTitle')} scale={2} />
                 </span>
-                {state.finale && <span className="hw-chip"><span className="hw-led is-on hw-blink" style={{ '--led': '#E2402F' }} /><LcdText text={`${t('board.finale')} x2`} scale={2} color="#E2402F" /></span>}
+                {state.finale && state.finaleEffect && (
+                    <span className="hw-chip">
+                        <span className="hw-led is-on hw-blink" style={{ '--led': '#E2402F' }} />
+                        <LcdText text={t(`board.finaleChip.${state.finaleEffect}`, { price: state.starPrice })} scale={2} color="#E2402F" />
+                    </span>
+                )}
                 {mapMode && <span className="hw-chip"><LcdText text={t('screen.mapBadge')} scale={2} color="#F0AE22" /></span>}
             </div>
             <Hud state={state} myId={myId} t={t} compact={compact} />
             <Banner banner={banner} compact={compact} />
+            <FinaleWheel state={state} t={t} clockOffset={clockOffset} />
             <Dock
                 state={state}
                 myId={myId}

@@ -123,9 +123,14 @@ export default function PartyScene({ board, view = STAGE_VIEW, actors = [], stag
     );
 }
 
-/** Position (en %) d'un point du monde dans la scène (pieds sur un gros pad), pour y poser du HTML */
+/**
+ * Position (en %) d'un point du monde dans la scène (pieds sur un gros pad), pour y poser du HTML.
+ * Près des bords, l'étiquette s'ancre sur son bord gauche ou droit pour ne pas être coupée.
+ */
 export function scenePoint(view, x, y) {
     const pr = project(sceneCam(view), x, y, FEET_H);
     if (!pr) return { left: '50%', top: '50%' };
-    return { left: `${(pr.sx / view.w) * 100}%`, top: `${(pr.sy / view.h) * 100}%` };
+    const left = Math.max(1, Math.min(99, (pr.sx / view.w) * 100));
+    const anchor = left < 14 ? 0 : left > 86 ? 100 : 50;
+    return { left: `${left}%`, top: `${(pr.sy / view.h) * 100}%`, transform: `translate(-${anchor}%, 0.35rem)` };
 }

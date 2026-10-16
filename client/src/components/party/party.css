@@ -580,6 +580,40 @@
     background: var(--bc);
 }
 
+/* Roue du Rappel */
+.party-wheel-layer {
+    position: absolute;
+    inset: 0;
+    z-index: 9;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 6rem 1rem 11rem;
+    pointer-events: none;
+}
+.party-wheel {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.35rem;
+    padding: 0.9rem 1.2rem 1rem;
+    border-radius: 14px;
+    border: 1px solid #070707;
+    background: linear-gradient(180deg, #1f1f23 0%, #17171a 100%);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.07), 0 18px 40px rgba(0, 0, 0, 0.6);
+    animation: hw-pop 0.18s steps(4) both;
+}
+.party-wheel-title { font-size: 2rem; color: var(--hw-red); }
+.party-wheel-svg { width: min(60vw, 17rem); max-height: 40vh; height: auto; }
+.party-wheel-label {
+    font-family: var(--hw-label);
+    font-weight: 800;
+    font-size: 12.5px;
+    letter-spacing: 0.02em;
+    text-transform: uppercase;
+}
+.party-wheel-result { font-size: clamp(1.3rem, 4vw, 1.9rem); color: var(--hw-amber); text-align: center; }
+
 /* Console du joueur, en bas */
 .party-dock {
     position: absolute;
@@ -646,6 +680,23 @@
     border-radius: 6px;
     background: radial-gradient(ellipse at 50% 85%, #3a3a41 0%, #18181b 70%);
     box-shadow: inset 0 2px 6px rgba(0, 0, 0, 0.7);
+}
+
+/* Fin de partie : cartes des Micros bonus */
+.party-bonus {
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+    padding: 0.9rem 1rem;
+    border-radius: 10px;
+    border: 1px solid #070707;
+    background: linear-gradient(180deg, #26262b 0%, #1b1b1f 100%);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.07), 0 8px 18px rgba(0, 0, 0, 0.45);
+}
+.party-bonus.is-hidden {
+    align-items: center;
+    justify-content: center;
+    min-height: 8rem;
 }
 
 /* Toasts */

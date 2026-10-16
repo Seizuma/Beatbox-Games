@@ -29,6 +29,24 @@ const DICE = {
     vinyl: { cost: 5, period: 420, faces: 6 },
 };
 
+// Micros bonus de fin de partie (comme les étoiles bonus de Mario Party) : on en tire
+// quelques-uns au hasard, révélés un à un avant le podium. Égalité : tous les ex aequo l'ont.
+//   minigames  roi des mini-jeux (le plus de mini-jeux gagnés)
+//   flow       plus gros flow (le plus de Hype détenue à un moment de la partie)
+//   drop       roi du Drop (le plus de Hype touchée en pourboires)
+//   larsen     lot de consolation (le plus de Larsen)
+//   distance   marathonien (le plus de cases parcourues)
+const BONUS_IDS = ['minigames', 'flow', 'drop', 'larsen', 'distance'];
+const BONUS_COUNT = 2;
+
+// La roue du Rappel, tournée par le dernier à 3 tours de la fin : deux cases sur quatre
+// doublent les cases bleues et rouges, les deux autres sont tirées dans FINALE_POOL.
+//   double      cases bleues et rouges doublées
+//   halfStar    Micro d'or à moitié prix
+//   extraBonus  un Micro bonus de plus à la fin
+const FINALE_POOL = ['halfStar', 'extraBonus'];
+const WHEEL_PERIOD = 110;
+
 // Durées en millisecondes (multipliées par timeScale)
 const TIMING = {
     orderRoll: 12000,
@@ -49,6 +67,12 @@ const TIMING = {
     mgGrace: 2500,
     mgResults: 6500,
     finaleIntro: 3000,
+    wheel: 12000,
+    wheelBotMin: 1400,
+    wheelBotMax: 3200,
+    wheelResult: 3400,
+    bonusIntro: 3400,
+    bonusShow: 4600,
     disconnectedAuto: 1500,
     botMin: 700,
     botMax: 1600,
@@ -57,10 +81,12 @@ const TIMING = {
 const sanitizeName = (value) => String(value || '').replace(/[\u0000-\u001f<>]/g, '').trim().slice(0, 16);
 
 class PartyGame {
-    constructor(code, { emit = () => {}, timeScale = 1, random = Math.random, now = Date.now } = {}) {
+    constructor(code, { emit = () => {}, timeScale = 1, minigameScale = 1, random = Math.random, now = Date.now } = {}) {
         this.code = code;
         this.emitState = emit;
         this.timeScale = timeScale;
+        // Durée réelle des mini-jeux (1 en jeu ; le simulateur de parties la réduit)
+        this.minigameScale = minigameScale;
         this.random = random;
         this.now = now;
         this.createdAt = now();
@@ -93,6 +119,10 @@ class PartyGame {
         this.minigame = null;
         this.minigameBag = [];
         this.finalRanking = null;
+        this.tiebreak = null;
+        this.wheel = null;
+        this.finaleEffect = null;
+        this.bonuses = null;
     }
 
     // -----------------------------------------------------------------------
@@ -105,6 +135,40 @@ class PartyGame {
 
     randInt(min, max) {
         return min + Math.floor(this.random() * (max - min + 1));
+    }
+
+    shuffle(list) {
+        const out = [...list];
+        for (let i = out.length - 1; i > 0; i -= 1) {
+            const j = Math.floor(this.random() * (i + 1));
+            [out[i], out[j]] = [out[j], out[i]];
+        }
+        return out;
+    }
+
+    // Gain ou perte de Hype (jamais en dessous de zéro), avec les statistiques de fin de partie
+    addHype(player, delta) {
+        const before = player.hype;
+        player.hype = Math.max(0, player.hype + delta);
+        const applied = player.hype - before;
+        if (applied > 0) player.stats.hypeEarned += applied;
+        player.stats.maxHype = Math.max(player.stats.maxHype, player.hype);
+        return applied;
+    }
+
+    newStats() {
+        return { minigameWins: 0, hypeEarned: 0, maxHype: START_HYPE, tipsEarned: 0, redLandings: 0, spacesMoved: 0 };
+    }
+
+    // Classement courant : Micros d'or, puis Hype
+    standings() {
+        return [...this.players].sort((a, b) => (b.stars - a.stars) || (b.hype - a.hype));
+    }
+
+    // Prix du Micro d'or (moitié prix si la roue du Rappel l'a décidé)
+    starPrice() {
+        const base = this.board.starPrice;
+        return this.finaleEffect === 'halfStar' ? Math.ceil(base / 2) : base;
     }
 
     schedule(fn, delay) {
@@ -202,7 +266,10 @@ class PartyGame {
                 minigameWins: p.stats.minigameWins,
             })),
             starSpace: this.starSpace,
-            starPrice: this.board.starPrice,
+            starPrice: this.starPrice(),
+            finaleEffect: this.finaleEffect,
+            wheel: this.wheel,
+            bonuses: this.bonuses && this.bonuses.map((b) => (b.revealed ? b : { revealed: false })),
             stageOwner: this.stageOwner,
             roll: this.roll,
             dice: { block: DICE.block.cost, vinyl: DICE.vinyl.cost },
@@ -218,6 +285,7 @@ class PartyGame {
                 results: this.minigame.results,
             },
             finalRanking: this.finalRanking,
+            tiebreak: this.tiebreak || null,
             event: this.event,
         };
     }
@@ -255,7 +323,7 @@ class PartyGame {
             stars: 0,
             space: null,
             ready: false,
-            stats: { minigameWins: 0, hypeEarned: 0 },
+            stats: this.newStats(),
         };
         this.nextPlayerNumber += 1;
         this.players.push(player);
@@ -384,7 +452,7 @@ class PartyGame {
             p.stars = 0;
             p.space = this.board.start;
             p.ready = false;
-            p.stats = { minigameWins: 0, hypeEarned: 0 };
+            p.stats = this.newStats();
         });
         this.starSpace = this.pickStarSpot(null);
         const token = this.setStep('order', 'roll', this.ms(TIMING.orderRoll));
@@ -426,13 +494,58 @@ class PartyGame {
         this.turn = turn;
         this.turnIndex = 0;
         if (turn === this.settings.turns - 2 && this.settings.turns >= 5) {
-            // Le Rappel : les trois derniers tours, cases doublées
-            const token = this.setStep('turn', 'finale', this.ms(TIMING.finaleIntro));
-            this.publish({ type: 'finale', turnsLeft: 3 });
-            this.later(token, this.ms(TIMING.finaleIntro), () => this.beginPlayerTurn());
+            this.startFinale();
             return;
         }
         this.beginPlayerTurn();
+    }
+
+    // -----------------------------------------------------------------------
+    // Le Rappel : à 3 tours de la fin, le dernier fait tourner la roue
+    // -----------------------------------------------------------------------
+
+    startFinale() {
+        const ranked = this.standings();
+        const last = ranked[ranked.length - 1];
+        // Ex aequo à la dernière place : tirage au sort
+        const tied = ranked.filter((p) => p.stars === last.stars && p.hype === last.hype);
+        const spinner = tied[this.randInt(0, tied.length - 1)];
+        const [a, b] = this.shuffle(FINALE_POOL);
+        const slots = ['double', a, 'double', b || a, 'double', a, 'double', b || a];
+        this.wheel = { playerId: spinner.id, slots, spinAt: null, period: WHEEL_PERIOD, index: null, result: null };
+        const token = this.setStep('turn', 'finale', this.ms(TIMING.finaleIntro));
+        this.publish({ type: 'finale', turnsLeft: 3, playerId: spinner.id });
+        this.later(token, this.ms(TIMING.finaleIntro), () => this.spinWheel());
+    }
+
+    spinWheel() {
+        const player = this.player(this.wheel.playerId);
+        this.wheel.spinAt = this.now();
+        const token = this.setStep('turn', 'wheel', this.ms(TIMING.wheel));
+        this.publish({ type: 'wheelSpin', playerId: player.id });
+        if (player.isBot) {
+            this.later(token, this.ms(this.randInt(TIMING.wheelBotMin, TIMING.wheelBotMax)), () => this.stopWheel(player.id));
+            return;
+        }
+        this.awaitPlayer(token, player, this.ms(TIMING.wheel), () => this.stopWheel(player.id));
+    }
+
+    stopWheel(playerId) {
+        if (this.phase !== 'turn' || this.step !== 'wheel' || !this.wheel) return { error: 'not_now' };
+        if (this.wheel.playerId !== playerId) return { error: 'not_your_turn' };
+        const { spinAt, period, slots } = this.wheel;
+        const spinner = this.player(playerId);
+        // Un bot n'a pas de réflexes à mesurer : la case est tirée au sort
+        const index = spinner && spinner.isBot
+            ? this.randInt(0, slots.length - 1)
+            : Math.floor((this.now() - spinAt) / period) % slots.length;
+        this.wheel.index = index;
+        this.wheel.result = slots[index];
+        this.finaleEffect = slots[index];
+        const token = this.setStep('turn', 'wheelResult', this.ms(TIMING.wheelResult));
+        this.publish({ type: 'wheel', playerId, result: this.finaleEffect, index });
+        this.later(token, this.ms(TIMING.wheelResult), () => this.beginPlayerTurn());
+        return { ok: true };
     }
 
     beginPlayerTurn() {
@@ -463,7 +576,7 @@ class PartyGame {
         if (!player || player.id !== playerId) return { error: 'not_your_turn' };
         const kind = DICE[die] ? die : 'pad';
         if (player.hype < DICE[kind].cost) return { error: 'not_enough_hype' };
-        player.hype -= DICE[kind].cost;
+        this.addHype(player, -DICE[kind].cost);
         if (kind === 'vinyl') {
             // Le vinyle tourne : le joueur le scratche pour l'arrêter
             this.roll = { playerId, die: kind, spinAt: this.now(), period: DICE.vinyl.period, faces: DICE.vinyl.faces, paid: DICE.vinyl.cost };
@@ -482,7 +595,9 @@ class PartyGame {
         const player = this.current();
         if (!player || player.id !== playerId || !this.roll) return { error: 'not_your_turn' };
         const { spinAt, period, faces } = this.roll;
-        const value = 1 + (Math.floor((this.now() - spinAt) / period) % faces);
+        const value = player.isBot
+            ? this.randInt(1, faces)
+            : 1 + (Math.floor((this.now() - spinAt) / period) % faces);
         this.reveal(player, 'vinyl', value, 0);
         return { ok: true };
     }
@@ -515,15 +630,16 @@ class PartyGame {
             m.choice = null;
             player.space = nextId;
             m.left -= 1;
+            player.stats.spacesMoved += 1;
             path.push(nextId);
             const next = spaces[nextId];
             if (next.stage && this.stageOwner && this.stageOwner !== player.id) {
                 const owner = this.player(this.stageOwner);
                 const amount = Math.min(3, player.hype);
                 if (owner && amount > 0) {
-                    player.hype -= amount;
-                    owner.hype += amount;
-                    owner.stats.hypeEarned += amount;
+                    this.addHype(player, -amount);
+                    this.addHype(owner, amount);
+                    owner.stats.tipsEarned += amount;
                     effects.push({ type: 'tip', step: path.length - 1, from: player.id, to: owner.id, amount });
                 }
             }
@@ -567,7 +683,7 @@ class PartyGame {
         if (!option) return { error: 'invalid_choice' };
         if (!option.affordable) return { error: 'not_enough_hype' };
         const player = this.player(playerId);
-        if (option.gate) player.hype -= option.gate;
+        if (option.gate) this.addHype(player, -option.gate);
         this.choice = null;
         this.move.choice = option.spaceId;
         this.publish({ type: 'chose', playerId, spaceId: option.spaceId, paid: option.gate || 0 });
@@ -576,7 +692,7 @@ class PartyGame {
     }
 
     openStarOffer(player) {
-        const price = this.board.starPrice;
+        const price = this.starPrice();
         const affordable = player.hype >= price;
         this.starOffer = { playerId: player.id, price, affordable };
         const token = this.setStep('turn', 'star', affordable ? this.ms(TIMING.star) : this.ms(TIMING.starShow));
@@ -594,7 +710,7 @@ class PartyGame {
         const bought = Boolean(buy) && this.starOffer.affordable;
         const from = this.starSpace;
         if (bought) {
-            player.hype -= this.starOffer.price;
+            this.addHype(player, -this.starOffer.price);
             player.stars += 1;
             this.starSpace = this.pickStarSpot(from);
         }
@@ -615,13 +731,15 @@ class PartyGame {
 
     land(player) {
         const space = this.board.spaces[player.space];
-        const mult = this.isFinale() ? 2 : 1;
+        const mult = this.isFinale() && this.finaleEffect === 'double' ? 2 : 1;
         let delta = 0;
         if (space.type === 'blue' || space.type === 'start') delta = 3 * mult;
-        if (space.type === 'red') delta = -Math.min(player.hype, 3 * mult);
+        if (space.type === 'red') {
+            delta = -3 * mult;
+            player.stats.redLandings += 1;
+        }
         if (space.type === 'drop') this.stageOwner = player.id;
-        player.hype += delta;
-        if (delta > 0) player.stats.hypeEarned += delta;
+        delta = this.addHype(player, delta);
         const token = this.setStep('turn', 'landed');
         this.publish({ type: 'land', playerId: player.id, spaceId: space.id, kind: space.type, delta });
         this.later(token, this.ms(TIMING.land), () => this.nextPlayer());
@@ -672,12 +790,12 @@ class PartyGame {
         const def = MINIGAMES[mg.id];
         mg.startsAt = this.now() + this.ms(TIMING.mgCountdown);
         // La durée du jeu n'est jamais accélérée : le client affiche les mêmes repères (signal, tempo)
-        mg.endsAt = mg.startsAt + mg.params.duration;
+        mg.endsAt = mg.startsAt + Math.round(mg.params.duration * this.minigameScale);
         const token = this.setStep('minigame', 'play', mg.endsAt - this.now() + this.ms(TIMING.mgGrace));
         this.publish({ type: 'minigameStart', id: mg.id });
         // Les bots jouent ; les joueurs absents ne rendent rien
         this.players.filter((p) => p.isBot).forEach((bot) => {
-            const at = this.ms(TIMING.mgCountdown) + Math.round(this.random() * mg.params.duration * 0.9);
+            const at = this.ms(TIMING.mgCountdown) + Math.round(this.random() * mg.params.duration * 0.9 * this.minigameScale);
             this.later(token, at, () => this.submitMinigame(bot.id, def.bot(mg.params, this.random, bot.id)));
         });
         this.later(token, mg.endsAt - this.now() + this.ms(TIMING.mgGrace), () => this.finishMinigame());
@@ -711,8 +829,7 @@ class PartyGame {
             if (index === 0 || entry.score !== scored[index - 1].score) rank = index;
             const played = entry.score > -1e8;
             const reward = played ? MINIGAME_REWARDS[rank] : 0;
-            entry.player.hype += reward;
-            entry.player.stats.hypeEarned += reward;
+            this.addHype(entry.player, reward);
             if (rank === 0 && played) entry.player.stats.minigameWins += 1;
             return { playerId: entry.player.id, rank: rank + 1, reward, display: entry.display };
         });
@@ -729,7 +846,50 @@ class PartyGame {
     // Fin de partie
     // -----------------------------------------------------------------------
 
+    // Valeur d'un joueur pour un Micro bonus
+    bonusValue(id, player) {
+        const s = player.stats;
+        switch (id) {
+            case 'minigames': return s.minigameWins;
+            case 'flow': return s.maxHype;
+            case 'drop': return s.tipsEarned;
+            case 'larsen': return s.redLandings;
+            case 'distance': return s.spacesMoved;
+            default: return 0;
+        }
+    }
+
+    // Avant le podium : les Micros bonus, révélés un à un
     endGame() {
+        const count = Math.min(BONUS_IDS.length, BONUS_COUNT + (this.finaleEffect === 'extraBonus' ? 1 : 0));
+        this.bonuses = this.shuffle(BONUS_IDS).slice(0, count).map((id) => {
+            const values = this.players.map((p) => ({ id: p.id, value: this.bonusValue(id, p) }));
+            const best = Math.max(...values.map((v) => v.value));
+            const winners = best > 0 ? values.filter((v) => v.value === best).map((v) => v.id) : [];
+            return { id, value: best, winners, revealed: false };
+        });
+        const token = this.setStep('end', 'bonusIntro', this.ms(TIMING.bonusIntro));
+        this.publish({ type: 'bonusIntro', count });
+        this.later(token, this.ms(TIMING.bonusIntro), () => this.revealBonus(0));
+    }
+
+    revealBonus(index) {
+        const bonus = this.bonuses[index];
+        if (!bonus) {
+            this.finishGame();
+            return;
+        }
+        bonus.revealed = true;
+        bonus.winners.forEach((id) => {
+            const p = this.player(id);
+            if (p) p.stars += 1;
+        });
+        const token = this.setStep('end', 'bonus', this.ms(TIMING.bonusShow));
+        this.publish({ type: 'bonus', index, id: bonus.id });
+        this.later(token, this.ms(TIMING.bonusShow), () => this.revealBonus(index + 1));
+    }
+
+    finishGame() {
         const ranked = [...this.players].sort((a, b) => (b.stars - a.stars) || (b.hype - a.hype) || (b.stats.minigameWins - a.stats.minigameWins));
         let rank = 0;
         this.finalRanking = ranked.map((p, index) => {
@@ -737,13 +897,15 @@ class PartyGame {
             if (index === 0 || p.stars !== prev.stars || p.hype !== prev.hype) rank = index;
             return { playerId: p.id, rank: rank + 1, stars: p.stars, hype: p.hype, minigameWins: p.stats.minigameWins, hypeEarned: p.stats.hypeEarned };
         });
+        // Égalité de Micros d'or en tête : la Hype a départagé (affiché sur l'écran de fin)
+        this.tiebreak = ranked.length > 1 && ranked[0].stars === ranked[1].stars ? 'hype' : null;
         this.setStep('end', 'podium');
         this.publish({ type: 'end' });
     }
 
     rematch(requesterId) {
         if (requesterId !== this.hostId) return { error: 'not_host' };
-        if (this.phase !== 'end') return { error: 'not_now' };
+        if (this.phase !== 'end' || this.step !== 'podium') return { error: 'not_now' };
         this.clearTimers();
         this.resetGameState();
         this.players.forEach((p) => {
@@ -751,6 +913,7 @@ class PartyGame {
             p.hype = START_HYPE;
             p.stars = 0;
             p.ready = false;
+            p.stats = this.newStats();
         });
         this.setStep('lobby', null);
         this.publish({ type: 'rematch' });
@@ -758,4 +921,4 @@ class PartyGame {
     }
 }
 
-module.exports = { PartyGame, CHARACTER_IDS, MAX_PLAYERS, TURN_OPTIONS, TIMING, DICE };
+module.exports = { PartyGame, CHARACTER_IDS, MAX_PLAYERS, TURN_OPTIONS, TIMING, DICE, BONUS_IDS };
