@@ -7,14 +7,20 @@
  * où le joueur choisit sa route.
  *
  * Types de case :
- *   start  départ (rapporte comme une case bleue)
- *   blue   Applaudissement, +3 Hype
- *   red    Larsen, -3 Hype
- *   drop   Drop : le joueur prend la main sur la loopstation
+ *   start      départ (rapporte comme une case bleue)
+ *   blue       Applaudissement, +3 Hype
+ *   red        Larsen, -3 Hype
+ *   drop       Drop : le joueur prend la main sur les 5 pistes de la loopstation
+ *   sample     Sample ? : un évènement de la scène, tiré au sort
+ *   freestyle  Freestyle ! : la roue des échanges (qui donne quoi à qui)
+ *   cut        Coupure : l'ingé son coupe le son (pertes, selon le rang)
+ *   battle     Battle : chacun mise, mini-jeu immédiat, 70 % / 30 % du pot
  * Propriétés facultatives :
- *   big    gros pad de piste (track = 1 à 5)
- *   stage  pourboire au joueur qui a le Drop quand on passe dessus
+ *   big    gros pad de piste (track = 1 à 5) : s'y arrêter enregistre sa boucle sur la piste,
+ *          passer sur la piste d'un autre lui donne un pourboire
  *   gate   passage payant de l'ingé son (prix en Hype pour entrer sur cette route)
+ *   place  lieu de passage : le joueur s'y arrête en passant, sans user de pas
+ *          (thief : la loge du voleur de flow)
  */
 
 // La loopstation (façon RC-505 MK2) posée sur la scène d'une battle : c'est elle, le plateau.
@@ -29,26 +35,26 @@ const at = (x, y) => [Math.round(DEVICE.x + x * DEVICE.scale), Math.round(DEVICE
 function buildSetup() {
     const T = 470; // rangée des pads de piste
     const TOP = 205; // rangée sous l'écran
+    // [x, y, type, piste, lieu]
     const loop = [
         [30, T, 'start'],
-        [158, T, 'blue', 1], [256, T, 'blue'], [354, T, 'red', 2], [452, T, 'red'], [550, T, 'blue', 3],
-        [648, T, 'blue'], [746, T, 'drop', 4], [844, T, 'blue'], [942, T, 'blue', 5], [1070, T, 'blue'],
-        [1070, 380, 'red'], [1070, 292, 'blue'],
-        [1070, TOP, 'drop'], [966, TOP, 'blue'], [862, TOP, 'blue'], [758, TOP, 'red'], [654, TOP, 'blue'],
-        [550, TOP, 'blue'], [446, TOP, 'blue'], [342, TOP, 'red'], [238, TOP, 'blue'], [134, TOP, 'drop'],
-        [30, TOP, 'blue'], [30, 292, 'blue'], [30, 380, 'red'],
+        [158, T, 'blue', 1], [256, T, 'blue'], [354, T, 'blue', 2], [452, T, 'sample'], [550, T, 'blue', 3],
+        [648, T, 'battle'], [746, T, 'drop', 4], [844, T, 'blue'], [942, T, 'blue', 5], [1070, T, 'red'],
+        [1070, 380, 'sample'], [1070, 292, 'blue'],
+        [1070, TOP, 'drop'], [966, TOP, 'blue'], [862, TOP, 'freestyle'], [758, TOP, 'red'], [654, TOP, 'blue'],
+        [550, TOP, 'blue'], [446, TOP, 'cut'], [342, TOP, 'blue'], [238, TOP, 'sample'], [134, TOP, 'battle'],
+        [30, TOP, 'blue'], [30, 292, 'blue', null, 'thief'], [30, 380, 'red'],
     ];
-    const spaces = loop.map(([lx, ly, type, track], index) => {
+    const spaces = loop.map(([lx, ly, type, track, place], index) => {
         const [x, y] = at(lx, ly);
         return {
             id: index,
             x,
             y,
             type,
-            // Les 5 gros pads de piste : le joueur qui a le Drop y touche un pourboire
             big: Boolean(track),
             track: track || null,
-            stage: Boolean(track),
+            place: place || null,
             next: [(index + 1) % loop.length],
         };
     });
@@ -58,7 +64,7 @@ function buildSetup() {
     const rejoin = spaces[5];
     const corridor = [[480, 282, 'red'], [480, 360, 'drop']].map(([lx, ly, type], i) => {
         const [x, y] = at(lx, ly);
-        return { id: spaces.length + i, x, y, type, big: false, track: null, stage: false, next: [], corridor: true };
+        return { id: spaces.length + i, x, y, type, big: false, track: null, place: null, next: [], corridor: true };
     });
     corridor.forEach((space, i) => {
         space.next = [i < corridor.length - 1 ? corridor[i + 1].id : rejoin.id];
@@ -73,8 +79,10 @@ function buildSetup() {
         device: { x: DEVICE.x, y: DEVICE.y, w: Math.round(1100 * DEVICE.scale), d: Math.round(580 * DEVICE.scale) },
         start: 0,
         starPrice: 15,
-        // Cases où le Micro d'or peut apparaître
-        starSpots: [4, 8, 12, 16, 21, 24],
+        // Cases où le Micro d'or peut apparaître (jamais sur un lieu de passage)
+        starSpots: [2, 8, 12, 14, 17, 23],
+        // La loge du voleur de flow, au bord de la scène, à côté de la case 24
+        thief: { spaceId: 24, hypeCost: 5, micCost: 35, x: at(-58, 292)[0], y: at(-58, 292)[1] },
         defaultTurns: 10,
         spaces,
     };

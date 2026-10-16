@@ -49,8 +49,11 @@ export default function MinigameStage({ state, myId, t, clockOffset, onReady, on
     if (state.step === 'intro') {
         const readyCount = state.players.filter((p) => p.ready).length;
         return (
-            <Panel className="hw-pop flex flex-col gap-5 p-5 pt-8 sm:p-7 sm:pt-9" label={t('minigame.kicker')}>
+            <Panel className="hw-pop flex flex-col gap-5 p-5 pt-8 sm:p-7 sm:pt-9" label={mg.context === 'battle' ? t('events2.battleTitle') : t('minigame.kicker')}>
                 <h2 className="hw-title text-5xl sm:text-6xl">{name}</h2>
+                {mg.context === 'battle' && (
+                    <p className="hw-title text-2xl text-[color:var(--hw-amber)]">{t('events2.battlePot', { n: mg.pot })} · {t('events2.battleSplit')}</p>
+                )}
                 <p className="hw-text max-w-2xl text-lg">{t(`minigame.${mg.id}.rule`)}</p>
                 <Section title={t('minigame.controls')}>
                     <p className="hw-text text-sm">{t(`minigame.${mg.id}.control`)}</p>

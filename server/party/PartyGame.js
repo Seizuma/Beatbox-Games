@@ -44,8 +44,29 @@ const BONUS_COUNT = 2;
 //   double      cases bleues et rouges doublées
 //   halfStar    Micro d'or à moitié prix
 //   extraBonus  un Micro bonus de plus à la fin
-const FINALE_POOL = ['halfStar', 'extraBonus'];
+//   redCut      les cases rouges deviennent des Coupures
+//   freestyle   5 cases bleues deviennent des Freestyle !
+const FINALE_POOL = ['halfStar', 'extraBonus', 'redCut', 'freestyle'];
 const WHEEL_PERIOD = 110;
+
+// Pourboire payé en passant sur la piste enregistrée par un autre joueur
+const TRACK_TIP = 2;
+
+// Sample ? : évènements de la scène (poids du tirage)
+//   crowd     le public reprend en chœur : +8 Hype
+//   encore    la boucle repart : on avance encore de 1 à 6 cases
+//   screen    l'écran géant déplace le Micro d'or
+//   swap      échange de place avec un autre joueur
+//   feedback  Larsen dans la salle : tous les autres perdent 3 Hype
+//   tipjar    pot commun : chaque autre joueur donne 2 Hype
+const SAMPLES = { crowd: 3, encore: 2, screen: 2, swap: 2, feedback: 2, tipjar: 2 };
+
+// Freestyle ! : trois rouleaux arrêtés par le joueur (qui donne, quoi, à qui)
+const FREESTYLE_GIFTS = ['h5', 'h10', 'h20', 'mic', 'swapHype', 'swapMics'];
+const REEL_PERIOD = 150;
+
+// Battle : chacun met la même mise (ou ce qu'il a), 70 % du pot au 1er, 30 % au 2e
+const BATTLE_STAKES = [5, 10, 15, 20];
 
 // Durées en millisecondes (multipliées par timeScale)
 const TIMING = {
@@ -73,6 +94,19 @@ const TIMING = {
     wheelResult: 3400,
     bonusIntro: 3400,
     bonusShow: 4600,
+    sampleSpin: 2200,
+    sampleShow: 2800,
+    cutSpin: 2200,
+    cutShow: 3000,
+    freestyleIntro: 1600,
+    reel: 9000,
+    freestyleShow: 3400,
+    battleIntro: 3400,
+    battleShow: 0,
+    thief: 15000,
+    thiefTarget: 15000,
+    steal: 3200,
+    stealShow: 2800,
     disconnectedAuto: 1500,
     botMin: 700,
     botMax: 1600,
@@ -111,7 +145,13 @@ class PartyGame {
         this.orderRolls = {};
         this.turnIndex = 0;
         this.starSpace = null;
-        this.stageOwner = null;
+        this.trackOwners = { 1: null, 2: null, 3: null, 4: null, 5: null };
+        this.spaceOverrides = {};
+        this.sample = null;
+        this.cut = null;
+        this.freestyle = null;
+        this.battle = null;
+        this.thief = null;
         this.roll = null;
         this.move = null;
         this.choice = null;
@@ -144,6 +184,28 @@ class PartyGame {
             [out[i], out[j]] = [out[j], out[i]];
         }
         return out;
+    }
+
+    // Tirage pondéré dans { id: poids }
+    weighted(table) {
+        const entries = Object.entries(table).filter(([, w]) => w > 0);
+        let r = this.random() * entries.reduce((sum, [, w]) => sum + w, 0);
+        for (const [id, w] of entries) {
+            r -= w;
+            if (r < 0) return id;
+        }
+        return entries[entries.length - 1][0];
+    }
+
+    // Type effectif d'une case (le Rappel peut changer les rouges ou des bleues)
+    spaceType(space) {
+        if (this.spaceOverrides[space.id]) return this.spaceOverrides[space.id];
+        if (this.finaleEffect === 'redCut' && space.type === 'red') return 'cut';
+        return space.type;
+    }
+
+    rankOf(player) {
+        return this.standings().findIndex((p) => p.id === player.id) + 1;
     }
 
     // Gain ou perte de Hype (jamais en dessous de zéro), avec les statistiques de fin de partie
@@ -270,7 +332,17 @@ class PartyGame {
             finaleEffect: this.finaleEffect,
             wheel: this.wheel,
             bonuses: this.bonuses && this.bonuses.map((b) => (b.revealed ? b : { revealed: false })),
-            stageOwner: this.stageOwner,
+            trackOwners: this.trackOwners,
+            spaceOverrides: this.spaceOverrides,
+            sample: this.sample,
+            cut: this.cut,
+            freestyle: this.freestyle && {
+                ...this.freestyle,
+                // Le rouleau en cours ne dévoile pas sa case avant l'arrêt
+                reels: this.freestyle.reels.map((r) => ({ slots: r.slots, spinAt: r.spinAt, period: r.period, index: r.index })),
+            },
+            battle: this.battle,
+            thief: this.thief && { ...this.thief, presses: undefined },
             roll: this.roll,
             dice: { block: DICE.block.cost, vinyl: DICE.vinyl.cost },
             choice: this.choice,
@@ -283,6 +355,8 @@ class PartyGame {
                 endsAt: this.minigame.endsAt,
                 submitted: Object.keys(this.minigame.raw),
                 results: this.minigame.results,
+                context: this.minigame.context,
+                pot: this.minigame.pot,
             },
             finalRanking: this.finalRanking,
             tiebreak: this.tiebreak || null,
@@ -542,6 +616,11 @@ class PartyGame {
         this.wheel.index = index;
         this.wheel.result = slots[index];
         this.finaleEffect = slots[index];
+        if (this.finaleEffect === 'freestyle') {
+            // Cinq petites cases bleues deviennent des Freestyle ! jusqu'à la fin
+            const blues = this.board.spaces.filter((sp) => sp.type === 'blue' && !sp.big && !sp.corridor && sp.id !== this.starSpace);
+            this.shuffle(blues).slice(0, 5).forEach((sp) => { this.spaceOverrides[sp.id] = 'freestyle'; });
+        }
         const token = this.setStep('turn', 'wheelResult', this.ms(TIMING.wheelResult));
         this.publish({ type: 'wheel', playerId, result: this.finaleEffect, index });
         this.later(token, this.ms(TIMING.wheelResult), () => this.beginPlayerTurn());
@@ -550,7 +629,6 @@ class PartyGame {
 
     beginPlayerTurn() {
         const player = this.current();
-        if (this.stageOwner === player.id) this.stageOwner = null; // la scène se libère à son tour
         this.roll = null;
         this.choice = null;
         this.starOffer = null;
@@ -633,9 +711,10 @@ class PartyGame {
             player.stats.spacesMoved += 1;
             path.push(nextId);
             const next = spaces[nextId];
-            if (next.stage && this.stageOwner && this.stageOwner !== player.id) {
-                const owner = this.player(this.stageOwner);
-                const amount = Math.min(3, player.hype);
+            const ownerId = next.track ? this.trackOwners[next.track] : null;
+            if (ownerId && ownerId !== player.id) {
+                const owner = this.player(ownerId);
+                const amount = Math.min(TRACK_TIP, player.hype);
                 if (owner && amount > 0) {
                     this.addHype(player, -amount);
                     this.addHype(owner, amount);
@@ -647,8 +726,12 @@ class PartyGame {
                 stop = 'star';
                 break;
             }
+            if (next.place === 'thief' && this.canUseThief(player)) {
+                stop = 'thief';
+                break;
+            }
         }
-        if (m.left === 0 && stop !== 'star') stop = 'land';
+        if (m.left === 0 && stop !== 'star' && stop !== 'thief') stop = 'land';
 
         const token = this.setStep('turn', 'moving');
         if (path.length) this.publish({ type: 'move', playerId: player.id, path, effects, hopMs: this.ms(TIMING.hop) });
@@ -656,6 +739,7 @@ class PartyGame {
         this.later(token, wait, () => {
             if (stop === 'choice') this.openChoice(player);
             else if (stop === 'star') this.openStarOffer(player);
+            else if (stop === 'thief') this.openThief(player);
             else this.land(player);
         });
     }
@@ -729,20 +813,347 @@ class PartyGame {
         return spots[this.randInt(0, spots.length - 1)];
     }
 
+    // Fin du déplacement : la case du joueur agit
     land(player) {
         const space = this.board.spaces[player.space];
+        const type = this.spaceType(space);
         const mult = this.isFinale() && this.finaleEffect === 'double' ? 2 : 1;
         let delta = 0;
-        if (space.type === 'blue' || space.type === 'start') delta = 3 * mult;
-        if (space.type === 'red') {
+        // Gros pad de piste : le joueur y enregistre sa boucle (les autres lui laissent un pourboire en passant)
+        const recorded = space.track ? space.track : null;
+        if (recorded) this.trackOwners[recorded] = player.id;
+        if (type === 'blue' || type === 'start') delta = 3 * mult;
+        if (type === 'red') {
             delta = -3 * mult;
             player.stats.redLandings += 1;
         }
-        if (space.type === 'drop') this.stageOwner = player.id;
+        // Drop : le joueur prend la main sur les cinq pistes
+        if (type === 'drop') Object.keys(this.trackOwners).forEach((k) => { this.trackOwners[k] = player.id; });
         delta = this.addHype(player, delta);
         const token = this.setStep('turn', 'landed');
-        this.publish({ type: 'land', playerId: player.id, spaceId: space.id, kind: space.type, delta });
-        this.later(token, this.ms(TIMING.land), () => this.nextPlayer());
+        this.publish({ type: 'land', playerId: player.id, spaceId: space.id, kind: type, delta, recorded });
+        if (type === 'sample') return this.later(token, this.ms(900), () => this.spinSample(player));
+        if (type === 'cut') return this.later(token, this.ms(900), () => this.spinCut(player));
+        if (type === 'freestyle') return this.later(token, this.ms(900), () => this.startFreestyle(player));
+        if (type === 'battle') return this.later(token, this.ms(900), () => this.startBattle(player));
+        return this.later(token, this.ms(TIMING.land), () => this.nextPlayer());
+    }
+
+    // -----------------------------------------------------------------------
+    // Sample ? : un évènement de la scène
+    // -----------------------------------------------------------------------
+
+    spinSample(player) {
+        this.sample = { playerId: player.id, result: null };
+        const token = this.setStep('turn', 'sample', this.ms(TIMING.sampleSpin));
+        this.publish({ type: 'sampleSpin', playerId: player.id });
+        this.later(token, this.ms(TIMING.sampleSpin), () => this.resolveSample(player));
+    }
+
+    resolveSample(player) {
+        const others = this.players.filter((p) => p.id !== player.id);
+        let result = this.weighted(SAMPLES);
+        if (result === 'swap' && !others.length) result = 'crowd';
+        const detail = { playerId: player.id, result };
+        if (result === 'crowd') detail.amount = this.addHype(player, 8);
+        if (result === 'feedback') {
+            detail.losses = others.map((p) => ({ playerId: p.id, amount: -this.addHype(p, -3) }));
+        }
+        if (result === 'tipjar') {
+            detail.gifts = others.map((p) => {
+                const amount = -this.addHype(p, -2);
+                this.addHype(player, amount);
+                return { playerId: p.id, amount };
+            });
+        }
+        if (result === 'screen') {
+            detail.from = this.starSpace;
+            this.starSpace = this.pickStarSpot(this.starSpace);
+            detail.to = this.starSpace;
+        }
+        if (result === 'swap') {
+            const other = others[this.randInt(0, others.length - 1)];
+            detail.with = other.id;
+            detail.from = player.space;
+            detail.to = other.space;
+            [player.space, other.space] = [other.space, player.space];
+        }
+        if (result === 'encore') detail.value = this.randInt(1, 6);
+        this.sample = detail;
+        const token = this.setStep('turn', 'sampleResult', this.ms(TIMING.sampleShow));
+        this.publish({ type: 'sample', ...detail });
+        this.later(token, this.ms(TIMING.sampleShow), () => {
+            this.sample = null;
+            // La boucle repart : le joueur avance encore
+            if (result === 'encore') this.reveal(player, 'pad', detail.value, 0);
+            else this.nextPlayer();
+        });
+    }
+
+    // -----------------------------------------------------------------------
+    // Coupure : l'ingé son coupe le son (plus dur pour ceux qui mènent)
+    // -----------------------------------------------------------------------
+
+    spinCut(player) {
+        this.cut = { playerId: player.id, result: null };
+        const token = this.setStep('turn', 'cut', this.ms(TIMING.cutSpin));
+        this.publish({ type: 'cutSpin', playerId: player.id });
+        this.later(token, this.ms(TIMING.cutSpin), () => this.resolveCut(player));
+    }
+
+    resolveCut(player) {
+        const leader = this.rankOf(player) <= 2;
+        const table = leader
+            ? { lose: 4, share: 2, blackout: 1, mic: player.stars > 0 && this.rankOf(player) === 1 ? 1 : 0 }
+            : { lose: 3, share: 2, blackout: 2 };
+        const result = this.weighted(table);
+        const detail = { playerId: player.id, result };
+        if (result === 'lose') detail.amount = -this.addHype(player, -(leader ? this.randInt(10, 20) : this.randInt(5, 10)));
+        if (result === 'share') {
+            detail.gifts = this.players.filter((p) => p.id !== player.id).map((p) => {
+                const amount = -this.addHype(player, -3);
+                this.addHype(p, amount);
+                return { playerId: p.id, amount };
+            });
+        }
+        if (result === 'blackout') detail.losses = this.players.map((p) => ({ playerId: p.id, amount: -this.addHype(p, -5) }));
+        if (result === 'mic') {
+            player.stars -= 1;
+            detail.amount = 1;
+        }
+        this.cut = detail;
+        const token = this.setStep('turn', 'cutResult', this.ms(TIMING.cutShow));
+        this.publish({ type: 'cut', ...detail });
+        this.later(token, this.ms(TIMING.cutShow), () => {
+            this.cut = null;
+            this.nextPlayer();
+        });
+    }
+
+    // -----------------------------------------------------------------------
+    // Freestyle ! : trois rouleaux (qui donne, quoi, à qui), arrêtés par le joueur
+    // -----------------------------------------------------------------------
+
+    startFreestyle(player) {
+        const ids = this.shuffle(this.players.map((p) => p.id));
+        const anyMic = this.players.some((p) => p.stars > 0);
+        const gifts = FREESTYLE_GIFTS.filter((g) => anyMic || (g !== 'mic' && g !== 'swapMics'));
+        this.freestyle = {
+            playerId: player.id,
+            current: 0,
+            reels: [
+                { slots: ids, spinAt: this.now(), period: REEL_PERIOD, index: null },
+                { slots: this.shuffle(gifts), spinAt: null, period: REEL_PERIOD * 1.2, index: null },
+                { slots: null, spinAt: null, period: REEL_PERIOD, index: null },
+            ],
+            result: null,
+        };
+        const token = this.setStep('turn', 'freestyle', this.ms(TIMING.reel));
+        this.publish({ type: 'freestyle', playerId: player.id });
+        this.awaitReel(token, player);
+    }
+
+    awaitReel(token, player) {
+        if (player.isBot) {
+            this.later(token, this.ms(this.randInt(900, 1700)), () => this.stopReel(player.id));
+            return;
+        }
+        this.awaitPlayer(token, player, this.ms(TIMING.reel), () => this.stopReel(player.id));
+    }
+
+    stopReel(playerId) {
+        const fs = this.freestyle;
+        if (this.phase !== 'turn' || this.step !== 'freestyle' || !fs || fs.playerId !== playerId) return { error: 'not_now' };
+        const reel = fs.reels[fs.current];
+        const player = this.player(playerId);
+        const n = reel.slots.length;
+        reel.index = player.isBot ? this.randInt(0, n - 1) : Math.floor((this.now() - reel.spinAt) / reel.period) % n;
+        fs.current += 1;
+        if (fs.current === 2) {
+            // Le dernier rouleau ne propose que les autres joueurs que celui qui donne
+            const giver = fs.reels[0].slots[fs.reels[0].index];
+            fs.reels[2].slots = this.shuffle(this.players.map((p) => p.id).filter((id) => id !== giver));
+        }
+        if (fs.current < 3) {
+            fs.reels[fs.current].spinAt = this.now();
+            const token = this.setStep('turn', 'freestyle', this.ms(TIMING.reel));
+            this.publish({ type: 'reel', playerId, reel: fs.current - 1 });
+            this.awaitReel(token, player);
+            return { ok: true };
+        }
+        this.resolveFreestyle();
+        return { ok: true };
+    }
+
+    resolveFreestyle() {
+        const fs = this.freestyle;
+        const [r0, r1, r2] = fs.reels;
+        const giver = this.player(r0.slots[r0.index]);
+        const gift = r1.slots[r1.index];
+        const taker = this.player(r2.slots[r2.index]);
+        let amount = 0;
+        if (gift[0] === 'h') {
+            amount = -this.addHype(giver, -Number(gift.slice(1)));
+            this.addHype(taker, amount);
+        } else if (gift === 'mic') {
+            amount = giver.stars > 0 ? 1 : 0;
+            giver.stars -= amount;
+            taker.stars += amount;
+        } else if (gift === 'swapHype') {
+            const a = giver.hype;
+            const b = taker.hype;
+            this.addHype(giver, b - a);
+            this.addHype(taker, a - b);
+            amount = Math.abs(a - b);
+        } else if (gift === 'swapMics') {
+            [giver.stars, taker.stars] = [taker.stars, giver.stars];
+            amount = Math.abs(giver.stars - taker.stars);
+        }
+        fs.result = { giver: giver.id, gift, taker: taker.id, amount };
+        const token = this.setStep('turn', 'freestyleResult', this.ms(TIMING.freestyleShow));
+        this.publish({ type: 'freestyleResult', playerId: fs.playerId, ...fs.result });
+        this.later(token, this.ms(TIMING.freestyleShow), () => {
+            this.freestyle = null;
+            this.nextPlayer();
+        });
+    }
+
+    // -----------------------------------------------------------------------
+    // Battle : mise commune, mini-jeu immédiat à quatre
+    // -----------------------------------------------------------------------
+
+    startBattle(player) {
+        const stake = BATTLE_STAKES[this.randInt(0, BATTLE_STAKES.length - 1)];
+        const bets = this.players.map((p) => ({ playerId: p.id, amount: -this.addHype(p, -stake) }));
+        const pot = bets.reduce((sum, b) => sum + b.amount, 0);
+        this.battle = { playerId: player.id, stake, pot, bets };
+        const token = this.setStep('turn', 'battle', this.ms(TIMING.battleIntro));
+        this.publish({ type: 'battle', playerId: player.id, stake, pot });
+        this.later(token, this.ms(TIMING.battleIntro), () => this.startMinigame({ context: 'battle', pot }));
+    }
+
+    // Partage du pot d'une Battle : 70 % aux premiers, 30 % aux deuxièmes (ex aequo : partagé)
+    battlePayout(results, pot) {
+        const firsts = results.filter((r) => r.rank === 1 && r.played);
+        const seconds = results.filter((r) => r.rank === 2 && r.played);
+        const out = {};
+        if (!firsts.length) return out;
+        const firstShare = seconds.length ? Math.round(pot * 0.7) : pot;
+        firsts.forEach((r, i) => { out[r.playerId] = Math.floor(firstShare / firsts.length) + (i === 0 ? firstShare % firsts.length : 0); });
+        const rest = pot - firstShare;
+        seconds.forEach((r, i) => { out[r.playerId] = Math.floor(rest / seconds.length) + (i === 0 ? rest % seconds.length : 0); });
+        return out;
+    }
+
+    // -----------------------------------------------------------------------
+    // Le voleur de flow : une loge au bord de la scène, on s'y arrête en passant
+    // -----------------------------------------------------------------------
+
+    canUseThief(player) {
+        const cfg = this.board.thief;
+        if (!cfg || player.hype < cfg.hypeCost) return false;
+        return this.players.some((p) => p.id !== player.id && (p.hype > 0 || p.stars > 0));
+    }
+
+    thiefOptions(player) {
+        const cfg = this.board.thief;
+        const others = this.players.filter((p) => p.id !== player.id);
+        return [
+            { id: 'hype', cost: cfg.hypeCost, ok: player.hype >= cfg.hypeCost && others.some((p) => p.hype > 0) },
+            { id: 'mic', cost: cfg.micCost, ok: player.hype >= cfg.micCost && others.some((p) => p.stars > 0) },
+        ];
+    }
+
+    openThief(player) {
+        this.thief = { playerId: player.id, options: this.thiefOptions(player), kind: null, victimId: null, amount: null, presses: 0, result: null };
+        const token = this.setStep('turn', 'thief', this.ms(TIMING.thief));
+        this.publish({ type: 'thiefOffer', playerId: player.id });
+        this.awaitPlayer(token, player, this.ms(TIMING.thief), () => this.chooseThief(player.id, player.isBot ? this.botThief(player) : 'none'));
+    }
+
+    botThief(player) {
+        const opts = this.thiefOptions(player);
+        if (opts[1].ok && this.random() < 0.8) return 'mic';
+        if (opts[0].ok && player.hype >= 12 && this.random() < 0.6) return 'hype';
+        return 'none';
+    }
+
+    chooseThief(playerId, choice) {
+        const th = this.thief;
+        if (this.phase !== 'turn' || this.step !== 'thief' || !th || th.playerId !== playerId) return { error: 'not_now' };
+        const player = this.player(playerId);
+        const option = th.options.find((o) => o.id === choice);
+        if (!option) return this.leaveThief(player, false);
+        if (!option.ok) return { error: 'not_enough_hype' };
+        this.addHype(player, -option.cost);
+        th.kind = choice;
+        th.paid = option.cost;
+        const targets = this.players.filter((p) => p.id !== playerId && (choice === 'mic' ? p.stars > 0 : p.hype > 0)).map((p) => p.id);
+        th.targets = targets;
+        if (targets.length === 1) return this.chooseVictim(playerId, targets[0]);
+        const token = this.setStep('turn', 'thiefTarget', this.ms(TIMING.thiefTarget));
+        this.publish({ type: 'thiefPick', playerId, kind: choice, paid: option.cost });
+        this.awaitPlayer(token, player, this.ms(TIMING.thiefTarget), () => {
+            // Par défaut (et pour les bots) : le plus riche
+            const richest = targets.map((id) => this.player(id)).sort((a, b) => (choice === 'mic' ? b.stars - a.stars : b.hype - a.hype))[0];
+            this.chooseVictim(playerId, richest.id);
+        });
+        return { ok: true };
+    }
+
+    chooseVictim(playerId, victimId) {
+        const th = this.thief;
+        if (this.phase !== 'turn' || !th || th.playerId !== playerId || !th.kind) return { error: 'not_now' };
+        if (this.step !== 'thiefTarget' && this.step !== 'thief') return { error: 'not_now' };
+        if (!th.targets.includes(victimId)) return { error: 'invalid' };
+        th.victimId = victimId;
+        th.amount = th.kind === 'mic' ? 1 : this.randInt(8, 16) + Math.floor(this.turn / 3) * 2;
+        th.presses = 0;
+        // La victime martèle sa touche pour protéger sa Hype (pas son Micro d'or)
+        const window = th.kind === 'hype' ? TIMING.steal : 1200;
+        th.until = this.now() + this.ms(window);
+        const token = this.setStep('turn', 'steal', this.ms(window));
+        this.publish({ type: 'stealStart', playerId, victimId, kind: th.kind, paid: th.paid });
+        this.later(token, this.ms(window), () => this.resolveSteal());
+        return { ok: true };
+    }
+
+    mash(playerId) {
+        const th = this.thief;
+        if (this.phase !== 'turn' || this.step !== 'steal' || !th || th.victimId !== playerId || th.kind !== 'hype') return { error: 'not_now' };
+        th.presses = Math.min(60, th.presses + 1);
+        return { ok: true };
+    }
+
+    resolveSteal() {
+        const th = this.thief;
+        const thief = this.player(th.playerId);
+        const victim = this.player(th.victimId);
+        let taken = 0;
+        if (th.kind === 'mic') {
+            taken = victim.stars > 0 ? 1 : 0;
+            victim.stars -= taken;
+            thief.stars += taken;
+        } else {
+            const presses = victim.isBot ? this.randInt(8, 28) : th.presses;
+            const saved = Math.min(0.6, presses * 0.02);
+            taken = -this.addHype(victim, -Math.round(th.amount * (1 - saved)));
+            this.addHype(thief, taken);
+            th.presses = presses;
+        }
+        th.result = taken;
+        const token = this.setStep('turn', 'stealResult', this.ms(TIMING.stealShow));
+        this.publish({ type: 'steal', playerId: th.playerId, victimId: th.victimId, kind: th.kind, amount: taken, saved: th.kind === 'hype' ? th.amount - taken : 0 });
+        this.later(token, this.ms(TIMING.stealShow), () => this.leaveThief(thief, true));
+    }
+
+    // On repart de la loge : le déplacement continue, ou le joueur s'arrête sur la case
+    leaveThief(player, acted) {
+        this.thief = null;
+        if (!acted) this.publish({ type: 'thiefSkip', playerId: player.id });
+        if (this.move && this.move.left > 0) this.continueMove();
+        else this.land(player);
+        return { ok: true };
     }
 
     nextPlayer() {
@@ -763,11 +1174,11 @@ class PartyGame {
         return this.minigameBag.shift();
     }
 
-    startMinigame() {
+    startMinigame({ context = 'round', pot = 0 } = {}) {
         const id = this.pickMinigame();
         const seed = this.randInt(1, 2 ** 31 - 1);
         const params = MINIGAMES[id].setup(seed, this.players.map((p) => p.id));
-        this.minigame = { id, seed, params, raw: {}, results: null, startsAt: null, endsAt: null };
+        this.minigame = { id, seed, params, raw: {}, results: null, startsAt: null, endsAt: null, context, pot };
         this.players.forEach((p) => { p.ready = p.isBot; });
         const token = this.setStep('minigame', 'intro', this.ms(TIMING.mgIntro));
         this.publish({ type: 'minigame', id });
@@ -825,18 +1236,27 @@ class PartyGame {
         })).sort((a, b) => b.score - a.score);
         // Classement avec ex aequo : même score, même rang, même gain
         let rank = 0;
-        mg.results = scored.map((entry, index) => {
+        const ranked = scored.map((entry, index) => {
             if (index === 0 || entry.score !== scored[index - 1].score) rank = index;
-            const played = entry.score > -1e8;
-            const reward = played ? MINIGAME_REWARDS[rank] : 0;
+            return { entry, rank: rank + 1, played: entry.score > -1e8 };
+        });
+        const battle = mg.context === 'battle' ? this.battlePayout(ranked.map((r) => ({ playerId: r.entry.player.id, rank: r.rank, played: r.played })), mg.pot) : null;
+        mg.results = ranked.map(({ entry, rank: place, played }) => {
+            const reward = battle ? battle[entry.player.id] || 0 : played ? MINIGAME_REWARDS[place - 1] : 0;
             this.addHype(entry.player, reward);
-            if (rank === 0 && played) entry.player.stats.minigameWins += 1;
-            return { playerId: entry.player.id, rank: rank + 1, reward, display: entry.display };
+            if (place === 1 && played) entry.player.stats.minigameWins += 1;
+            return { playerId: entry.player.id, rank: place, reward, display: entry.display };
         });
         const token = this.setStep('minigame', 'results', this.ms(TIMING.mgResults));
-        this.publish({ type: 'minigameResults', id: mg.id });
+        this.publish({ type: 'minigameResults', id: mg.id, context: mg.context });
         this.later(token, this.ms(TIMING.mgResults), () => {
             this.minigame = null;
+            // Battle : retour au plateau, au joueur suivant
+            if (mg.context === 'battle') {
+                this.battle = null;
+                this.nextPlayer();
+                return;
+            }
             if (this.turn >= this.settings.turns) this.endGame();
             else this.beginTurn(this.turn + 1);
         });

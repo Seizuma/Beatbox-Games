@@ -125,6 +125,10 @@ function BeatboxPartyGame() {
     const actions = useMemo(() => ({
         roll: (die) => act('party:roll', die ? { die } : {}),
         wheel: () => act('party:wheel'),
+        reel: () => act('party:reel'),
+        thief: (choice) => act('party:thief', { choice }),
+        victim: (playerId) => act('party:victim', { playerId }),
+        mash: () => partySocket.emit('party:mash', {}),
         choose: (spaceId) => act('party:choose', { spaceId }),
         star: (buy) => act('party:star', { buy }),
         ready: () => act('party:ready'),

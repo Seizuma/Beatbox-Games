@@ -97,8 +97,11 @@ export function drawBox(ctx, cam, o, sprite, h0 = DEVICE.h) {
     const yEdge = Math.round(front.sy);
     const yFoot = Math.round(foot.sy);
     if (yFoot > yEdge) {
-        R(ctx, xa, yEdge, xb - xa, yFoot - yEdge, o.side);
-        R(ctx, xa, yEdge, xb - xa, 1, hexMix(o.side, '#ffffff', 0.12));
+        if (o.front) ctx.drawImage(o.front, xa, yEdge, xb - xa, yFoot - yEdge);
+        else {
+            R(ctx, xa, yEdge, xb - xa, yFoot - yEdge, o.side);
+            R(ctx, xa, yEdge, xb - xa, 1, hexMix(o.side, '#ffffff', 0.12));
+        }
     }
     if (sprite && yEdge > yTop) ctx.drawImage(sprite, xa, yTop, xb - xa, yEdge - yTop);
 }
@@ -172,8 +175,8 @@ function typeBadge(ctx, x, y, r, col, fill, k) {
  * Dessus d'une case. head : segment plus clair qui tourne ; active : couleur du joueur
  * dont c'est le tour (l'anneau tourne à sa couleur) ; flash : anneau blanc.
  */
-export function padSprite(type, big, head, active = null, flash = false) {
-    const key = `${paletteVersion}|${type}|${big ? 1 : 0}|${head}|${active || ''}|${flash ? 1 : 0}`;
+export function padSprite(type, big, head, active = null, flash = false, owner = null) {
+    const key = `${paletteVersion}|${type}|${big ? 1 : 0}|${head}|${active || ''}|${flash ? 1 : 0}|${owner || ''}`;
     let s = padCache.get(key);
     if (s) return s;
     const col = SPACE_COLORS[type] || SPACE_COLORS.blue;
@@ -190,6 +193,11 @@ export function padSprite(type, big, head, active = null, flash = false) {
             const on = ((head - k + n) % n) < (big ? 8 : 5);
             return on ? (dist > r - 2 ? hexMix(active, '#ffffff', 0.45) : active) : hexMix(active, '#000000', 0.68);
         }
+        // Piste enregistrée par un joueur : l'anneau prend sa couleur
+        if (owner) {
+            if (k === head % n || k === (head + n / 2) % n) return '#ffffff';
+            return dist > r - 2 ? hexMix(owner, '#ffffff', 0.35) : owner;
+        }
         if (k === head % n || k === (head + n / 2) % n) return col.light;
         return dist > r - 2 ? col.light : col.ring;
     }, 0.2);
@@ -198,11 +206,11 @@ export function padSprite(type, big, head, active = null, flash = false) {
         E(ctx, x, x, r - width - 6, r - width - 6, '#060608');
         E(ctx, x, x - 2, r - width - 9, r - width - 9, '#151519');
         E(ctx, x - r * 0.22, x - r * 0.3, r * 0.28, r * 0.13, '#24242a');
-        typeBadge(ctx, x, x + 1, 22, col, flash ? '#ffffff' : col.ring, 4);
+        typeBadge(ctx, x, x + 1, 22, col, flash ? '#ffffff' : col.fill || col.ring, 4);
     } else {
         E(ctx, x, x, r - width - 1, r - width - 1, '#111115');
         E(ctx, x, x - 1, r - width - 3, r - width - 3, '#1c1c22');
-        typeBadge(ctx, x, x, 12, col, flash ? '#ffffff' : col.ring, 2);
+        typeBadge(ctx, x, x, 12, col, flash ? '#ffffff' : col.fill || col.ring, 2);
     }
     if (padCache.size > 600) padCache.delete(padCache.keys().next().value);
     padCache.set(key, c);
@@ -210,15 +218,15 @@ export function padSprite(type, big, head, active = null, flash = false) {
 }
 
 /** Une case en relief (pad), posée sur l'appareil */
-export function drawSpace(ctx, cam, space, t, { active = null, flash = 0 } = {}) {
+export function drawSpace(ctx, cam, space, t, { active = null, flash = 0, type = space.type, owner = null } = {}) {
     const r = (space.big ? BIG_R : SMALL_R) * SCALE;
     const n = space.big ? 24 : 16;
     const head = Math.floor(t * (space.big ? 14 : 10) + space.id * 3) % n;
     const o = { x: space.x, y: space.y, w: r * 2, d: r * 2, h: space.big ? BIG_H : SMALL_H, side: '#08080a' };
-    drawCyl(ctx, cam, o, padSprite(space.type, space.big, head, active));
+    drawCyl(ctx, cam, o, padSprite(type, space.big, head, active, false, active ? null : owner));
     if (flash > 0) {
         ctx.globalAlpha = flash;
-        drawCyl(ctx, cam, { ...o, side: 'rgba(0,0,0,0)' }, padSprite(space.type, space.big, 0, null, true));
+        drawCyl(ctx, cam, { ...o, side: 'rgba(0,0,0,0)' }, padSprite(type, space.big, 0, null, true));
         ctx.globalAlpha = 1;
     }
 }
@@ -255,7 +263,7 @@ function lcdSprite(info) {
  * avec les personnages : [{ y, draw }]. Les lumières douces vont dans glows (écran).
  * opts : { t, info, board, active: { spaceId, color }, flashes: { [spaceId]: alpha } }
  */
-export function renderStage(ctx, world, cam, { t = 0, info = {}, board = null, active = null, flashes = {}, cheering = false } = {}) {
+export function renderStage(ctx, world, cam, { t = 0, info = {}, board = null, active = null, flashes = {}, cheering = false, typeOf = null, owners = null } = {}) {
     const { W, Hs } = cam;
     ctx.imageSmoothingEnabled = false;
     R(ctx, 0, 0, W, Hs, '#07060b');
@@ -327,13 +335,16 @@ export function renderStage(ctx, world, cam, { t = 0, info = {}, board = null, a
             return;
         }
         const sprite = o.beat && (info.bi || 0) % 2 ? o.off : o.sprite;
-        list.push({ y: o.y + o.d / 2 - 20, draw: () => (o.kind === 'cyl' ? drawCyl(ctx, cam, o, sprite) : drawBox(ctx, cam, o, sprite)) });
+        const h0 = o.floor ? 0 : DEVICE.h;
+        list.push({ y: o.y + o.d / 2 - 20, draw: () => (o.kind === 'cyl' ? drawCyl(ctx, cam, o, sprite, h0) : drawBox(ctx, cam, o, sprite, h0)) });
     });
     if (board) {
         board.spaces.forEach((space) => {
             const r = (space.big ? BIG_R : SMALL_R) * SCALE;
             const act = active && active.spaceId === space.id ? active.color : null;
-            list.push({ y: space.y - r * 0.6, draw: () => drawSpace(ctx, cam, space, t, { active: act, flash: flashes[space.id] || 0 }) });
+            const type = typeOf ? typeOf(space) : space.type;
+            const owner = owners && space.track ? owners[space.track] : null;
+            list.push({ y: space.y - r * 0.6, draw: () => drawSpace(ctx, cam, space, t, { active: act, flash: flashes[space.id] || 0, type, owner }) });
         });
     }
     return list;

@@ -488,6 +488,32 @@ const NPCS = {
         },
     },
 };
+// Le voleur de flow : capuche rabattue, lunettes noires, chaîne en or
+NPCS.thief = {
+    name: 'Voleur de flow', skin: '#9A6446', hair: '#141019', hairH: '#2A2230', hairS: '#0B080E', blush: '#B5644F',
+    top: '#2E2742', accent: '#FFC72C', pants: '#22252F', shoe: '#E8402F', shoeA: '#141019', sole: '#E8ECF7',
+    clothes: 'hoodie', shades: true, goldTooth: true, brows: 'sharp',
+    hairBack(L, hx, hy, c) {
+        const hood = shade3(c.top);
+        L.ellipse(hx + 9, hy + 7, 13, 12.5, hood);
+    },
+    hairFront(L, hx, hy, c) {
+        L.stamp(hx + 3, hy + 2, [
+            '..hhhhhhhhhhhhh...',
+            'hhhhhhhhhhhhhhhhh.',
+            'hhhhh......hhhhhh.',
+        ], { h: c.hair });
+        // Bord de la capuche, rabattue sur le front
+        L.capsule(hx, hy + 4, hx + 9, hy - 2, 1.6, 1.6, dk(c.top, 0.2));
+        L.capsule(hx + 9, hy - 2, hx + 20, hy + 3, 1.6, 1.6, dk(c.top, 0.2));
+    },
+    torsoDetail(L, b, c) {
+        // Chaîne en or et poche kangourou
+        L.capsule(b.nx - 5, b.ny + 2, b.nx, b.ny + 6, 0.8, 0.8, c.accent);
+        L.capsule(b.nx, b.ny + 6, b.nx + 5, b.ny + 2, 0.8, 0.8, c.accent);
+        L.rect(b.nx - 4, b.y1 - 9, 9, 4, dk(c.top, 0.25));
+    },
+};
 const lookup = (id) => CAST[id] || NPCS[id] || CAST.nova;
 
 export const CHARACTERS = Object.entries(CAST).map(([id, c]) => ({ id, name: c.name, tagline: c.tagline, color: c.top }));

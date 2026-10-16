@@ -1,7 +1,7 @@
 import React, { useEffect, useRef } from 'react';
 import { DICE_HIT_Y, FOOT_X, FOOT_Y, MIC_MOUTH, PLAYER_COLORS, beatboxHit, getFrame } from '../characters/pixelRig';
 import { beatIndex, beatPhase, sfx } from '../partySfx';
-import { DEVICE, getWorld, spaceRadius } from './world';
+import { DEVICE, SPACE_COLORS, getWorld, spaceRadius } from './world';
 import { focalFor, makeCam, project, renderStage, ringOutline, spaceTop, stageLights } from './stage3d';
 import { drawArrow, drawBadge, drawBurst, drawCoin, drawDie, goldMicSprite } from './live';
 import { drawGlows, drawShade, drawSoundWaves } from './fx';
@@ -122,6 +122,7 @@ export default function PartyBoard({ state, queue, myId, t = null, mapMode = fal
         shakeUntil: 0,
         particles: [],
         rings: [],
+        flights: [],
         arrows: [],
         last: 0,
         view: null,
@@ -160,6 +161,16 @@ export default function PartyBoard({ state, queue, myId, t = null, mapMode = fal
                 L.particles.push({ x: sp.x, y: sp.y, h: spaceTop(sp) + 70, vx: Math.cos(a) * v, vy: Math.sin(a) * v * 0.6, vh: 160 + Math.random() * 160, color: colors[i % colors.length], born: now + delay, life: 1500 + Math.random() * 700 });
             }
         };
+        // Pièces de Hype qui volent d'un joueur (ou d'une case) à un autre
+        const posOf = (playerId) => {
+            const p = snap.players.find((q) => q.id === playerId);
+            return p && p.space != null ? spaceOf(p.space) : null;
+        };
+        const fly = (from, to, amount, delay = 0) => {
+            if (!from || !to || !amount) return;
+            const n = Math.max(1, Math.min(8, Math.round(Math.abs(amount) / 2)));
+            for (let i = 0; i < n; i += 1) L.flights.push({ x0: from.x, y0: from.y, x1: to.x, y1: to.y, start: now + delay + i * 70, dur: 650 });
+        };
         // Poses imposées, éventuellement à la suite (Larsen : sursaut puis déception)
         const pose = (id, name, ms, delay = 0) => {
             const keep = delay > 0 ? (L.poses[id] || []).filter((o) => o.until > now) : [];
@@ -190,7 +201,10 @@ export default function PartyBoard({ state, queue, myId, t = null, mapMode = fal
                     L.flashes.push({ spaceId: id, at: now + i * hopMs + hopMs * 0.85 });
                 });
                 (event.effects || []).forEach((effect) => {
-                    if (effect.type === 'tip') float(`-${effect.amount}`, ['#FFB4A8', '#E8402F'], event.path[effect.step], effect.step * hopMs, true);
+                    if (effect.type !== 'tip') return;
+                    // Pourboire : les pièces filent de la piste vers celui qui l'a enregistrée
+                    float(`-${effect.amount}`, ['#FFB4A8', '#E8402F'], event.path[effect.step], effect.step * hopMs, true);
+                    fly(spaceOf(event.path[effect.step]), posOf(effect.to), effect.amount, effect.step * hopMs + 200);
                 });
                 break;
             }
@@ -205,7 +219,16 @@ export default function PartyBoard({ state, queue, myId, t = null, mapMode = fal
                 }
                 if (event.kind === 'red') {
                     L.shakeUntil = now + 420;
-                    L.rings.push({ spaceId: event.spaceId, at: now, color: '#ff3b30' });
+                    L.rings.push({ spaceId: event.spaceId, at: now, color: SPACE_COLORS.red.ring });
+                }
+                if (['sample', 'freestyle', 'cut', 'battle'].includes(event.kind)) {
+                    L.rings.push({ spaceId: event.spaceId, at: now, color: SPACE_COLORS[event.kind].ring });
+                    sfx(event.kind === 'cut' ? 'loss' : 'reveal');
+                }
+                if (event.recorded) {
+                    // Boucle enregistrée sur la piste : anneau à la couleur du joueur
+                    float('REC', ['#ffffff', '#ff6a5a'], event.spaceId, 350);
+                    if (player) L.rings.push({ spaceId: event.spaceId, at: now + 300, color: PLAYER_COLORS[player.seat] });
                 }
                 if (event.delta < 0) {
                     pose(event.playerId, 'shock', 700);
@@ -230,6 +253,46 @@ export default function PartyBoard({ state, queue, myId, t = null, mapMode = fal
                 break;
             case 'starIntro':
                 sfx('reveal');
+                break;
+            case 'sample': {
+                const at = posOf(event.playerId);
+                if (event.result === 'crowd') { float(`+${event.amount}`, ['#FFF2B0', '#FFC72C'], player && player.space, 0, true); sfx('coin'); L.cheerUntil = now + 1800; pose(event.playerId, 'cheer', 1600); }
+                if (event.result === 'feedback') { (event.losses || []).forEach((l) => l.amount && float(`-${l.amount}`, ['#FFB4A8', '#E8402F'], (snap.players.find((q) => q.id === l.playerId) || {}).space, 0, true)); L.shakeUntil = now + 500; sfx('loss'); }
+                if (event.result === 'tipjar') (event.gifts || []).forEach((g, i) => fly(posOf(g.playerId), at, g.amount, i * 160));
+                if (event.result === 'screen') { L.focusStarUntil = now + 2600; L.focusStarDelay = now + 300; sfx('reveal'); }
+                if (event.result === 'swap') { L.rings.push({ spaceId: event.from, at: now, color: '#b46cff' }, { spaceId: event.to, at: now, color: '#b46cff' }); sfx('drop'); }
+                break;
+            }
+            case 'cut':
+                L.shakeUntil = now + 600;
+                sfx('loss');
+                pose(event.playerId, 'shock', 800);
+                pose(event.playerId, 'sad', 1400, 800);
+                if (event.result === 'lose') float(`-${event.amount}`, ['#FFB4A8', '#E8402F'], player && player.space, 0, true);
+                if (event.result === 'share') (event.gifts || []).forEach((g, i) => fly(posOf(event.playerId), posOf(g.playerId), g.amount, i * 160));
+                if (event.result === 'blackout') (event.losses || []).forEach((l) => l.amount && float(`-${l.amount}`, ['#FFB4A8', '#E8402F'], (snap.players.find((q) => q.id === l.playerId) || {}).space, 0, true));
+                if (event.result === 'mic') float('-1', ['#FFF2B0', '#E8402F'], player && player.space);
+                break;
+            case 'freestyleResult':
+                if (event.gift && event.gift[0] === 'h') fly(posOf(event.giver), posOf(event.taker), event.amount, 300);
+                if (event.gift === 'mic' && event.amount) { float('-1', ['#FFF2B0', '#E8402F'], (snap.players.find((q) => q.id === event.giver) || {}).space); float('+1', ['#FFF2B0', '#FFC72C'], (snap.players.find((q) => q.id === event.taker) || {}).space, 400); }
+                pose(event.taker, 'cheer', 1600);
+                pose(event.giver, 'shock', 1200);
+                sfx('star');
+                break;
+            case 'battle':
+                snap.players.forEach((q, i) => fly(spaceOf(q.space), player ? spaceOf(player.space) : null, Math.min(event.stake, 8), i * 120));
+                sfx('drop');
+                break;
+            case 'stealStart':
+                if (event.paid) float(`-${event.paid}`, ['#FFB4A8', '#E8402F'], player && player.space, 0, true);
+                break;
+            case 'steal':
+                if (event.kind === 'hype') fly(posOf(event.victimId), posOf(event.playerId), event.amount, 0);
+                else { float('-1', ['#FFF2B0', '#E8402F'], (snap.players.find((q) => q.id === event.victimId) || {}).space); float('+1', ['#FFF2B0', '#FFC72C'], player && player.space, 500); }
+                pose(event.victimId, 'shock', 1200);
+                pose(event.playerId, 'cheer', 1400);
+                sfx(event.kind === 'mic' ? 'star' : 'coin');
                 break;
             default:
         }
@@ -377,13 +440,39 @@ export default function PartyBoard({ state, queue, myId, t = null, mapMode = fal
                 if (age >= 0) flashes[fl.spaceId] = Math.max(flashes[fl.spaceId] || 0, 1 - age / 500);
             });
             const active = activeActor && !map && !activeActor.moving ? { spaceId: activeActor.p.space, color: PLAYER_COLORS[activeActor.p.seat] } : null;
-            const list = renderStage(px, world, C3, { t, info, board: s.board, active, flashes, cheering });
+            // Type affiché des cases (le Rappel peut en changer) et pistes enregistrées
+            const overrides = s.spaceOverrides || {};
+            const typeOf = (sp) => overrides[sp.id] || (s.finaleEffect === 'redCut' && sp.type === 'red' ? 'cut' : sp.type);
+            const owners = {};
+            Object.entries(s.trackOwners || {}).forEach(([track, id]) => {
+                const owner = id && s.players.find((q) => q.id === id);
+                if (owner) owners[track] = PLAYER_COLORS[owner.seat];
+            });
+            const list = renderStage(px, world, C3, { t, info, board: s.board, active, flashes, cheering, typeOf, owners });
             const glows = [];
             stageLights(C3, t, info, glows);
 
             // Ingé son qui garde le raccourci
             const gate = s.board.spaces.find((sp) => sp.gate);
             if (gate) list.push({ y: gate.y, draw: () => drawFigure(getFrame('inge', 'guard', t, '#000000', { base: false, facing: 1 }), gate.x - 74, gate.y, DEVICE.h, 0) });
+            // Pistes enregistrées : une pastille à la couleur et à l'initiale du joueur, au bord du gros pad
+            Object.entries(s.trackOwners || {}).forEach(([track, id]) => {
+                const owner = id && s.players.find((q) => q.id === id);
+                const sp = owner && s.board.spaces.find((q) => q.track === Number(track));
+                if (!sp) return;
+                const r = spaceRadius(sp);
+                list.push({ y: sp.y + r, draw: () => {
+                    const pr = project(C3, sp.x, sp.y + r * 0.95, spaceTop(sp));
+                    if (!pr) return;
+                    drawBadge(px, pr.sx, pr.sy - 3, PLAYER_COLORS[owner.seat], plain(owner.name).replace(/[^A-Z0-9]/g, '').slice(0, 1) || '?');
+                } });
+            });
+            // Le voleur de flow, devant sa loge
+            if (s.board.thief) {
+                const th = s.board.thief;
+                const busy = ['thief', 'thiefTarget', 'steal', 'stealResult'].includes(s.step);
+                list.push({ y: th.y + 40, draw: () => drawFigure(getFrame('thief', busy ? (s.step === 'stealResult' ? 'cheer' : 'present') : 'idle', t, '#000000', { base: false, facing: 1 }), th.x + 6, th.y + 40, 0, 0) });
+            }
             // Micro d'or
             if (starSpace) {
                 list.push({ y: starSpace.y + 1, draw: () => {
@@ -610,11 +699,11 @@ export default function PartyBoard({ state, queue, myId, t = null, mapMode = fal
                 const dist = distanceTo(s.board, holder.space, s.starSpace, holder.hype);
                 if (dist != null) drawBeacon(starSpace, dist);
             }
-            // Vue carte : un repère numéroté au-dessus de chaque joueur
+            // Vue carte : un repère à l'initiale de chaque joueur, au-dessus de sa tête
             if (map) {
                 actors.forEach((a) => {
                     if (!a.head) return;
-                    const n = s.order && s.order.length ? s.order.indexOf(a.p.id) + 1 : a.p.seat + 1;
+                    const n = plain(a.p.name).replace(/[^A-Z0-9]/g, '').slice(0, 1) || String(a.p.seat + 1);
                     const bob = Math.round(Math.sin(t * 4 + a.p.seat) * 2);
                     R(px, Math.round(a.head.x) - 1, Math.round(a.head.y - 10 + bob), 3, 8, '#0d0b14');
                     drawBadge(px, a.head.x, a.head.y - 20 + bob, PLAYER_COLORS[a.p.seat], n);
@@ -650,6 +739,19 @@ export default function PartyBoard({ state, queue, myId, t = null, mapMode = fal
                 px.fillRect(Math.round(pr.sx), Math.round(pr.sy), flip ? sz * 2 : sz, flip ? sz : sz * 2);
                 px.globalAlpha = 1;
             });
+            // Pièces de Hype en vol (pourboires, vols, échanges)
+            L.flights = L.flights.filter((f) => nowMs - f.start < f.dur);
+            L.flights.forEach((f) => {
+                const k = (nowMs - f.start) / f.dur;
+                if (k < 0) return;
+                const e = ease(k);
+                const h = DEVICE.h + 30 + Math.sin(k * Math.PI) * 110;
+                const pr = project(C3, f.x0 + (f.x1 - f.x0) * e, f.y0 + (f.y1 - f.y0) * e, h);
+                if (!pr) return;
+                drawCoin(px, pr.sx - 6, pr.sy - 6);
+                if (k > 0.92 && !f.done) { f.done = true; sfx('tick'); }
+            });
+
             // Ondes de choc sur le pad (Drop, Larsen)
             L.rings = L.rings.filter((r) => nowMs - r.at < 700);
             L.rings.forEach((r) => {

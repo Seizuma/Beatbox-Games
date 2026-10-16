@@ -30,17 +30,27 @@ export const C = {
  * Cases : couleur de l'anneau de LED, et au centre une forme propre à chaque type avec un
  * gros pictogramme blanc (on les distingue même sans voir les couleurs).
  */
+const COMMON = {
+    sample: { ring: '#b46cff', dim: '#2c1a44', light: '#dcb8ff' },
+    cut: { ring: '#c9c9d4', dim: '#2a2a32', light: '#ffffff', fill: '#3a3a46' },
+};
 const PALETTES = {
     standard: {
         blue: { ring: C.blue, dim: C.blueDim, light: '#a9cdff' },
         red: { ring: C.red, dim: C.redDim, light: '#ff9d92' },
         drop: { ring: C.green, dim: C.greenDim, light: '#9dffc4' },
+        freestyle: { ring: '#ffd23a', dim: '#4a3a08', light: '#fff0a8' },
+        battle: { ring: '#f08a24', dim: '#4a2608', light: '#ffc590' },
+        ...COMMON,
     },
-    // Couleurs adaptées (daltonisme rouge-vert) : bleu, orange, cyan
+    // Couleurs adaptées (daltonisme rouge-vert) : bleu, orange, cyan ; les formes font le reste
     adapted: {
         blue: { ring: '#3f8cff', dim: '#10264a', light: '#a9cdff' },
         red: { ring: '#ff8a1f', dim: '#4a2a08', light: '#ffc48a' },
         drop: { ring: '#2fd0dc', dim: '#0b3a3e', light: '#a8f3fa' },
+        freestyle: { ring: '#ff6fb5', dim: '#4a1430', light: '#ffc0de' },
+        battle: { ring: '#f5e04a', dim: '#4a420a', light: '#fff6b0' },
+        ...COMMON,
     },
 };
 const SHAPES = {
@@ -48,6 +58,10 @@ const SHAPES = {
     red: { icon: '-', shape: 'triangle' },
     drop: { icon: 'v', shape: 'chevron' },
     start: { icon: '>', shape: 'arrow' },
+    sample: { icon: '?', shape: 'hexagon' },
+    freestyle: { icon: '!', shape: 'star' },
+    battle: { icon: 'VS', shape: 'diamond' },
+    cut: { icon: 'OFF', shape: 'square' },
 };
 export const SPACE_COLORS = {
     start: { ring: '#f2f0ea', dim: '#3a3a40', light: '#ffffff', ...SHAPES.start },
@@ -375,6 +389,33 @@ function buildStatics() {
     return list;
 }
 
+// La loge du voleur de flow (au sol, au bord de la scène) : rideau, enseigne, guichet
+function boothFront() {
+    return cached('boothFront', 64, 104, (ctx, w, h) => {
+        R(ctx, 0, 0, w, h, '#1a0f14');
+        // Enseigne
+        RR(ctx, 4, 4, w - 8, 18, 3, OUT);
+        RR(ctx, 5, 5, w - 10, 16, 3, '#2a1d0a');
+        pixText(ctx, 'FLOW', w / 2, 9, '#ffc72c', { font: 'tiny', scale: 2, outline: null, shadow: false });
+        // Guichet et rideau à plis
+        R(ctx, 8, 28, w - 16, 30, '#0a0608');
+        R(ctx, 8, 28, w - 16, 2, '#3a2a12');
+        for (let x = 8; x < w - 8; x += 6) {
+            R(ctx, x, 60, 3, h - 64, '#5a1424');
+            R(ctx, x + 3, 60, 3, h - 64, '#3e0d19');
+        }
+        R(ctx, 6, 58, w - 12, 3, '#ffc72c');
+        R(ctx, 0, h - 3, w, 3, '#050304');
+    });
+}
+function boothTop() {
+    return cached('boothTop', 64, 44, (ctx, w, h) => {
+        R(ctx, 0, 0, w, h, '#24161c');
+        for (let y = 2; y < h; y += 6) R(ctx, 0, y, w, 2, '#3a2129');
+        R(ctx, 0, 0, w, 2, '#4a2a34');
+    });
+}
+
 // ---------------------------------------------------------------------------
 
 const worlds = new Map();
@@ -385,13 +426,17 @@ export function getWorld(board) {
     let w = worlds.get(key);
     if (w) return w;
     const tops = [0, 1, 2].map((phase) => paintTop(board, phase));
+    const statics = buildStatics();
+    if (board && board.thief) {
+        statics.push({ kind: 'box', x: board.thief.x, y: board.thief.y, w: 80, d: 56, h: 130, sprite: boothTop(), front: boothFront(), side: '#1a0f14', floor: true, booth: true });
+    }
     w = {
         top: tops[0],
         tops,
         front: paintFront(),
         floor: paintFloor(),
         wall: paintWall(),
-        statics: buildStatics(),
+        statics,
     };
     worlds.set(key, w);
     return w;

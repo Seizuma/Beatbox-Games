@@ -5,6 +5,8 @@ import { PLAYER_COLORS } from './characters/pixelRig';
 import Icon from '../icons/Icon';
 import { Key, Lcd, LcdText, LoopPad, Panel, PlayerRing } from './ui/Hardware';
 import { isMusicOn, jingle, setMusicFinale, setMusicOn, sfx, startMusic, stopMusic, unlockAudio } from './partySfx';
+import { CoinIcon, MicIcon } from './PartyIcons';
+import EventPanels, { useEventKeys } from './EventPanels';
 
 // L'écran de jeu, construit comme un Mario Party :
 // - le plateau occupe tout l'écran, avec sa caméra ;
@@ -27,6 +29,16 @@ export function describeEvent(event, players, t) {
             return t(`events.${event.kind}`, { name: name(event.playerId), n: event.delta });
         case 'chose': return event.paid ? t('events.gate', { name: name(event.playerId), n: event.paid }) : '';
         case 'wheel': return t('events.wheel', { name: name(event.playerId), effect: t(`board.finaleEffect.${event.result}`) });
+        case 'sampleSpin': return t('events2.sampleSpin', { name: name(event.playerId) });
+        case 'sample': return t(`events2.sample.${event.result}.text`, { name: name(event.playerId), other: name(event.with), n: event.amount || event.value || 0 });
+        case 'cutSpin': return t('events2.cutSpin', { name: name(event.playerId) });
+        case 'cut': return t(`events2.cut.${event.result}.text`, { name: name(event.playerId), n: event.amount || 0 });
+        case 'freestyle': case 'reel': return t('events2.freestyleWaiting', { name: name(event.playerId) });
+        case 'freestyleResult': return t(`events2.giftDone.${event.gift}`, { a: name(event.giver), b: name(event.taker), n: event.amount });
+        case 'battle': return t('events2.battleLine', { name: name(event.playerId), n: event.pot });
+        case 'thiefOffer': return t('events2.thiefVisit', { name: name(event.playerId) });
+        case 'stealStart': return t(event.kind === 'mic' ? 'events2.stealMic' : 'events2.stealHype', { name: name(event.playerId), victim: name(event.victimId) });
+        case 'steal': return event.kind === 'mic' ? t('events2.stoleMic', { name: name(event.playerId), victim: name(event.victimId) }) : t('events2.stoleHype', { name: name(event.playerId), victim: name(event.victimId), n: event.amount });
         case 'star':
             return event.bought ? t('events.bought', { name: name(event.playerId) }) : t('events.declined', { name: name(event.playerId) });
         case 'starOffer': return event.affordable ? '' : t('events.noMoney', { name: name(event.playerId) });
@@ -87,30 +99,6 @@ function useSecondsLeft(deadline, clockOffset) {
     }, [deadline]);
     if (!deadline) return null;
     return Math.max(0, (deadline - (now + clockOffset)) / 1000);
-}
-
-// Pièce de Hype et Micro d'or : les mêmes objets que sur le plateau, en pixel art
-export function CoinIcon({ size = 14 }) {
-    return (
-        <svg viewBox="0 0 6 6" width={size} height={size} className="party-pixel shrink-0" shapeRendering="crispEdges" aria-hidden="true">
-            <path d="M1 0h4v1H1zM0 1h1v4H0zM5 1h1v4H5zM1 5h4v1H1z" fill="#120E26" />
-            <path d="M1 1h4v4H1z" fill="#FFC72C" />
-            <path d="M1 1h3v1H1zM1 2h1v2H1z" fill="#FFE07A" />
-            <path d="M2 2h1v1H2z" fill="#FFFFFF" />
-            <path d="M4 3h1v2H4zM2 4h2v1H2z" fill="#C98A00" />
-        </svg>
-    );
-}
-
-export function MicIcon({ size = 14 }) {
-    return (
-        <svg viewBox="0 0 6 9" width={size * 0.67} height={size} className="party-pixel shrink-0" shapeRendering="crispEdges" aria-hidden="true">
-            <path d="M1 0h4v1H1zM0 1h1v3H0zM5 1h1v3H5zM1 4h4v1H1zM2 5h2v4H2z" fill="#120E26" />
-            <path d="M1 1h4v3H1z" fill="#FFC72C" />
-            <path d="M1 1h2v1H1zM1 2h1v1H1z" fill="#FFF4C7" />
-            <path d="M4 2h1v2H4z" fill="#C98A00" />
-        </svg>
-    );
 }
 
 // ---------------------------------------------------------------------------
@@ -353,6 +341,7 @@ function Dock({ state, myId, t, secondsLeft, actions, message, mapMode, onToggle
             text = state.starOffer.affordable ? t('board.waitingStar', { name }) : (mine ? t('board.starNoMoney', { price: state.starOffer.price }) : t('events.noMoney', { name }));
         }
         if ((state.step === 'rolled' || state.step === 'moving') && state.roll && current) text = t(state.roll.value === 1 ? 'board.movingOne' : 'board.moving', { name, n: state.roll.value });
+        if (state.step === 'steal' && state.thief && state.thief.victimId === myId && state.thief.kind === 'hype') text = t('events2.mashHint');
         if (!text && current) text = mine ? t('board.yourTurn') : t('board.turnOf', { name });
     }
 
@@ -420,6 +409,7 @@ export default function PartyPlay({ state, myId, t, queue, clockOffset, actions 
     const current = state.players.find((p) => p.id === state.currentPlayerId);
     const myTurn = state.phase === 'turn' && current && current.id === myId;
     const message = describeEvent(state.event, state.players, t);
+    useEventKeys(stateRef, myId, actions);
 
     const show = useCallback((next, ms = 2200) => {
         setBanner({ ...next, id: `${Date.now()}-${Math.random()}` });
@@ -583,6 +573,7 @@ export default function PartyPlay({ state, myId, t, queue, clockOffset, actions 
             <Hud state={state} myId={myId} t={t} compact={compact} />
             <Banner banner={banner} compact={compact} />
             <FinaleWheel state={state} t={t} clockOffset={clockOffset} />
+            <EventPanels state={state} myId={myId} t={t} clockOffset={clockOffset} actions={actions} />
             <Dock
                 state={state}
                 myId={myId}
