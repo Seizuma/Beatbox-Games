@@ -94,15 +94,15 @@ function boardLabels(t) {
     return { star: plain(t('board.beaconStar')), spaces: plain(t('board.beaconSpaces')), here: plain(t('board.beaconHere')) };
 }
 
-export default function PartyBoard({ state, queue, myId, t = null, mapMode = false, onEvent, onChoose, insets = null, clockOffset = 0 }) {
+export default function PartyBoard({ state, queue, myId, t = null, mapMode = false, onEvent, onChoose, insets = null, clockOffset = 0, positionsRef = null }) {
     const wrapRef = useRef(null);
     const pixelRef = useRef(null);
     const glowRef = useRef(null);
     const shadeRef = useRef(null);
     const routeRefs = useRef({});
     const labels = boardLabels(t);
-    const props = useRef({ mapMode, onEvent, onChoose, myId, insets, clockOffset, labels });
-    props.current = { mapMode, onEvent, onChoose, myId, insets, clockOffset, labels };
+    const props = useRef({ mapMode, onEvent, onChoose, myId, insets, clockOffset, labels, positionsRef });
+    props.current = { mapMode, onEvent, onChoose, myId, insets, clockOffset, labels, positionsRef };
     const live = useRef({
         state,
         anims: {},
@@ -657,6 +657,9 @@ export default function PartyBoard({ state, queue, myId, t = null, mapMode = fal
                         a.waves = { x: at.sx + (mx - FOOT_X) * at.k, y: at.sy + (MIC_MOUTH[1] - FOOT_Y) * at.k, facing, hit };
                     }
                     a.head = { x: at.sx, y: at.sy + (DICE_HIT_Y - FOOT_Y) * at.k - 6, k: at.k };
+                    // Position à l'écran (px CSS) : point de départ des pièces qui volent vers le HUD
+                    const posRef = props.current.positionsRef;
+                    if (posRef) posRef.current[p.id] = { x: at.sx * scale, y: (at.sy - 20 * at.k) * scale };
                 } });
                 overlays.push(() => {
                     // En vue carte, seuls les repères numérotés s'affichent au-dessus des joueurs

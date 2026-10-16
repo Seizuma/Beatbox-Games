@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import { Led, Lcd, LcdText, LoopPad, Panel, PlayerRing, Section } from '../ui/Hardware';
+import { LoopPad, PlayerRing, Section } from '../ui/Hardware';
+import { CoinIcon } from '../PartyIcons';
 import { PLAYER_COLORS } from '../characters/pixelRig';
 import { sfx } from '../partySfx';
 import { roleOf, useMinigameClock } from './shared';
@@ -117,77 +118,110 @@ export default function MinigameStage({ state, myId, t, clockOffset, onReady, on
     const kicker = mg.context === 'battle' ? t('events2.battleTitle') : mg.context === 'duel' ? t('minigame.kinds.duel') : t(`minigame.kinds.${mg.kind || 'ffa'}`);
     const role = roleOf(mg, myId);
 
+    // Écran des règles (13-B) : le but et les commandes à gauche, les équipes à droite,
+    // puis la rangée « prêt » de chaque joueur
     if (state.step === 'intro') {
         const participants = state.players.filter((p) => (mg.participants || []).includes(p.id));
         const readyCount = participants.filter((p) => p.ready).length;
         return (
-            <Panel className="hw-pop flex flex-col gap-5 p-5 pt-8 sm:p-7 sm:pt-9" label={kicker}>
-                <h2 className="hw-title text-5xl sm:text-6xl">{name}</h2>
+            <section className="hw-panel hw-pop flex flex-col gap-4 px-3 pb-3 pt-1 sm:px-5" aria-label={name}>
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                    <h2 className="px-tag text-3xl sm:text-4xl">{name}</h2>
+                    <span className="hw-chip !text-sm">{kicker}</span>
+                </div>
                 {mg.context === 'battle' && <p className="hw-title text-2xl text-[color:var(--hw-amber)]">{t('events2.battlePot', { n: mg.pot })} · {t('events2.battleSplit')}</p>}
                 {mg.context === 'duel' && <p className="hw-title text-2xl text-[color:var(--hw-amber)]">{t('minigame.duelStake', { n: mg.pot })}</p>}
-                <TeamsBanner mg={mg} players={state.players} myId={myId} t={t} />
-                {playing && mg.teams && (
-                    <p className="hw-title text-2xl text-[color:var(--hw-amber)]">
-                        {mg.kind === '1v3' ? (role.solo ? t('minigame.roles.youSolo') : t('minigame.roles.youCrowd')) : t('minigame.roles.youTeam', { name: (state.players.find((p) => p.id === role.mate) || {}).name || '' })}
-                    </p>
-                )}
-                <p className="hw-text max-w-2xl text-lg">{t(`minigame.${mg.id}.rule`)}</p>
-                <Section title={t('minigame.controls')}>
-                    <p className="hw-text text-sm">{t(`minigame.${mg.id}.control`)}</p>
-                </Section>
-                <div className="flex flex-wrap items-center gap-6">
+                <div className="party-rules">
+                    <div className="flex flex-col gap-3">
+                        <Section title={t('minigame.goal')}>
+                            <p className="hw-text text-lg">{t(`minigame.${mg.id}.rule`)}</p>
+                        </Section>
+                        <Section title={t('minigame.controls')}>
+                            <p className="hw-text">{t(`minigame.${mg.id}.control`)}</p>
+                        </Section>
+                    </div>
+                    <div className="flex flex-col items-center justify-center gap-3">
+                        <TeamsBanner mg={mg} players={state.players} myId={myId} t={t} />
+                        {playing && mg.teams && (
+                            <p className="hw-title text-center text-xl text-[color:var(--hw-amber)]">
+                                {mg.kind === '1v3' ? (role.solo ? t('minigame.roles.youSolo') : t('minigame.roles.youCrowd')) : t('minigame.roles.youTeam', { name: (state.players.find((p) => p.id === role.mate) || {}).name || '' })}
+                            </p>
+                        )}
+                    </div>
+                </div>
+                <div className="hw-rule" />
+                <div className="flex flex-wrap items-center justify-between gap-4">
+                    <div className="party-ready-strip flex-1" aria-label={t('minigame.readyCount', { n: readyCount, total: participants.length })}>
+                        {participants.map((p) => (
+                            <span key={p.id} className={`party-ready-item ${p.ready ? 'is-ready' : ''}`}>
+                                <PlayerRing player={p} color={PLAYER_COLORS[p.seat]} size={34} active={p.ready} pose={p.ready ? 'cheer' : 'idle'} />
+                                <span className="flex flex-col">
+                                    <span className="hw-strip-name !text-sm">{p.name}</span>
+                                    <span>{p.ready ? t('minigame.readyDone') : t('minigame.waiting')}</span>
+                                </span>
+                            </span>
+                        ))}
+                    </div>
                     {playing ? (
-                        <LoopPad color="green" onClick={onReady} disabled={!me || me.ready} spinning={Boolean(me && !me.ready)}>
-                            {t('minigame.ready')}
+                        <LoopPad color="green" size="md" onClick={onReady} disabled={!me || me.ready} spinning={Boolean(me && !me.ready)}>
+                            {me && me.ready ? t('minigame.readyDone') : t('minigame.ready')}
                         </LoopPad>
                     ) : (
                         <p className="hw-label hw-blink !text-sm">{t('minigame.spectate')}</p>
                     )}
-                    <div className="flex flex-col gap-3">
-                        <div className="flex flex-wrap items-center gap-3">
-                            {participants.map((p) => (
-                                <span key={p.id} className="flex items-center gap-1.5">
-                                    <Led color="green" on={p.ready} />
-                                    <span className="hw-strip-name !text-xs">{p.name}</span>
-                                </span>
-                            ))}
-                        </div>
-                        <Lcd className="inline-flex self-start px-2 py-1"><LcdText text={t('minigame.readyCount', { n: readyCount, total: participants.length })} scale={2} /></Lcd>
-                    </div>
                 </div>
-            </Panel>
+            </section>
         );
     }
 
+    // Résultats en tableau des scores (14-B)
     if (state.step === 'results' && mg.results) {
         const line = outcomeLine(mg, state.players, t);
         return (
-            <Panel className="hw-pop flex flex-col gap-4 p-5 pt-8 sm:p-7 sm:pt-9" label={name}>
-                <h2 className="hw-title text-5xl">{t('minigame.results')}</h2>
-                {line && <p className="hw-title text-3xl text-[color:var(--hw-amber)]">{line}</p>}
-                <ol className="flex flex-col gap-2">
-                    {mg.results.map((r) => {
-                        const p = state.players.find((player) => player.id === r.playerId);
-                        if (!p) return null;
-                        const display = r.display || {};
-                        const value = display.kind && display.kind !== 'none'
-                            ? t(`minigame.display.${display.kind}`, { n: display.value })
-                            : t('minigame.display.none');
-                        const won = r.rank === 1;
-                        return (
-                            <li key={r.playerId} className={`hw-strip ${r.playerId === myId ? 'is-active' : ''}`}>
-                                <Lcd className="flex h-10 w-10 shrink-0 items-center justify-center"><LcdText text={r.rank} font="bold" scale={2} color={won ? '#F0AE22' : undefined} /></Lcd>
-                                <PlayerRing player={p} color={PLAYER_COLORS[p.seat]} size={46} active={won} pose={won ? 'cheer' : r.reward > 0 ? 'idle' : 'sad'} />
-                                <span className="hw-strip-name min-w-0 flex-1 !text-lg">{p.name}</span>
-                                <span className="hw-label shrink-0 !text-xs !tracking-[0.08em]">{value}</span>
-                                <Lcd className="flex w-20 shrink-0 items-center justify-center px-2 py-2">
-                                    <LcdText text={r.reward > 0 ? `+${r.reward}` : r.reward < 0 ? `${r.reward}` : '-'} font="bold" scale={2} color={r.reward > 0 ? '#F0AE22' : r.reward < 0 ? '#E2402F' : '#4a595a'} />
-                                </Lcd>
-                            </li>
-                        );
-                    })}
-                </ol>
-            </Panel>
+            <section className="hw-panel hw-pop flex flex-col gap-3 px-3 pb-3 pt-1 sm:px-5" aria-label={name}>
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                    <h2 className="px-tag text-3xl">{t('minigame.results')}</h2>
+                    <span className="hw-chip !text-sm">{name}</span>
+                </div>
+                {line && <p className="hw-title text-2xl text-[color:var(--hw-amber)] sm:text-3xl">{line}</p>}
+                <table className="px-scores">
+                    <thead>
+                        <tr>
+                            <th scope="col">{t('minigame.colRank')}</th>
+                            <th scope="col">{t('minigame.colPlayer')}</th>
+                            <th scope="col">{t('minigame.colScore')}</th>
+                            <th scope="col" className="text-right">{t('minigame.colGain')}</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {mg.results.map((r) => {
+                            const p = state.players.find((player) => player.id === r.playerId);
+                            if (!p) return null;
+                            const display = r.display || {};
+                            const value = display.kind && display.kind !== 'none'
+                                ? t(`minigame.display.${display.kind}`, { n: display.value })
+                                : t('minigame.display.none');
+                            const won = r.rank === 1;
+                            const gain = r.reward > 0 ? `+${r.reward}` : r.reward < 0 ? `${r.reward}` : '–';
+                            return (
+                                <tr key={r.playerId} className={`${r.playerId === myId ? 'is-me' : ''} ${won ? 'is-first' : ''}`}>
+                                    <td className="px-num" style={{ color: won ? 'var(--px-gold)' : undefined }}>{t(`screen.rank.${r.rank}`)}</td>
+                                    <td>
+                                        <span className="flex items-center gap-2">
+                                            <PlayerRing player={p} color={PLAYER_COLORS[p.seat]} size={36} active={won} pose={won ? 'cheer' : r.reward > 0 ? 'idle' : 'sad'} />
+                                            <span className="min-w-0 truncate">{p.name}</span>
+                                        </span>
+                                    </td>
+                                    <td className="!text-sm">{value}</td>
+                                    <td className="px-num text-right" style={{ color: r.reward > 0 ? 'var(--px-gold)' : r.reward < 0 ? 'var(--hw-red)' : 'var(--hw-silk-dim)' }}>
+                                        <span className="inline-flex items-center gap-1">{r.reward !== 0 && <CoinIcon size={14} />}{gain}</span>
+                                    </td>
+                                </tr>
+                            );
+                        })}
+                    </tbody>
+                </table>
+            </section>
         );
     }
 
@@ -195,17 +229,17 @@ export default function MinigameStage({ state, myId, t, clockOffset, onReady, on
         // Duel : ceux qui ne jouent pas regardent
         if (!playing) {
             return (
-                <Panel className="flex flex-col items-center gap-4 p-6 pt-9" label={kicker}>
-                    <h2 className="hw-title text-4xl">{name}</h2>
+                <section className="hw-panel flex flex-col items-center gap-4 px-3 pb-4 pt-1" aria-label={kicker}>
+                    <h2 className="px-tag text-3xl">{name}</h2>
                     <TeamsBanner mg={mg} players={state.players} myId={myId} t={t} />
                     <p className="hw-label hw-blink !text-sm">{t('minigame.spectate')}</p>
-                </Panel>
+                </section>
             );
         }
         return (
             <section className="relative flex flex-col gap-3">
-                <div className="flex items-baseline justify-between gap-3">
-                    <h2 className="hw-title text-4xl">{name}</h2>
+                <div className="flex items-center justify-between gap-3">
+                    <h2 className="px-tag text-2xl sm:text-3xl">{name}</h2>
                     {sent && <span className="hw-label hw-blink">{t('minigame.sent')}</span>}
                 </div>
                 <Game
@@ -223,8 +257,8 @@ export default function MinigameStage({ state, myId, t, clockOffset, onReady, on
                     onInput={onInput}
                 />
                 {countdown != null && (
-                    <div className="pointer-events-none absolute inset-0 flex items-center justify-center rounded-2xl bg-[#050404]/80" aria-live="assertive">
-                        <Lcd key={countdown} className="hw-pop flex h-32 w-32 items-center justify-center"><LcdText text={countdown} font="bold" scale={9} color="#F0AE22" /></Lcd>
+                    <div className="pointer-events-none absolute inset-0 flex items-center justify-center bg-[#0b0a14]/80" aria-live="assertive">
+                        <p key={countdown} className="hw-title hw-pop party-countdown">{countdown}</p>
                     </div>
                 )}
             </section>

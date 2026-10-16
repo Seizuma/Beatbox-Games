@@ -3,7 +3,7 @@ import CharacterPicker from './CharacterPicker';
 import PartyScene, { VIEWS, scenePoint } from './board/PartyScene';
 import { useNarrow } from './PartyHome';
 import { PLAYER_COLORS } from './characters/pixelRig';
-import { Key, Lcd, LcdText, Panel, PlayerRing, Section } from './ui/Hardware';
+import { Key, PlayerRing, Section } from './ui/Hardware';
 import { copyToClipboard } from '../../utils/clipboard';
 import { getPalette, setPalette } from './board/world';
 
@@ -48,15 +48,26 @@ export default function PartyLobby({ board, state, myId, t, language, onCharacte
         dim: !p.isBot && !p.connected,
     }).filter(Boolean);
 
+    // Texte sous le nom de chaque place : toi, hôte, bot, hors ligne
+    const seatState = (p) => {
+        if (!p) return t('lobby.empty');
+        const parts = [];
+        if (p.id === myId) parts.push(t('lobby.you'));
+        if (p.id === state.hostId) parts.push(t('lobby.host'));
+        if (p.isBot) parts.push(t('lobby.bot'));
+        if (!p.isBot && !p.connected) parts.push(t('lobby.offline'));
+        return parts.join(' · ');
+    };
+
     return (
-        <div className="flex flex-col gap-6">
-            <Panel className="flex flex-col gap-4 p-4 sm:p-5">
-                <div className="flex flex-wrap items-end justify-between gap-3 pt-2">
-                    <div className="flex flex-col gap-2">
+        <div className="flex flex-col gap-5">
+            <section className="hw-panel flex flex-col gap-4 px-3 pb-4 pt-1 sm:px-5" aria-label={t('lobby.players')}>
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                    <div className="flex items-center gap-3">
                         <span className="hw-label">{t('lobby.room')}</span>
-                        <Lcd className="inline-flex px-3 py-2"><LcdText text={state.code} font="bold" scale={4} /></Lcd>
+                        <p className="px-tag text-3xl tracking-[0.18em]">{state.code}</p>
                     </div>
-                    <Key size="md" led="green" ledOn={copied} onClick={copy}>
+                    <Key size="md" onClick={copy} aria-pressed={copied}>
                         {copied ? t('lobby.copied') : t('lobby.copy')}
                     </Key>
                 </div>
@@ -69,57 +80,43 @@ export default function PartyLobby({ board, state, myId, t, language, onCharacte
                         ))}
                     </PartyScene>
                 </div>
-                <div aria-label={t('lobby.players')} className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                {/* Sélection arcade (12-B) : une colonne par joueur, 1P à 4P */}
+                <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
                     {seats.map((p, seat) => (
-                        <div key={seat} className="hw-strip min-h-[4.2rem]">
-                            <PlayerRing player={p} color={PLAYER_COLORS[seat]} size={46} active={Boolean(p && p.id === myId)} dim={!p || (!p.isBot && !p.connected)} />
-                            <div className="min-w-0 flex-1">
-                                <p className="hw-label !text-[0.62rem]">{`Track ${seat + 1}`}</p>
-                                {p ? (
-                                    <>
-                                        <p className="hw-strip-name">{p.name}</p>
-                                        <p className="flex flex-wrap gap-x-2 text-[0.72rem] font-semibold text-[color:var(--hw-silk-dim)]">
-                                            {p.id === myId && <span className="text-[color:var(--hw-amber)]">{t('lobby.you')}</span>}
-                                            {p.id === state.hostId && <span>{t('lobby.host')}</span>}
-                                            {p.isBot && <span>{t('lobby.bot')}</span>}
-                                            {!p.isBot && !p.connected && <span className="text-[color:var(--hw-red)]">{t('lobby.offline')}</span>}
-                                            {isHost && p.isBot && (
-                                                <button type="button" className="underline underline-offset-2 hover:text-[color:var(--hw-silk)]" onClick={() => onRemoveBot(p.id)}>
-                                                    {t('lobby.removeBot')}
-                                                </button>
-                                            )}
-                                        </p>
-                                    </>
-                                ) : (
-                                    <div className="flex flex-wrap items-center gap-2">
-                                        <span className="text-sm font-semibold text-[color:var(--hw-silk-dim)]">{t('lobby.empty')}</span>
-                                        {isHost && <Key size="sm" led="amber" onClick={onAddBot}>{t('lobby.addBot')}</Key>}
-                                    </div>
-                                )}
-                            </div>
+                        <div key={seat} className={`party-seat ${p && p.id === myId ? 'is-me' : ''}`} style={{ '--seat': PLAYER_COLORS[seat] }}>
+                            <span className="party-seat-tag">{seat + 1}P</span>
+                            {p ? (
+                                <PlayerRing player={p} color={PLAYER_COLORS[seat]} size={72} active={p.id === myId} pose={p.id === myId ? 'beatbox' : 'idle'} dim={!p.isBot && !p.connected} />
+                            ) : (
+                                <span className="party-seat-empty" aria-hidden="true">?</span>
+                            )}
+                            <p className="party-seat-name">{p ? p.name : t('lobby.empty')}</p>
+                            <p className={`party-seat-state ${p && (p.isBot || p.connected) ? 'is-ready' : ''}`}>{p ? seatState(p) : '\u00a0'}</p>
+                            {isHost && !p && <Key size="sm" onClick={onAddBot}>{t('lobby.addBot')}</Key>}
+                            {isHost && p && p.isBot && <Key size="sm" onClick={() => onRemoveBot(p.id)}>{t('lobby.removeBot')}</Key>}
                         </div>
                     ))}
                 </div>
-            </Panel>
+            </section>
 
-            <div className="grid gap-6 lg:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)]">
-                <Panel className="p-5 pt-7 sm:p-6 sm:pt-8">
-                    <Section title={t('lobby.character')}>
-                        <CharacterPicker
-                            value={me && me.characterId}
-                            onChange={onCharacter}
-                            takenBy={takenBy}
-                            color={me ? PLAYER_COLORS[me.seat] : PLAYER_COLORS[0]}
-                            t={t}
-                            language={language}
-                        />
-                    </Section>
-                </Panel>
+            <div className="grid gap-5 lg:grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)]">
+                <section className="hw-panel px-3 pb-4 pt-1 sm:px-5" aria-label={t('lobby.character')}>
+                    <h2 className="px-menu-title">{t('lobby.character')}</h2>
+                    <CharacterPicker
+                        value={me && me.characterId}
+                        onChange={onCharacter}
+                        takenBy={takenBy}
+                        color={me ? PLAYER_COLORS[me.seat] : PLAYER_COLORS[0]}
+                        t={t}
+                        language={language}
+                    />
+                </section>
 
-                <div className="flex flex-col gap-6">
-                    <Panel className="flex flex-col gap-5 p-5 pt-7 sm:p-6 sm:pt-8">
+                <div className="flex flex-col gap-5">
+                    <section className="hw-panel flex flex-col gap-5 px-3 pb-4 pt-1 sm:px-5" aria-label={t('lobby.settings')}>
+                        <h2 className="px-menu-title">{t('lobby.settings')}</h2>
                         <Section title={t('lobby.board')}>
-                            <p className="hw-strip-name !text-xl uppercase">{t('lobby.boardName')}</p>
+                            <p className="hw-strip-name !text-xl">{t('lobby.boardName')}</p>
                             <p className="hw-text mt-1 text-sm">{t('lobby.boardInfo')}</p>
                         </Section>
                         <Section title={t('lobby.turns')}>
@@ -131,10 +128,8 @@ export default function PartyLobby({ board, state, myId, t, language, onCharacte
                                         role="radio"
                                         aria-label={t('lobby.turnsValue', { n })}
                                         aria-checked={state.settings.turns === n}
-                                        led="amber"
-                                        ledOn={state.settings.turns === n}
                                         disabled={!isHost}
-                                        className="!flex-col !gap-1 !px-1 disabled:!opacity-80"
+                                        className="!px-1 disabled:!opacity-80"
                                         onClick={() => onSettings({ turns: n })}
                                     >
                                         {n}
@@ -143,33 +138,32 @@ export default function PartyLobby({ board, state, myId, t, language, onCharacte
                             </div>
                         </Section>
                         <Section title={t('screen.palette')}>
-                            <Key size="md" led="amber" ledOn={palette === 'adapted'} aria-pressed={palette === 'adapted'} className="w-full !justify-start" onClick={togglePalette}>
-                                {t('screen.palette')}
+                            <Key size="md" aria-pressed={palette === 'adapted'} className="w-full" onClick={togglePalette}>
+                                {`${t('screen.palette')} : ${palette === 'adapted' ? t('screen.on') : t('screen.off')}`}
                             </Key>
                             <p className="hw-text mt-2 text-sm">{t('screen.paletteInfo')}</p>
                         </Section>
                         {isHost ? (
                             <>
-                                <Key size="lg" led="red" className="w-full" onClick={onStart}>{t('lobby.start')}</Key>
+                                <Key size="lg" className="hw-key-primary w-full" onClick={onStart}>{t('lobby.start')}</Key>
                                 {state.players.length < MAX && <p className="hw-text text-sm">{t('lobby.fillBots')}</p>}
                             </>
                         ) : (
                             <p className="hw-label hw-blink !text-sm">{t('lobby.waitingHost')}</p>
                         )}
-                    </Panel>
+                    </section>
 
-                    <Panel className="p-5 pt-7 sm:p-6 sm:pt-8">
-                        <Section title={t('lobby.rules')}>
-                            <ol className="flex flex-col gap-2.5">
-                                {[1, 2, 3, 4, 5].map((n) => (
-                                    <li key={n} className="flex gap-3">
-                                        <Lcd className="flex h-7 w-7 shrink-0 items-center justify-center"><LcdText text={n} font="bold" scale={1.5} /></Lcd>
-                                        <span className="hw-text text-[0.95rem]">{t(`lobby.rule${n}`)}</span>
-                                    </li>
-                                ))}
-                            </ol>
-                        </Section>
-                    </Panel>
+                    <section className="hw-panel px-3 pb-4 pt-1 sm:px-5" aria-label={t('lobby.rules')}>
+                        <h2 className="px-menu-title">{t('lobby.rules')}</h2>
+                        <ol className="flex flex-col gap-2.5">
+                            {[1, 2, 3, 4, 5].map((n) => (
+                                <li key={n} className="flex gap-3">
+                                    <span className="px-step" aria-hidden="true">{n}</span>
+                                    <span className="hw-text text-[0.95rem]">{t(`lobby.rule${n}`)}</span>
+                                </li>
+                            ))}
+                        </ol>
+                    </section>
                 </div>
             </div>
         </div>

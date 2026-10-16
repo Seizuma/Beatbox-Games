@@ -4,7 +4,8 @@ import { useNarrow } from './PartyHome';
 import { SEATS } from './PartyLobby';
 import { PLAYER_COLORS } from './characters/pixelRig';
 import { sfx } from './partySfx';
-import { Key, Lcd, LcdText, Panel, PlayerRing } from './ui/Hardware';
+import { Key, PlayerRing } from './ui/Hardware';
+import { CoinIcon, MicIcon } from './PartyIcons';
 
 // Places sur les gros pads selon le classement : le vainqueur sur le pad 3, avec le Micro d'or
 const SPOTS = [[978, 1008], [755, 1008], [1245, 1008], [1490, 1008]];
@@ -20,7 +21,7 @@ function BonusCard({ bonus, players, t, fresh }) {
     if (!bonus.revealed) {
         return (
             <div className="party-bonus is-hidden">
-                <Lcd className="flex h-12 w-12 items-center justify-center"><LcdText text="?" font="bold" scale={3} color="#F0AE22" /></Lcd>
+                <span className="hw-title text-5xl text-[color:var(--hw-amber)]" aria-hidden="true">?</span>
                 <span className="hw-label">{t('end.bonusHidden')}</span>
             </div>
         );
@@ -137,8 +138,8 @@ export default function PartyEnd({ board, state, myId, t, onRematch, onLeave }) 
         : [...state.players].sort(byStanding).map((p, i) => ({ r: { playerId: p.id, rank: i + 1, stars: p.stars, hype: p.hype, minigameWins: p.minigameWins }, p, hidden: false }));
 
     return (
-        <div className="flex flex-col gap-6">
-            <Panel className="flex flex-col gap-4 p-4 pt-6 sm:p-6">
+        <div className="flex flex-col gap-5">
+            <section className="hw-panel flex flex-col gap-4 px-3 pb-4 pt-1 sm:px-5" aria-label={kicker}>
                 <div className="flex min-h-[6.5rem] flex-col items-center justify-center gap-2 text-center">
                     <span className="hw-label">{kicker}</span>
                     <h1 key={title} className={`hw-title hw-pop text-4xl sm:text-6xl ${podium && !done ? 'hw-blink' : ''}`}>{title}</h1>
@@ -154,48 +155,60 @@ export default function PartyEnd({ board, state, myId, t, onRematch, onLeave }) 
                         ))}
                     </PartyScene>
                 </div>
-            </Panel>
+            </section>
 
             {bonuses.length > 0 && (
-                <Panel className="p-5 pt-8 sm:p-6 sm:pt-9" label={t('end.bonusTitle')}>
+                <section className="hw-panel flex flex-col gap-3 px-3 pb-4 pt-1 sm:px-5" aria-label={t('end.bonusTitle')}>
+                    <h2 className="px-menu-title">{t('end.bonusTitle')}</h2>
                     <div className="grid gap-3" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(14rem, 1fr))' }}>
                         {bonuses.map((b, i) => <BonusCard key={i} bonus={b} players={state.players} t={t} fresh={b.revealed && latest === b} />)}
                     </div>
-                </Panel>
+                </section>
             )}
 
-            <Panel className="p-5 pt-8 sm:p-6 sm:pt-9" label={podium ? t('end.rank') : t('end.standings')}>
-                <ol className="flex flex-col gap-2">
-                    {standings.map(({ r, p, hidden }) => (
-                        <li key={r.playerId} className={`hw-strip ${r.playerId === myId ? 'is-active' : ''} ${hidden ? 'opacity-40' : 'hw-pop'}`}>
-                            <Lcd className="flex h-10 w-10 shrink-0 items-center justify-center">
-                                <LcdText text={hidden ? '?' : r.rank} font="bold" scale={2} color={!hidden && r.rank === 1 ? '#F0AE22' : undefined} />
-                            </Lcd>
-                            <PlayerRing player={p} color={PLAYER_COLORS[p.seat]} size={46} active={!hidden && podium && r.rank === 1} pose={!hidden && podium && r.rank === 1 ? 'cheer' : 'idle'} dim={hidden} />
-                            <span className="hw-strip-name min-w-0 flex-1 !text-lg">{p.name}</span>
-                            <Lcd className="flex items-center gap-4 px-3 py-1.5">
-                                <span className="flex flex-col items-center gap-1">
-                                    <LcdText text={hidden ? '-' : r.stars} font="bold" scale={2} color="#F0AE22" />
-                                    <span className="hw-label !text-[0.58rem]">{t('end.stars')}</span>
-                                </span>
-                                <span className="flex flex-col items-center gap-1">
-                                    <LcdText text={hidden ? '-' : r.hype} font="bold" scale={2} />
-                                    <span className="hw-label !text-[0.58rem]">{t('end.hype')}</span>
-                                </span>
-                                <span className="hidden flex-col items-center gap-1 sm:flex">
-                                    <LcdText text={hidden ? '-' : r.minigameWins} font="bold" scale={2} />
-                                    <span className="hw-label !text-[0.58rem]">{t('end.wins')}</span>
-                                </span>
-                            </Lcd>
-                        </li>
-                    ))}
-                </ol>
-            </Panel>
+            {/* Tableau des scores (14-B) : révélé du dernier au premier au podium */}
+            <section className="hw-panel flex flex-col gap-3 px-3 pb-4 pt-1 sm:px-5" aria-label={podium ? t('end.rank') : t('end.standings')}>
+                <h2 className="px-tag self-center text-3xl">{podium ? t('end.highScores') : t('end.standings')}</h2>
+                <table className="px-scores">
+                    <thead>
+                        <tr>
+                            <th scope="col">{t('minigame.colRank')}</th>
+                            <th scope="col">{t('minigame.colPlayer')}</th>
+                            <th scope="col" className="text-right">{t('end.stars')}</th>
+                            <th scope="col" className="text-right">{t('end.hype')}</th>
+                            <th scope="col" className="hidden text-right sm:table-cell">{t('end.wins')}</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {standings.map(({ r, p, hidden }) => {
+                            const first = !hidden && podium && r.rank === 1;
+                            return (
+                                <tr key={r.playerId} className={`${r.playerId === myId ? 'is-me' : ''} ${first ? 'is-first' : ''} ${hidden ? 'opacity-40' : 'hw-pop'}`}>
+                                    <td className="px-num" style={{ color: first ? 'var(--px-gold)' : undefined }}>{hidden ? '?' : t(`screen.rank.${r.rank}`)}</td>
+                                    <td>
+                                        <span className="flex items-center gap-2">
+                                            <PlayerRing player={p} color={PLAYER_COLORS[p.seat]} size={40} active={first} pose={first ? 'cheer' : 'idle'} dim={hidden} />
+                                            <span className={`min-w-0 truncate ${first ? 'hw-blink text-[color:var(--hw-amber)]' : ''}`}>{p.name}</span>
+                                        </span>
+                                    </td>
+                                    <td className="px-num text-right text-[color:var(--hw-amber)]">
+                                        <span className="inline-flex items-center gap-1"><MicIcon size={14} />{hidden ? '-' : r.stars}</span>
+                                    </td>
+                                    <td className="px-num text-right">
+                                        <span className="inline-flex items-center gap-1"><CoinIcon size={13} />{hidden ? '-' : r.hype}</span>
+                                    </td>
+                                    <td className="px-num hidden text-right sm:table-cell">{hidden ? '-' : r.minigameWins}</td>
+                                </tr>
+                            );
+                        })}
+                    </tbody>
+                </table>
+            </section>
 
             {done && (
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
                     {isHost ? (
-                        <Key size="lg" led="red" onClick={onRematch}>{t('end.rematch')}</Key>
+                        <Key size="lg" className="hw-key-primary" onClick={onRematch}>{t('end.rematch')}</Key>
                     ) : (
                         <p className="hw-label !text-sm">{t('end.waitingHost')}</p>
                     )}

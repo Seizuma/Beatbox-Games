@@ -75,7 +75,7 @@ export default function PartyHome({ board, t, language, discordName, initialCode
                         <CharacterPicker value={character} onChange={setCharacter} t={t} language={language} />
                     </Section>
                     {!initialCode && (
-                        <Key size="lg" led="red" disabled={!canPlay} className="w-full sm:w-auto sm:self-start" onClick={() => { remember(); onCreate({ name: finalName, characterId: character }); }}>
+                        <Key size="lg" disabled={!canPlay} className="hw-key-primary w-full sm:w-auto sm:self-start" onClick={() => { remember(); onCreate({ name: finalName, characterId: character }); }}>
                             {t('home.create')}
                         </Key>
                     )}

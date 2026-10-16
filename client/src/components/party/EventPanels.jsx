@@ -1,11 +1,12 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { PLAYER_COLORS } from './characters/pixelRig';
-import { Key, LoopPad, PlayerRing } from './ui/Hardware';
+import { LoopPad, PlayerRing } from './ui/Hardware';
+import { DialogBox } from './ui/Pixel';
 import { CoinIcon, ItemIcon, MicIcon } from './PartyIcons';
 
-// Panneaux des évènements du plateau, au centre de l'écran : Sample ?, Coupure,
-// Freestyle !, Battle et le voleur de flow. Les choix du joueur concerné sont dans le
-// panneau, à côté de ce qui se passe (pas dans la console).
+// Évènements du plateau : Sample ?, Coupure, Freestyle !, Battle et le vol au centre de
+// l'écran ; le voleur de flow et le stand de merch parlent dans la boîte de dialogue (08-B),
+// avec un menu à curseur pour le joueur concerné.
 
 const SAMPLE_IDS = ['crowd', 'encore', 'screen', 'swap', 'feedback', 'tipjar'];
 const CUT_IDS = ['lose', 'share', 'blackout', 'mic'];
@@ -190,41 +191,56 @@ function Masher({ t, onMash }) {
     );
 }
 
+// Le voleur de flow parle dans la boîte de dialogue (08-B) ; on choisit au menu à curseur.
+// Le vol lui-même (et le martelage de la victime) reste au centre de l'écran.
 function ThiefPanel({ state, myId, t, actions }) {
     const th = state.thief;
     if (!th || !['thief', 'thiefTarget', 'steal', 'stealResult'].includes(state.step)) return null;
     const mine = th.playerId === myId;
     const name = nameOf(state, th.playerId);
-    let body;
     if (state.step === 'thief') {
-        body = mine ? (
-            <div className="flex w-full flex-col gap-2">
-                <p className="hw-text party-event-text">{t('events2.thiefAsk')}</p>
-                {th.options.map((o) => (
-                    <Key key={o.id} size="md" led={o.id === 'mic' ? 'amber' : 'green'} ledOn={o.ok} disabled={!o.ok} className="!justify-between" onClick={() => actions.thief(o.id)}>
-                        <span>{t(`events2.thiefOption.${o.id}`)}</span>
-                        <span className="flex items-center gap-1"><CoinIcon size={14} />{o.cost}</span>
-                    </Key>
-                ))}
-                <Key size="md" led="red" onClick={() => actions.thief('none')}>{t('board.skip')}</Key>
-            </div>
-        ) : <p className="hw-text party-event-text">{t('events2.thiefVisit', { name })}</p>;
-    } else if (state.step === 'thiefTarget') {
-        body = mine ? (
-            <div className="flex w-full flex-col gap-2">
-                <p className="hw-text party-event-text">{t(th.kind === 'mic' ? 'events2.thiefWhoMic' : 'events2.thiefWho')}</p>
-                {(th.targets || []).map((id) => {
+        return (
+            <DialogBox
+                key="thief"
+                speaker="thief"
+                name={t('npc.thief')}
+                text={mine ? t('events2.thiefAsk') : t('events2.thiefVisit', { name })}
+                choices={mine ? [
+                    ...th.options.map((o) => ({
+                        id: o.id,
+                        icon: o.id === 'mic' ? <MicIcon size={18} /> : <CoinIcon size={16} />,
+                        label: t(`events2.thiefOption.${o.id}`),
+                        price: <><CoinIcon size={14} />{o.cost}</>,
+                        disabled: !o.ok,
+                        onSelect: () => actions.thief(o.id),
+                    })),
+                    { id: 'none', label: t('board.skip'), onSelect: () => actions.thief('none') },
+                ] : null}
+            />
+        );
+    }
+    if (state.step === 'thiefTarget') {
+        return (
+            <DialogBox
+                key="target"
+                speaker="thief"
+                name={t('npc.thief')}
+                text={mine ? t(th.kind === 'mic' ? 'events2.thiefWhoMic' : 'events2.thiefWho') : t('events2.thiefChoosing', { name })}
+                choices={mine ? (th.targets || []).map((id) => {
                     const p = playerOf(state, id);
-                    return (
-                        <Key key={id} size="md" className="!justify-between" onClick={() => actions.victim(id)}>
-                            <Who player={p} size={32} />
-                            <span className="flex items-center gap-1">{th.kind === 'mic' ? <><MicIcon size={14} />{p.stars}</> : <><CoinIcon size={14} />{p.hype}</>}</span>
-                        </Key>
-                    );
-                })}
-            </div>
-        ) : <p className="hw-text party-event-text">{t('events2.thiefChoosing', { name })}</p>;
-    } else if (state.step === 'steal') {
+                    return {
+                        id,
+                        icon: <PlayerRing player={p} color={PLAYER_COLORS[p.seat]} size={30} pose="idle" />,
+                        label: p.name,
+                        price: th.kind === 'mic' ? <><MicIcon size={14} />{p.stars}</> : <><CoinIcon size={14} />{p.hype}</>,
+                        onSelect: () => actions.victim(id),
+                    };
+                }) : null}
+            />
+        );
+    }
+    let body;
+    if (state.step === 'steal') {
         const victim = playerOf(state, th.victimId);
         body = (
             <>
@@ -258,29 +274,27 @@ function ShopPanel({ state, myId, t, actions }) {
     const mine = shop.playerId === myId;
     const me = playerOf(state, shop.playerId);
     const full = me && me.items && me.items.length >= (state.bagSize || 3);
+    let text = t('events2.shopVisit', { name: me ? me.name : '' });
+    if (mine) text = full ? t('shop.full') : t('shop.ask');
     return (
-        <Panel kind="shop" title={t('shop.title')}>
-            {mine ? (
-                <div className="flex w-full flex-col gap-2">
-                    <p className="hw-text party-event-text">{full ? t('shop.full') : t('shop.ask')}</p>
-                    {shop.items.map((it) => (
-                        <Key key={it.id} size="sm" disabled={!it.ok || full} className="!justify-between !py-1.5 text-left" onClick={() => actions.buy(it.id)}>
-                            <span className="flex items-center gap-2">
-                                <ItemIcon item={it.id} size={22} />
-                                <span className="flex flex-col gap-0.5">
-                                    <span>{t(`items.${it.id}.name`)}</span>
-                                    <span className="font-sans text-[0.68rem] font-medium normal-case tracking-normal text-[color:var(--hw-silk-dim)]">{t(`items.${it.id}.info`)}</span>
-                                </span>
-                            </span>
-                            <span className="flex items-center gap-1"><CoinIcon size={14} />{it.price}</span>
-                        </Key>
-                    ))}
-                    <Key size="md" led="red" onClick={() => actions.buy(null)}>{t('board.skip')}</Key>
-                </div>
-            ) : (
-                <p className="hw-text party-event-text">{t('events2.shopVisit', { name: me ? me.name : '' })}</p>
-            )}
-        </Panel>
+        <DialogBox
+            key="shop"
+            speaker="merch"
+            name={t('npc.merch')}
+            text={text}
+            choices={mine ? [
+                ...shop.items.map((it) => ({
+                    id: it.id,
+                    icon: <ItemIcon item={it.id} size={22} />,
+                    label: t(`items.${it.id}.name`),
+                    info: t(`items.${it.id}.info`),
+                    price: <><CoinIcon size={14} />{it.price}</>,
+                    disabled: !it.ok || full,
+                    onSelect: () => actions.buy(it.id),
+                })),
+                { id: 'none', label: t('board.skip'), onSelect: () => actions.buy(null) },
+            ] : null}
+        />
     );
 }
 
@@ -315,6 +329,12 @@ export default function EventPanels(props) {
             <ThiefPanel {...props} />
         </>
     );
+}
+
+// Une boîte de dialogue occupe le bas de l'écran (la barre d'action s'efface)
+export function dialogOpen(state, myId) {
+    if (state.step === 'starIntro' || state.step === 'shop' || state.step === 'thief' || state.step === 'thiefTarget') return true;
+    return state.step === 'star' && Boolean(state.starOffer) && state.starOffer.playerId === myId;
 }
 
 // Touche Espace : arrêter un rouleau, protéger sa Hype
