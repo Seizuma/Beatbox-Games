@@ -5,6 +5,7 @@ import { useNarrow } from './PartyHome';
 import { PLAYER_COLORS } from './characters/pixelRig';
 import { Key, Lcd, LcdText, Panel, PlayerRing, Section } from './ui/Hardware';
 import { copyToClipboard } from '../../utils/clipboard';
+import { getPalette, setPalette } from './board/world';
 
 const MAX = 4;
 // Places sur les gros pads de piste 2 à 5, de gauche à droite
@@ -13,6 +14,12 @@ export const SEATS = [[755, 1008], [1000, 1008], [1245, 1008], [1490, 1008]];
 // Salon : les joueurs montent sur scène, choix du personnage, réglages de l'hôte
 export default function PartyLobby({ board, state, myId, t, language, onCharacter, onAddBot, onRemoveBot, onSettings, onStart }) {
     const [copied, setCopied] = useState(false);
+    const [palette, setPaletteState] = useState(getPalette);
+    const togglePalette = () => {
+        const next = palette === 'adapted' ? 'standard' : 'adapted';
+        setPalette(next);
+        setPaletteState(next);
+    };
     const narrow = useNarrow();
     const view = narrow ? VIEWS.lobbyNarrow : VIEWS.lobby;
     const me = state.players.find((p) => p.id === myId);
@@ -134,6 +141,12 @@ export default function PartyLobby({ board, state, myId, t, language, onCharacte
                                     </Key>
                                 ))}
                             </div>
+                        </Section>
+                        <Section title={t('screen.palette')}>
+                            <Key size="md" led="amber" ledOn={palette === 'adapted'} aria-pressed={palette === 'adapted'} className="w-full !justify-start" onClick={togglePalette}>
+                                {t('screen.palette')}
+                            </Key>
+                            <p className="hw-text mt-2 text-sm">{t('screen.paletteInfo')}</p>
                         </Section>
                         {isHost ? (
                             <>

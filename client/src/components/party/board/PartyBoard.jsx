@@ -3,10 +3,11 @@ import { DICE_HIT_Y, FOOT_X, FOOT_Y, MIC_MOUTH, PLAYER_COLORS, beatboxHit, getFr
 import { beatIndex, beatPhase, sfx } from '../partySfx';
 import { DEVICE, getWorld, spaceRadius } from './world';
 import { focalFor, makeCam, project, renderStage, ringOutline, spaceTop, stageLights } from './stage3d';
-import { drawArrow, drawBurst, drawCoin, drawDie, goldMicSprite } from './live';
+import { drawArrow, drawBadge, drawBurst, drawCoin, drawDie, goldMicSprite } from './live';
 import { drawGlows, drawShade, drawSoundWaves } from './fx';
-import { drawText } from './pixelFont';
-import { E } from './pix';
+import { drawText, plain } from './pixelFont';
+import { E, P, R, RR, line } from './pix';
+import { distanceTo, routeDistance } from './paths';
 
 // Le plateau : la loopstation géante sur la scène d'une battle, filmée en Mode 7.
 // La caméra se comporte comme celle de Mario Party :
@@ -25,6 +26,12 @@ const LINES = {
     2: [[-15, 0], [15, 0]],
     3: [[-24, 2], [0, -3], [24, 2]],
     4: [[-30, 3], [-10, -3], [10, 3], [30, -3]],
+};
+// Le joueur dont c'est le tour passe devant, au centre ; les autres s'écartent derrière lui
+const BACK = {
+    1: [[-22, -16]],
+    2: [[-24, -16], [24, -16]],
+    3: [[-30, -14], [0, -20], [30, -14]],
 };
 const ORDER_LINE = [[-6, 0], [38, -2], [82, 0], [126, -2]];
 // Point visé quand personne ne joue, et centre de la vue carte
@@ -81,13 +88,21 @@ function fitMap(AW, AH, top, bottom) {
     return k;
 }
 
-export default function PartyBoard({ state, queue, myId, mapMode = false, onEvent, onChoose, insets = null, clockOffset = 0 }) {
+// Libellés du plateau (police pixel : majuscules sans accents)
+function boardLabels(t) {
+    if (!t) return { star: "MICRO D'OR", spaces: 'CASES', here: 'ICI' };
+    return { star: plain(t('board.beaconStar')), spaces: plain(t('board.beaconSpaces')), here: plain(t('board.beaconHere')) };
+}
+
+export default function PartyBoard({ state, queue, myId, t = null, mapMode = false, onEvent, onChoose, insets = null, clockOffset = 0 }) {
     const wrapRef = useRef(null);
     const pixelRef = useRef(null);
     const glowRef = useRef(null);
     const shadeRef = useRef(null);
-    const props = useRef({ mapMode, onEvent, onChoose, myId, insets, clockOffset });
-    props.current = { mapMode, onEvent, onChoose, myId, insets, clockOffset };
+    const routeRefs = useRef({});
+    const labels = boardLabels(t);
+    const props = useRef({ mapMode, onEvent, onChoose, myId, insets, clockOffset, labels });
+    props.current = { mapMode, onEvent, onChoose, myId, insets, clockOffset, labels };
     const live = useRef({
         state,
         anims: {},
@@ -110,6 +125,8 @@ export default function PartyBoard({ state, queue, myId, mapMode = false, onEven
         arrows: [],
         last: 0,
         view: null,
+        pan: { x: 0, y: 0 },
+        drag: null,
     });
 
     useEffect(() => {
@@ -323,7 +340,7 @@ export default function PartyBoard({ state, queue, myId, mapMode = false, onEven
             const starSpace = s.starSpace != null ? s.board.spaces[s.starSpace] : null;
             let target = { x: CENTER.x, y: CENTER.y, k: mapK * 1.25, pitch: 0.75, fy: (top + free * 0.55) / AH };
             const follow = (x, y, k = 1) => ({ x, y, k: k * kFollow, pitch: 0.62, fy: followFy });
-            if (map) target = { x: CENTER.x, y: CENTER.y, k: mapK, pitch: 0.95, fy: (top + free * 0.5) / AH };
+            if (map) target = { x: CENTER.x + L.pan.x, y: CENTER.y + L.pan.y, k: mapK * (L.pan.x || L.pan.y ? 1.6 : 1), pitch: 0.95, fy: (top + free * 0.5) / AH };
             else if (s.step === 'starIntro' && starSpace) target = follow(starSpace.x, starSpace.y, 0.95);
             else if (L.focusStarUntil > nowMs && nowMs > L.focusStarDelay && starSpace) target = follow(starSpace.x, starSpace.y, 0.95);
             else if (s.step === 'choice' && s.choice) {
@@ -399,6 +416,59 @@ export default function PartyBoard({ state, queue, myId, mapMode = false, onEven
                 px.globalAlpha = 1;
             }
 
+            // Balise : au-dessus du Micro d'or s'il est visible, sinon au bord de l'écran, dans sa direction
+            function drawBeacon(sp, dist) {
+                const lab = props.current.labels;
+                const text = dist === 0 ? lab.here : `${dist}`;
+                const pr = project(C3, sp.x, sp.y, spaceTop(sp) + 64);
+                const m = 16;
+                const minY = top + 22;
+                const maxY = AH - bottom - 18;
+                const inside = pr && pr.sx > m && pr.sx < AW - m && pr.sy > minY && pr.sy < maxY;
+                let bx;
+                let by;
+                let ang = null;
+                if (inside) {
+                    bx = pr.sx;
+                    by = pr.sy - 16 * pr.k - 6;
+                } else {
+                    // Direction depuis le centre de l'écran (derrière la caméra : vers le bas)
+                    const cx = AW / 2;
+                    const cy = (minY + maxY) / 2;
+                    let dx;
+                    let dy;
+                    if (pr) { dx = pr.sx - cx; dy = pr.sy - cy; } else { dx = (sp.x - C3.x) * 0.5; dy = AH; }
+                    const kx = dx ? (dx > 0 ? (AW - m - 26 - cx) / dx : (m + 26 - cx) / dx) : Infinity;
+                    const ky = dy ? (dy > 0 ? (maxY - 12 - cy) / dy : (minY + 10 - cy) / dy) : Infinity;
+                    const k = Math.min(kx, ky);
+                    bx = cx + dx * k;
+                    by = cy + dy * k;
+                    ang = Math.atan2(dy, dx);
+                }
+                const name = `${lab.star} ${text}`;
+                const w = name.length * 4 + 14;
+                const x0 = Math.round(bx - w / 2);
+                const y0 = Math.round(by - 7);
+                const pulse = Math.floor(t * 3) % 2;
+                RR(px, x0 - 1, y0 - 1, w + 2, 16, 3, '#0d0b14');
+                RR(px, x0, y0, w, 14, 3, pulse ? '#2a2112' : '#1f1a10');
+                R(px, x0 + 2, y0 + 1, w - 4, 1, '#5a4520');
+                drawText(px, lab.star, x0 + 4, y0 + 4, '#ffcf5c', { font: 'tiny', outline: null, shadow: false, align: 'left' });
+                drawText(px, text, x0 + 4 + lab.star.length * 4 + 3, y0 + 4, '#ffffff', { font: 'tiny', outline: null, shadow: false, align: 'left' });
+                if (ang != null) {
+                    // Flèche vers le Micro d'or
+                    const ax = bx + Math.cos(ang) * (w / 2 + 6);
+                    const ay = by + Math.sin(ang) * 11;
+                    const tip = [ax + Math.cos(ang) * 7, ay + Math.sin(ang) * 7];
+                    const side = (s2) => [ax + Math.cos(ang + s2 * 2.3) * 6, ay + Math.sin(ang + s2 * 2.3) * 6];
+                    P(px, [tip, side(1), side(-1)].map(([x, y]) => [x + 1, y + 1]), '#0d0b14');
+                    P(px, [tip, side(1), side(-1)], '#ffcf5c');
+                } else {
+                    P(px, [[bx - 4, y0 + 14], [bx + 4, y0 + 14], [bx, y0 + 19]], '#0d0b14');
+                    P(px, [[bx - 3, y0 + 14], [bx + 3, y0 + 14], [bx, y0 + 18]], '#2a2112');
+                }
+            }
+
             // Plusieurs joueurs sur une même case : côte à côte
             const bySpace = {};
             actors.forEach((a) => { if (!a.moving) bySpace[a.p.space] = (bySpace[a.p.space] || []).concat(a); });
@@ -406,6 +476,20 @@ export default function PartyBoard({ state, queue, myId, mapMode = false, onEven
                 if (group.length < 2 && s.phase !== 'order') return;
                 const sp = s.board.spaces[group[0].p.space];
                 const wide = sp.big ? 1.6 : 1;
+                const lead = s.phase === 'turn' ? group.find((a) => a.p.id === currentId) : null;
+                if (lead) {
+                    // Le joueur actif devant, au centre ; les autres derrière, sur les côtés
+                    const others = group.filter((a) => a !== lead).sort((a, b) => a.p.seat - b.p.seat);
+                    const spots = BACK[Math.min(3, others.length)];
+                    lead.pos = [lead.pos[0], lead.pos[1] + 12 * wide];
+                    others.forEach((a, i) => {
+                        const [dx, dy] = spots[i % spots.length];
+                        a.pos = [a.pos[0] + dx * wide, a.pos[1] + dy * wide];
+                        a.grouped = true;
+                    });
+                    lead.grouped = true;
+                    return;
+                }
                 const spots = s.phase === 'order' ? ORDER_LINE : LINES[Math.min(4, group.length)];
                 group.sort((a, b) => a.p.seat - b.p.seat).forEach((a, i) => {
                     const [dx, dy] = spots[i % spots.length];
@@ -442,7 +526,8 @@ export default function PartyBoard({ state, queue, myId, mapMode = false, onEven
                     a.head = { x: at.sx, y: at.sy + (DICE_HIT_Y - FOOT_Y) * at.k - 6, k: at.k };
                 } });
                 overlays.push(() => {
-                    if (!a.head) return;
+                    // En vue carte, seuls les repères numérotés s'affichent au-dessus des joueurs
+                    if (!a.head || map) return;
                     const { x: hx, y: hy } = a.head;
                     // Ordre de passage : chacun frappe son pad, le résultat reste affiché
                     if (s.phase === 'order') {
@@ -481,23 +566,58 @@ export default function PartyBoard({ state, queue, myId, mapMode = false, onEven
             list.sort((a, b) => a.y - b.y).forEach((d) => d.draw());
             overlays.forEach((o) => o());
 
-            // Flèches du carrefour
+            // Flèches du carrefour : une route trop chère est barrée ; les libellés (HTML) suivent les flèches
             L.arrows = [];
             if (s.step === 'choice' && s.choice && !map) {
                 const here = s.board.spaces[s.choice.at];
                 choiceDirections(s).forEach((o) => {
                     const v = DIR_VEC[o.dir];
-                    const pulse = Math.sin(t * 7) * 6;
+                    const pulse = o.affordable ? Math.sin(t * 7) * 6 : 0;
                     const reach = 92 + pulse;
                     const pr = project(C3, here.x + v[0] * reach, here.y + v[1] * reach, spaceTop(here) + 24);
                     if (!pr) return;
                     const color = o.affordable ? (s.choice.playerId === me ? '#ffb21e' : '#F2F0EA') : '#5b5b64';
                     drawArrow(px, pr.sx, pr.sy, o.dir, color);
-                    if (o.gate) {
-                        drawCoin(px, pr.sx + 6, pr.sy + 16);
-                        drawText(px, `${o.gate}`, pr.sx - 2, pr.sy + 17, o.affordable ? '#F2F0EA' : '#8a8a92');
+                    if (!o.affordable) {
+                        line(px, pr.sx - 12, pr.sy - 12, pr.sx + 12, pr.sy + 12, '#0d0b14', 5);
+                        line(px, pr.sx - 12, pr.sy - 12, pr.sx + 12, pr.sy + 12, '#ff3b30', 3);
                     }
-                    L.arrows.push({ spaceId: o.spaceId, x: pr.sx, y: pr.sy, affordable: o.affordable });
+                    L.arrows.push({ spaceId: o.spaceId, x: pr.sx, y: pr.sy, dir: o.dir, affordable: o.affordable });
+                });
+            }
+            Object.entries(routeRefs.current).forEach(([id, el]) => {
+                if (!el) return;
+                const a = L.arrows.find((x) => String(x.spaceId) === id);
+                if (!a) { el.style.visibility = 'hidden'; return; }
+                el.style.visibility = 'visible';
+                // À côté de la flèche, sans sortir de l'écran (ni passer sous le HUD ou la console)
+                const off = { left: [-26, 0], right: [26, 0], up: [0, -22], down: [0, 24] }[a.dir];
+                const w = el.offsetWidth;
+                const h = el.offsetHeight;
+                const ax = (a.x + off[0]) * scale;
+                const ay = (a.y + off[1]) * scale;
+                let left = a.dir === 'left' ? ax - w : a.dir === 'right' ? ax : ax - w / 2;
+                let topPx = a.dir === 'up' ? ay - h : a.dir === 'down' ? ay : ay - h / 2;
+                left = Math.max(6, Math.min(cw - w - 6, left));
+                topPx = Math.max((ins.top || 0) + 6, Math.min(ch - (ins.bottom || 0) - h - 6, topPx));
+                el.style.left = `${Math.round(left)}px`;
+                el.style.top = `${Math.round(topPx)}px`;
+            });
+
+            // Balise du Micro d'or : distance en cases depuis le joueur actif ; au bord de l'écran s'il est hors champ
+            if (starSpace && !map && s.phase === 'turn' && activeActor && !['wheel', 'wheelResult', 'finale'].includes(s.step)) {
+                const holder = activeActor.p;
+                const dist = distanceTo(s.board, holder.space, s.starSpace, holder.hype);
+                if (dist != null) drawBeacon(starSpace, dist);
+            }
+            // Vue carte : un repère numéroté au-dessus de chaque joueur
+            if (map) {
+                actors.forEach((a) => {
+                    if (!a.head) return;
+                    const n = s.order && s.order.length ? s.order.indexOf(a.p.id) + 1 : a.p.seat + 1;
+                    const bob = Math.round(Math.sin(t * 4 + a.p.seat) * 2);
+                    R(px, Math.round(a.head.x) - 1, Math.round(a.head.y - 10 + bob), 3, 8, '#0d0b14');
+                    drawBadge(px, a.head.x, a.head.y - 20 + bob, PLAYER_COLORS[a.p.seat], n);
                 });
             }
 
@@ -577,22 +697,66 @@ export default function PartyBoard({ state, queue, myId, mapMode = false, onEven
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [state.board.id]);
 
-    // Un clic sur une flèche du carrefour choisit la route
+    // Un clic sur une flèche du carrefour choisit la route ; en vue carte, on fait glisser le plateau
     const handlePointer = (event) => {
         const L = live.current;
+        if (props.current.mapMode) {
+            L.drag = { x: event.clientX, y: event.clientY, pan: { ...L.pan }, id: event.pointerId };
+            if (event.currentTarget.setPointerCapture) event.currentTarget.setPointerCapture(event.pointerId);
+            return;
+        }
         if (!L.view || !L.arrows.length || !props.current.onChoose) return;
         const box = wrapRef.current.getBoundingClientRect();
         const bx = (event.clientX - box.left) / L.view.scale;
         const by = (event.clientY - box.top) / L.view.scale;
         const hit = L.arrows.find((a) => Math.abs(a.x - bx) < 20 && Math.abs(a.y - by) < 20);
-        if (hit && hit.affordable) props.current.onChoose(hit.spaceId);
+        if (hit && hit.affordable && state.choice && state.choice.playerId === props.current.myId) props.current.onChoose(hit.spaceId);
     };
+    const handleMove = (event) => {
+        const L = live.current;
+        if (!L.drag || !L.view) return;
+        const k = L.view.cam.f / (L.view.cam.y - CENTER.y) * L.view.scale;
+        const pan = {
+            x: L.drag.pan.x - (event.clientX - L.drag.x) / k,
+            y: L.drag.pan.y - (event.clientY - L.drag.y) / (k * 0.8),
+        };
+        L.pan = { x: Math.max(-DEVICE.w / 2, Math.min(DEVICE.w / 2, pan.x)), y: Math.max(-DEVICE.d / 2, Math.min(DEVICE.d / 2, pan.y)) };
+    };
+    const endDrag = () => { live.current.drag = null; };
+    useEffect(() => {
+        if (!mapMode) live.current.pan = { x: 0, y: 0 };
+    }, [mapMode]);
+
+    // Routes du carrefour : de vrais boutons, posés à côté des flèches (position mise à jour à chaque image)
+    const choosing = state.step === 'choice' && state.choice && !mapMode;
+    const routes = choosing ? choiceDirections(state) : [];
+    const mineChoice = choosing && state.choice.playerId === myId;
 
     return (
-        <div ref={wrapRef} className="party-board-view" onPointerDown={handlePointer}>
+        <div ref={wrapRef} className={`party-board-view ${mapMode ? 'is-map' : ''}`} onPointerDown={handlePointer} onPointerMove={handleMove} onPointerUp={endDrag} onPointerCancel={endDrag}>
             <canvas ref={pixelRef} className="party-board-pixel" aria-hidden="true" />
             <canvas ref={glowRef} className="party-board-glow" aria-hidden="true" />
             <canvas ref={shadeRef} className="party-board-shade" aria-hidden="true" />
+            {routes.map((o) => {
+                const dist = state.starSpace != null ? routeDistance(state.board, o.spaceId, state.starSpace) : null;
+                return (
+                    <button
+                        key={o.spaceId}
+                        type="button"
+                        ref={(el) => { routeRefs.current[o.spaceId] = el; }}
+                        className={`party-route is-${o.dir} ${o.affordable ? '' : 'is-barred'} ${mineChoice ? 'is-mine' : ''}`}
+                        style={{ visibility: 'hidden' }}
+                        disabled={!mineChoice || !o.affordable}
+                        onPointerDown={(event) => event.stopPropagation()}
+                        onClick={() => onChoose && onChoose(o.spaceId)}
+                    >
+                        <span className="party-route-name">{o.gate ? t('board.choiceGate') : t('board.choiceMain')}</span>
+                        {o.gate ? <span className="party-route-price">{t('board.routePrice', { n: o.gate })}</span> : null}
+                        {dist != null && <span className="party-route-dist">{t('board.routeStar', { n: dist })}</span>}
+                        {!o.affordable && <span className="party-route-dist">{t('board.notEnough')}</span>}
+                    </button>
+                );
+            })}
         </div>
     );
 }

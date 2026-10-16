@@ -8,8 +8,8 @@
 // Monde : x à droite, y vers la caméra, h en hauteur. Écran : pixels du canvas basse
 // résolution (agrandi sans lissage).
 
-import { OUT, R, E, RR, ring, icon, silk, pixText, makeCanvas, hexMix, hash } from './pix';
-import { C, CROWD, DEVICE, FLOOR, LOCAL, SCALE, SMALL_R, BIG_R, SPACE_COLORS, WALL, WALL_SCREEN, toWorld } from './world';
+import { OUT, R, E, P, RR, ring, icon, silk, pixText, makeCanvas, hexMix, hash, shapePoints } from './pix';
+import { C, CROWD, DEVICE, FLOOR, LOCAL, SCALE, SMALL_R, BIG_R, SPACE_COLORS, WALL, WALL_SCREEN, toWorld, paletteVersion } from './world';
 
 export const SMALL_H = 8;
 export const BIG_H = 10;
@@ -148,12 +148,32 @@ export function ringOutline(ctx, cx, cy, rx, ry, color, alpha = 1) {
 
 const padCache = new Map();
 
+/** Forme du type de case (au centre du pad) avec son pictogramme blanc */
+function typeBadge(ctx, x, y, r, col, fill, k) {
+    const pts = shapePoints(col.shape, x, y, r);
+    const outline = shapePoints(col.shape, x, y + 1, r + 1.5);
+    if (pts) {
+        P(ctx, outline, '#050507');
+        P(ctx, pts, fill);
+        P(ctx, shapePoints(col.shape, x, y - 1, r - 2.5).map(([px, py]) => [px, py - 0.5]), hexMix(fill, '#ffffff', 0.18));
+        P(ctx, shapePoints(col.shape, x, y + 0.5, r - 2.5), fill);
+    } else {
+        E(ctx, x, y + 1, r + 1.5, r + 1.5, '#050507');
+        E(ctx, x, y, r, r, fill);
+        E(ctx, x, y - 1, r - 2.5, r - 2.5, hexMix(fill, '#ffffff', 0.18));
+        E(ctx, x, y + 0.5, r - 2.5, r - 2.5, fill);
+    }
+    const oy = col.shape === 'triangle' ? r * 0.18 : col.shape === 'chevron' ? -r * 0.05 : 0;
+    if (col.icon.length > 1) silk(ctx, col.icon, x, y - 2 + oy, '#ffffff', 'center', k > 3 ? 2 : 1);
+    else icon(ctx, x + (col.shape === 'arrow' ? -r * 0.08 : 0), y + oy, col.icon, '#ffffff', k);
+}
+
 /**
  * Dessus d'une case. head : segment plus clair qui tourne ; active : couleur du joueur
  * dont c'est le tour (l'anneau tourne à sa couleur) ; flash : anneau blanc.
  */
 export function padSprite(type, big, head, active = null, flash = false) {
-    const key = `${type}|${big ? 1 : 0}|${head}|${active || ''}|${flash ? 1 : 0}`;
+    const key = `${paletteVersion}|${type}|${big ? 1 : 0}|${head}|${active || ''}|${flash ? 1 : 0}`;
     let s = padCache.get(key);
     if (s) return s;
     const col = SPACE_COLORS[type] || SPACE_COLORS.blue;
@@ -178,12 +198,11 @@ export function padSprite(type, big, head, active = null, flash = false) {
         E(ctx, x, x, r - width - 6, r - width - 6, '#060608');
         E(ctx, x, x - 2, r - width - 9, r - width - 9, '#151519');
         E(ctx, x - r * 0.22, x - r * 0.3, r * 0.28, r * 0.13, '#24242a');
-        icon(ctx, x, x + 2, col.icon, active || col.ring, 5);
+        typeBadge(ctx, x, x + 1, 22, col, flash ? '#ffffff' : col.ring, 4);
     } else {
         E(ctx, x, x, r - width - 1, r - width - 1, '#111115');
         E(ctx, x, x - 1, r - width - 3, r - width - 3, '#1c1c22');
-        E(ctx, x - r * 0.2, x - r * 0.3, r * 0.26, r * 0.12, '#2a2a31');
-        icon(ctx, x, x, col.icon, active || col.ring, 3);
+        typeBadge(ctx, x, x, 12, col, flash ? '#ffffff' : col.ring, 2);
     }
     if (padCache.size > 600) padCache.delete(padCache.keys().next().value);
     padCache.set(key, c);
@@ -295,7 +314,9 @@ export function renderStage(ctx, world, cam, { t = 0, info = {}, board = null, a
         const wpx = DW * fTop.k;
         ctx.drawImage(world.front, Math.round(x0), Math.round(fTop.sy), Math.round(wpx), Math.max(1, Math.round(fBot.sy - fTop.sy)));
     }
-    drawPlane(ctx, cam, world.top, DX, DY, DW, DD, DH, SCALE);
+    // Dessus : trois textures dont les chevrons s'allument à tour de rôle (sens de la marche)
+    const top = world.tops ? world.tops[Math.floor(t * 5) % world.tops.length] : world.top;
+    drawPlane(ctx, cam, top, DX, DY, DW, DD, DH, SCALE);
 
     // Reliefs fixes et cases, à trier avec les personnages
     const list = [];

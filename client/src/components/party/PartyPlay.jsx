@@ -182,10 +182,10 @@ function Banner({ banner, compact }) {
     if (!banner) return null;
     const color = banner.color || '#F0AE22';
     return (
-        <div className={`party-banner-layer ${banner.low ? 'is-low' : ''}`} aria-live="assertive">
-            <Panel key={banner.id} as="div" className="hw-banner" style={{ '--bc': color }}>
+        <div className={`party-banner-layer ${banner.low ? 'is-low' : ''} ${banner.small ? 'is-top' : ''}`} aria-live="assertive">
+            <Panel key={banner.id} as="div" className={`hw-banner ${banner.small ? 'is-small' : ''}`} style={{ '--bc': color }}>
                 {banner.player ? (
-                    <PlayerRing player={banner.player} color={color} size={compact ? 64 : 96} active pose="present" />
+                    <PlayerRing player={banner.player} color={color} size={banner.small ? (compact ? 44 : 56) : compact ? 64 : 96} active pose="present" />
                 ) : <span className="hw-banner-accent" aria-hidden="true" />}
                 <div className="min-w-0">
                     {banner.kicker && <Lcd className="mb-2 inline-flex px-2 py-1"><LcdText text={banner.kicker} scale={2} /></Lcd>}
@@ -289,8 +289,6 @@ function FinaleWheel({ state, t, clockOffset }) {
 // Boîte de dialogue (en bas)
 // ---------------------------------------------------------------------------
 
-const DIR_ICON = { left: 'arrow-left', right: 'arrow-right', up: 'arrow-up', down: 'arrow-down' };
-
 function Dock({ state, myId, t, secondsLeft, actions, message, mapMode, onToggleMap, musicOn, onToggleMusic }) {
     const current = state.players.find((p) => p.id === state.currentPlayerId);
     const mine = current && current.id === myId;
@@ -337,25 +335,8 @@ function Dock({ state, myId, t, secondsLeft, actions, message, mapMode, onToggle
         text = t('board.scratchTitle');
         controls = <LoopPad color="red" spinning onClick={() => actions.roll()} hint={t('screen.rollHint')}>{t('board.scratch')}</LoopPad>;
     } else if (mine && state.step === 'choice' && state.choice) {
+        // Les routes se choisissent sur le plateau (flèches annotées) ou aux flèches du clavier
         text = t('board.choiceTitle');
-        controls = (
-            <div className="grid w-full gap-2 sm:grid-cols-2">
-                {choiceDirections(state).map((o) => (
-                    <Key key={o.spaceId} size="md" led={o.gate ? 'red' : 'green'} ledOn={o.affordable} className="!justify-start !py-2 text-left" disabled={!o.affordable} onClick={() => actions.choose(o.spaceId)}>
-                        <span className="flex items-center gap-2">
-                            <Icon name={DIR_ICON[o.dir]} size={20} />
-                            <span className="flex flex-col gap-0.5">
-                                <span>{o.gate ? t('board.choiceGate') : t('board.choiceMain')}</span>
-                                <span className="font-sans text-[0.72rem] font-medium normal-case tracking-normal text-[color:var(--hw-silk-dim)]">
-                                    {o.gate ? t('board.choiceGateInfo', { n: o.gate }) : t('board.choiceMainInfo')}
-                                    {!o.affordable && ` · ${t('board.notEnough')}`}
-                                </span>
-                            </span>
-                        </span>
-                    </Key>
-                ))}
-            </div>
-        );
     } else if (mine && state.step === 'star' && state.starOffer && state.starOffer.affordable) {
         text = t('board.starAsk', { price: state.starOffer.price });
         controls = (
@@ -471,7 +452,8 @@ export default function PartyPlay({ state, myId, t, queue, clockOffset, actions 
                     title: player.id === myId ? t('banner.yourTurn') : player.name,
                     color: PLAYER_COLORS[player.seat],
                     player,
-                }, 2100);
+                    small: true,
+                }, 1400);
                 jingle(player.characterId);
                 if (player.id === myId && navigator.vibrate) navigator.vibrate([30, 40, 30]);
                 setMapMode(false);
@@ -585,7 +567,7 @@ export default function PartyPlay({ state, myId, t, queue, clockOffset, actions 
 
     return (
         <div ref={screenRef} className={`party-screen ${myTurn ? 'is-my-turn' : ''}`} onPointerDown={unlockAudio}>
-            <PartyBoard state={state} queue={queue} myId={myId} mapMode={mapMode} onEvent={onEvent} onChoose={actions.choose} insets={insets} clockOffset={clockOffset} />
+            <PartyBoard state={state} queue={queue} myId={myId} t={t} mapMode={mapMode} onEvent={onEvent} onChoose={actions.choose} insets={insets} clockOffset={clockOffset} />
             <div className="party-screen-top">
                 <span className="hw-chip">
                     <LcdText text={state.turn > 0 ? t('board.turn', { turn: state.turn, total: state.settings.turns }) : t('board.orderTitle')} scale={2} />

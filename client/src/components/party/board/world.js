@@ -6,7 +6,7 @@
 // Coordonnées du monde : x vers la droite, y vers le public (vers la caméra), h en hauteur.
 // L'appareil est dessiné à l'échelle 1/1,25 (coordonnées « locales ») puis agrandi.
 
-import { OUT, R, E, RR, ring, line, dashed, dither, pixText, silk, makeCanvas, hexMix, hash } from './pix';
+import { OUT, R, E, RR, ring, line, dither, pixText, silk, makeCanvas, hexMix, hash } from './pix';
 
 export const SCALE = 1.25;
 export const DEVICE = { x: 312, y: 420, w: 1375, d: 725, h: 90 };
@@ -26,13 +26,46 @@ export const C = {
     lcd: '#a7c9ef', lcdHi: '#cfe3fa', lcdInk: '#0f2240',
 };
 
-/** Couleurs des cases (anneau de LED) */
-export const SPACE_COLORS = {
-    blue: { ring: C.blue, dim: C.blueDim, light: '#a9cdff', icon: '+' },
-    red: { ring: C.red, dim: C.redDim, light: '#ff9d92', icon: '-' },
-    drop: { ring: C.green, dim: C.greenDim, light: '#9dffc4', icon: 'v' },
-    start: { ring: '#f2f0ea', dim: '#3a3a40', light: '#ffffff', icon: '>' },
+/**
+ * Cases : couleur de l'anneau de LED, et au centre une forme propre à chaque type avec un
+ * gros pictogramme blanc (on les distingue même sans voir les couleurs).
+ */
+const PALETTES = {
+    standard: {
+        blue: { ring: C.blue, dim: C.blueDim, light: '#a9cdff' },
+        red: { ring: C.red, dim: C.redDim, light: '#ff9d92' },
+        drop: { ring: C.green, dim: C.greenDim, light: '#9dffc4' },
+    },
+    // Couleurs adaptées (daltonisme rouge-vert) : bleu, orange, cyan
+    adapted: {
+        blue: { ring: '#3f8cff', dim: '#10264a', light: '#a9cdff' },
+        red: { ring: '#ff8a1f', dim: '#4a2a08', light: '#ffc48a' },
+        drop: { ring: '#2fd0dc', dim: '#0b3a3e', light: '#a8f3fa' },
+    },
 };
+const SHAPES = {
+    blue: { icon: '+', shape: 'circle' },
+    red: { icon: '-', shape: 'triangle' },
+    drop: { icon: 'v', shape: 'chevron' },
+    start: { icon: '>', shape: 'arrow' },
+};
+export const SPACE_COLORS = {
+    start: { ring: '#f2f0ea', dim: '#3a3a40', light: '#ffffff', ...SHAPES.start },
+};
+export let paletteVersion = 0;
+const PALETTE_KEY = 'party_palette';
+
+/** Palette des cases : 'standard' ou 'adapted' (gardée par le navigateur) */
+export function setPalette(name) {
+    const pal = PALETTES[name] || PALETTES.standard;
+    Object.entries(pal).forEach(([type, col]) => { SPACE_COLORS[type] = { ...col, ...SHAPES[type] }; });
+    paletteVersion += 1;
+    try { localStorage.setItem(PALETTE_KEY, name); } catch (error) { /* navigation privée */ }
+}
+export function getPalette() {
+    try { return localStorage.getItem(PALETTE_KEY) === 'adapted' ? 'adapted' : 'standard'; } catch (error) { return 'standard'; }
+}
+setPalette(getPalette());
 
 export const TRACKS = [158, 354, 550, 746, 942];
 export const SMALL_R = 27; // rayon local d'une petite case (≈ 34 dans le monde)
@@ -43,7 +76,34 @@ export const spaceRadius = (space) => (space.big ? BIG_R : SMALL_R) * SCALE;
 // Dessus de l'appareil (partie plate : châssis, sérigraphie, fentes, tracé)
 // ---------------------------------------------------------------------------
 
-function paintTop(board) {
+/**
+ * Chevrons sérigraphiés entre deux cases, dans le sens de la marche. Les chevrons
+ * s'allument par groupes de trois, à tour de rôle (phase 0, 1, 2) : sur trois textures
+ * affichées en boucle, la lumière avance dans le sens du parcours.
+ */
+function chevrons(ctx, x0, y0, r0, x1, y1, r1, color, phase, counter) {
+    const dx = x1 - x0;
+    const dy = y1 - y0;
+    const len = Math.hypot(dx, dy);
+    if (len < 1) return counter;
+    const ux = dx / len;
+    const uy = dy / len;
+    const vx = -uy;
+    const vy = ux;
+    const dim = hexMix(color, '#1c1c21', 0.62);
+    let k = counter;
+    for (let d = r0 + 9; d <= len - r1 - 7; d += 15) {
+        const cx = x0 + ux * d;
+        const cy = y0 + uy * d;
+        const c = k % 3 === phase ? color : dim;
+        line(ctx, cx - ux * 3 + vx * 4, cy - uy * 3 + vy * 4, cx + ux * 2, cy + uy * 2, c, 2);
+        line(ctx, cx - ux * 3 - vx * 4, cy - uy * 3 - vy * 4, cx + ux * 2, cy + uy * 2, c, 2);
+        k += 1;
+    }
+    return k;
+}
+
+function paintTop(board, phase = 0) {
     const { w: W, d: D } = LOCAL;
     const [c, ctx] = makeCanvas(W, D);
     RR(ctx, 0, 0, W, D, 22, OUT);
@@ -80,15 +140,17 @@ function paintTop(board) {
         E(ctx, cx, 471, BIG_R + 4, BIG_R + 4, '#060608');
     });
 
-    // Tracé sérigraphié entre les cases, et cuvettes des petites cases
+    // Tracé entre les cases (chevrons dans le sens de la marche), et cuvettes des petites cases
     if (board) {
         const loc = board.spaces.map((s) => toLocal(s.x, s.y));
+        const rad = (sp) => (sp.big ? BIG_R : SMALL_R) + 2;
+        let counter = 0;
         board.spaces.forEach((s, i) => {
             s.next.forEach((n) => {
                 const [x0, y0] = loc[i];
                 const [x1, y1] = loc[n];
                 const amber = s.corridor || board.spaces[n].corridor;
-                dashed(ctx, x0, y0, x1, y1, amber ? C.amber : '#f2f0ea', amber ? 2 : 4, 4);
+                counter = chevrons(ctx, x0, y0, rad(s), x1, y1, rad(board.spaces[n]), amber ? C.amber : '#f2f0ea', phase, counter);
             });
         });
         board.spaces.forEach((s, i) => {
@@ -322,8 +384,10 @@ export function getWorld(board) {
     const key = board ? board.id : 'none';
     let w = worlds.get(key);
     if (w) return w;
+    const tops = [0, 1, 2].map((phase) => paintTop(board, phase));
     w = {
-        top: paintTop(board),
+        top: tops[0],
+        tops,
         front: paintFront(),
         floor: paintFloor(),
         wall: paintWall(),

@@ -107,7 +107,51 @@ const ICONS = {
     '-': ['......', '......', '######', '######', '......', '......'],
     v: ['##..##', '##..##', '.####.', '.####.', '..##..', '..##..'],
     '>': ['##....', '####..', '######', '######', '####..', '##....'],
+    '?': ['.####.', '##..##', '...##.', '..##..', '......', '..##..'],
+    '!': ['..##..', '..##..', '..##..', '..##..', '......', '..##..'],
 };
+
+/** Polygone plein, ligne par ligne (bords nets, sans lissage) */
+export function P(ctx, pts, c) {
+    ctx.fillStyle = c;
+    const ys = pts.map((p) => p[1]);
+    const y0 = Math.floor(Math.min(...ys));
+    const y1 = Math.ceil(Math.max(...ys));
+    for (let y = y0; y < y1; y += 1) {
+        const yc = y + 0.5;
+        const xs = [];
+        for (let i = 0; i < pts.length; i += 1) {
+            const [ax, ay] = pts[i];
+            const [bx, by] = pts[(i + 1) % pts.length];
+            if ((ay <= yc && by > yc) || (by <= yc && ay > yc)) xs.push(ax + ((yc - ay) / (by - ay)) * (bx - ax));
+        }
+        xs.sort((a, b) => a - b);
+        for (let k = 0; k + 1 < xs.length; k += 2) {
+            const xa = Math.round(xs[k]);
+            const xb = Math.round(xs[k + 1]);
+            if (xb > xa) ctx.fillRect(xa, y, xb - xa, 1);
+        }
+    }
+}
+
+/** Points d'une forme de case centrée sur (x, y), de rayon r */
+export function shapePoints(shape, x, y, r) {
+    const reg = (n, rot = -Math.PI / 2, rr = r) => Array.from({ length: n }, (_, i) => [x + Math.cos(rot + (i / n) * Math.PI * 2) * rr, y + Math.sin(rot + (i / n) * Math.PI * 2) * rr]);
+    switch (shape) {
+        case 'triangle': return [[x, y - r * 1.05], [x + r * 1.08, y + r * 0.8], [x - r * 1.08, y + r * 0.8]];
+        case 'chevron': return [[x - r, y - r * 0.75], [x + r, y - r * 0.75], [x + r, y + r * 0.05], [x, y + r], [x - r, y + r * 0.05]];
+        case 'arrow': return [[x - r * 0.85, y - r * 0.85], [x + r * 0.25, y - r * 0.85], [x + r, y], [x + r * 0.25, y + r * 0.85], [x - r * 0.85, y + r * 0.85]];
+        case 'hexagon': return reg(6, 0);
+        case 'diamond': return reg(4, -Math.PI / 2, r * 1.12);
+        case 'square': return reg(4, -Math.PI / 4, r * 1.2);
+        case 'star': return Array.from({ length: 10 }, (_, i) => {
+            const a = -Math.PI / 2 + (i / 10) * Math.PI * 2;
+            const rr = i % 2 ? r * 0.5 : r * 1.12;
+            return [x + Math.cos(a) * rr, y + Math.sin(a) * rr];
+        });
+        default: return null; // cercle
+    }
+}
 /** Pictogramme de case (+, -, v, >, * pour l'étoile) centré sur (x, y) */
 export function icon(ctx, x, y, kind, color, k = 2) {
     const rows = ICONS[kind];
