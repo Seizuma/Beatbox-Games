@@ -137,7 +137,7 @@ function useSecondsLeft(deadline, clockOffset) {
 // Couleur de la dernière case (comme les panneaux de Mario Party) : elle annonce les équipes du mini-jeu
 const LAST_COLORS = { blue: '#3F7EEA', red: '#E2402F', green: '#2EB75E' };
 
-function PlayerCard({ player, rank, leader, active, isMe, t, compact, orderRoll }) {
+function PlayerCard({ player, rank, leader, active, isMe, t, compact, orderRoll, reaction }) {
     const [hype, hypeFlash] = useRollingNumber(player.hype, isMe);
     const [stars, starFlash] = useRollingNumber(player.stars);
     const color = PLAYER_COLORS[player.seat];
@@ -157,6 +157,7 @@ function PlayerCard({ player, rank, leader, active, isMe, t, compact, orderRoll 
                     <span className={`party-card-stat ${hypeFlash ? 'hw-bump' : ''} ${hypeFlash === 'down' ? 'is-down' : ''}`}><CoinIcon size={compact ? 9 : 12} />{hype}</span>
                     {orderRoll != null && <span className="party-card-stat is-gold">D{orderRoll}</span>}
                 </p>
+                {reaction && <span key={reaction.key} className="party-react-bubble" aria-hidden="true">{t(`react.bubble.${reaction.id}`)}</span>}
                 {!compact && (player.lastColor || (player.items && player.items.length > 0) || offline) && (
                     <p className="party-card-tags">
                         {player.lastColor && <span className="party-lastcolor" style={{ '--lc': LAST_COLORS[player.lastColor] }} title={t(`screen.lastColor.${player.lastColor}`)} />}
@@ -169,7 +170,7 @@ function PlayerCard({ player, rank, leader, active, isMe, t, compact, orderRoll 
     );
 }
 
-function Hud({ state, myId, t, compact, inline }) {
+function Hud({ state, myId, t, compact, inline, reactions = [] }) {
     const ranks = computeRanks(state.players);
     // Le cadre doré du premier n'a de sens que s'il est seul en tête
     const leaders = Object.values(ranks).filter((r) => r === 1).length;
@@ -189,6 +190,7 @@ function Hud({ state, myId, t, compact, inline }) {
                     t={t}
                     compact={compact}
                     orderRoll={state.phase === 'order' ? state.orderRolls[p.id] : null}
+                    reaction={reactions.find((r) => r.playerId === p.id)}
                 />
             ))}
         </div>
@@ -443,10 +445,63 @@ function StarDialog({ state, myId, t, actions }) {
 }
 
 // ---------------------------------------------------------------------------
+// Réactions beatbox (temps morts) : kick, caisse claire, « oooh », scratch, une par seconde
+// ---------------------------------------------------------------------------
+
+const REACTIONS = ['kick', 'snare', 'ooh', 'scratch'];
+
+function ReactionBar({ t, onReact, enabled }) {
+    const [cooling, setCooling] = useState(false);
+    const coolRef = useRef(false);
+    const send = useCallback((id) => {
+        if (coolRef.current) return;
+        coolRef.current = true;
+        setCooling(true);
+        onReact(id);
+        setTimeout(() => { coolRef.current = false; setCooling(false); }, 1000);
+    }, [onReact]);
+    // Touches 1 à 4
+    useEffect(() => {
+        if (!enabled) return undefined;
+        const onKey = (event) => {
+            const tag = event.target && event.target.tagName;
+            if (tag === 'INPUT' || tag === 'TEXTAREA' || event.repeat || event.ctrlKey || event.metaKey || event.altKey) return;
+            const i = ['1', '2', '3', '4'].indexOf(event.key);
+            if (i >= 0) send(REACTIONS[i]);
+        };
+        window.addEventListener('keydown', onKey);
+        return () => window.removeEventListener('keydown', onKey);
+    }, [enabled, send]);
+    return (
+        <div className="party-reacts" role="group" aria-label={t('react.title')}>
+            {REACTIONS.map((id, i) => (
+                <button key={id} type="button" className="party-react" disabled={cooling} onClick={() => send(id)} aria-label={t(`react.${id}`)} title={`${t(`react.${id}`)} (${i + 1})`}>
+                    <span className="party-react-glyph">{t(`react.glyph.${id}`)}</span>
+                    <span className="party-react-key" aria-hidden="true">{i + 1}</span>
+                </button>
+            ))}
+        </div>
+    );
+}
+
+// Le son de chaque réaction reçue (la sienne comprise, au retour du serveur)
+function useReactionSounds(reactions) {
+    const heard = useRef(new Set());
+    useEffect(() => {
+        reactions.forEach((r) => {
+            if (heard.current.has(r.key)) return;
+            heard.current.add(r.key);
+            sfx(r.id);
+        });
+        if (heard.current.size > 200) heard.current = new Set(reactions.map((r) => r.key));
+    }, [reactions]);
+}
+
+// ---------------------------------------------------------------------------
 // Menu pause (07-B)
 // ---------------------------------------------------------------------------
 
-function PauseMenu({ t, onClose, mapMode, onMap, musicOn, onMusic }) {
+function PauseMenu({ t, onClose, mapMode, onMap, musicOn, onMusic, botFast, isHost, onBots }) {
     const [palette, setPaletteState] = useState(getPalette);
     const onOff = (on) => (on ? t('screen.on') : t('screen.off'));
     return (
@@ -458,6 +513,7 @@ function PauseMenu({ t, onClose, mapMode, onMap, musicOn, onMusic }) {
                         { id: 'resume', label: t('screen.resume'), onSelect: onClose },
                         { id: 'map', label: mapMode ? t('screen.mapBack') : t('screen.map'), onSelect: () => { onMap(); onClose(); } },
                         { id: 'music', label: t('screen.music'), price: onOff(musicOn), onSelect: onMusic },
+                        { id: 'bots', label: t('screen.botFast'), info: isHost ? t('lobby.botSpeedInfo') : t('screen.hostOnly'), price: onOff(botFast), disabled: !isHost, onSelect: onBots },
                         {
                             id: 'palette',
                             label: t('screen.palette'),
@@ -578,7 +634,7 @@ function useCompact() {
     return compact;
 }
 
-export default function PartyPlay({ state, myId, t, queue, clockOffset, actions }) {
+export default function PartyPlay({ state, myId, t, queue, clockOffset, actions, reactions = [] }) {
     const secondsLeft = useSecondsLeft(state.deadline, clockOffset);
     const compact = useCompact();
     const [mapMode, setMapMode] = useState(false);
@@ -601,6 +657,7 @@ export default function PartyPlay({ state, myId, t, queue, clockOffset, actions 
     const myTurn = state.phase === 'turn' && current && current.id === myId;
     const dialog = dialogOpen(state, myId);
     useEventKeys(stateRef, myId, actions);
+    useReactionSounds(reactions);
     useEffect(() => { if (state.step !== 'roll') setBagOpen(false); }, [state.step]);
 
     const show = useCallback((next, ms = 2200) => {
@@ -748,12 +805,25 @@ export default function PartyPlay({ state, myId, t, queue, clockOffset, actions 
         return () => window.removeEventListener('keydown', onKey);
     }, [actions, myId]);
 
-    const pause = paused && <PauseMenu t={t} onClose={() => setPaused(false)} mapMode={mapMode} onMap={() => setMapMode((m) => !m)} musicOn={musicOn} onMusic={toggleMusic} />;
+    const botFast = state.settings.botSpeed === 'fast';
+    const pause = paused && (
+        <PauseMenu
+            t={t}
+            onClose={() => setPaused(false)}
+            mapMode={mapMode}
+            onMap={() => setMapMode((m) => !m)}
+            musicOn={musicOn}
+            onMusic={toggleMusic}
+            botFast={botFast}
+            isHost={state.hostId === myId}
+            onBots={() => actions.settings({ botSpeed: botFast ? 'normal' : 'fast' })}
+        />
+    );
 
     if (state.phase === 'minigame') {
         return (
             <div className="party-mg">
-                <Hud state={state} myId={myId} t={t} compact inline />
+                <Hud state={state} myId={myId} t={t} compact inline reactions={reactions} />
                 <MinigameStage state={state} myId={myId} t={t} clockOffset={clockOffset} onReady={actions.ready} onSubmit={actions.submit} onInput={actions.mgInput} />
                 {iris > 0 && <Iris id={iris} />}
                 {pause}
@@ -765,7 +835,7 @@ export default function PartyPlay({ state, myId, t, queue, clockOffset, actions 
     return (
         <div ref={screenRef} className={`party-screen ${myTurn ? 'is-my-turn' : ''}`} onPointerDown={unlockAudio}>
             <PartyBoard state={state} queue={queue} myId={myId} t={t} mapMode={mapMode} onEvent={onEvent} onChoose={actions.choose} insets={insets} clockOffset={clockOffset} positionsRef={positionsRef} />
-            <Hud state={state} myId={myId} t={t} compact={compact} />
+            <Hud state={state} myId={myId} t={t} compact={compact} reactions={reactions} />
             <div className="party-turnchip" style={{ top: chipTop }}>
                 <span className="hw-chip">
                     <LcdText text={state.turn > 0 ? t('board.turn', { turn: state.turn, total: state.settings.turns }) : t('board.orderTitle')} scale={2} />
@@ -787,6 +857,7 @@ export default function PartyPlay({ state, myId, t, queue, clockOffset, actions 
             <EventPanels state={state} myId={myId} t={t} clockOffset={clockOffset} actions={actions} />
             <StarDialog state={state} myId={myId} t={t} actions={actions} />
             {!dialog && <ActionBar state={state} myId={myId} t={t} secondsLeft={secondsLeft} actions={actions} bagOpen={bagOpen} setBagOpen={setBagOpen} onMap={() => setMapMode((m) => !m)} />}
+            <ReactionBar t={t} onReact={actions.react} enabled={!paused} />
             {iris > 0 && <Iris id={iris} />}
             {pause}
         </div>

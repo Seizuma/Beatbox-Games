@@ -232,7 +232,7 @@ export default function MinigameStage({ state, myId, t, clockOffset, onReady, on
                 <section className="hw-panel flex flex-col items-center gap-4 px-3 pb-4 pt-1" aria-label={kicker}>
                     <h2 className="px-tag text-3xl">{name}</h2>
                     <TeamsBanner mg={mg} players={state.players} myId={myId} t={t} />
-                    <p className="hw-label hw-blink !text-sm">{t('minigame.spectate')}</p>
+                    <p className="hw-label hw-blink !text-sm">{mg.botsOnly ? t('minigame.botsOnly') : t('minigame.spectate')}</p>
                 </section>
             );
         }

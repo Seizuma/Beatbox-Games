@@ -18,6 +18,23 @@ const CHARACTER_IDS = ['nova', 'grizz', 'kick', 'lila', 'robox', 'mamie', 'flex'
 const BOT_NAMES = ['Bot Tempo', 'Bot Snare', 'Bot Kick', 'Bot Loop', 'Bot Hi-Hat', 'Bot Bass'];
 const MAX_PLAYERS = 4;
 const TURN_OPTIONS = [5, 10, 15, 20];
+// Vitesse des bots (réglage de l'hôte, modifiable en partie) : en « rapide », le tour d'un
+// bot se joue avec des attentes et des animations raccourcies
+const BOT_SPEEDS = ['normal', 'fast'];
+const BOT_FAST_PACE = 0.55;
+// Mini-jeu entre bots seulement (duel de deux bots) : joué en accéléré, sans présentation
+const BOTS_ONLY_MG_SCALE = 0.03;
+// Réactions des bots : ce qui les fait réagir, et avec quels sons
+const BOT_REACTIONS = {
+    red: ['ooh', 'scratch'],
+    trap: ['ooh', 'scratch'],
+    drop: ['snare', 'kick'],
+    star: ['kick', 'snare', 'ooh'],
+    steal: ['ooh', 'scratch'],
+    wheel: ['ooh', 'snare'],
+    duel: ['ooh', 'kick'],
+};
+const BOT_REACT_CHANCE = 0.45;
 // Barème des mini-jeux : seul le podium rapporte vraiment, pour que chacun joue la gagne
 //   ffa   10 au 1er, 3 au 2e
 //   solo  le solo d'un un-contre-trois qui gagne
@@ -113,6 +130,7 @@ const TIMING = {
     mgCountdown: 3000,
     mgGrace: 2500,
     mgResults: 6500,
+    mgResultsBots: 3600,
     finaleIntro: 3000,
     wheel: 12000,
     wheelBotMin: 1400,
@@ -144,9 +162,11 @@ const TIMING = {
 const sanitizeName = (value) => String(value || '').replace(/[\u0000-\u001f<>]/g, '').trim().slice(0, 16);
 
 class PartyGame {
-    constructor(code, { emit = () => {}, timeScale = 1, minigameScale = 1, random = Math.random, now = Date.now } = {}) {
+    constructor(code, { emit = () => {}, react = null, timeScale = 1, minigameScale = 1, random = Math.random, now = Date.now } = {}) {
         this.code = code;
         this.emitState = emit;
+        // Réactions beatbox des bots (relayées aux joueurs comme celles des humains)
+        this.onReaction = react;
         this.timeScale = timeScale;
         // Durée réelle des mini-jeux (1 en jeu ; le simulateur de parties la réduit)
         this.minigameScale = minigameScale;
@@ -158,7 +178,7 @@ class PartyGame {
         this.deadline = null;
         this.players = [];
         this.hostId = null;
-        this.settings = { turns: 10, board: 'setup' };
+        this.settings = { turns: 10, board: 'setup', botSpeed: 'fast' };
         this.board = getBoard(this.settings.board);
         this.timers = new Set();
         this.token = 0;
@@ -202,8 +222,16 @@ class PartyGame {
     // Outils
     // -----------------------------------------------------------------------
 
-    ms(value) {
-        return Math.max(1, Math.round(value * this.timeScale));
+    // Tour d'un bot avec le réglage « rapide » : attentes et animations raccourcies
+    pace() {
+        if (this.settings.botSpeed !== 'fast' || this.phase !== 'turn') return 1;
+        const cur = this.current();
+        return cur && cur.isBot ? BOT_FAST_PACE : 1;
+    }
+
+    // `full` : délai laissé à un humain pendant le tour d'un bot (roue du Rappel, vol), jamais raccourci
+    ms(value, full = false) {
+        return Math.max(1, Math.round(value * this.timeScale * (full ? 1 : this.pace())));
     }
 
     randInt(min, max) {
@@ -330,6 +358,22 @@ class PartyGame {
             this.event = { ...event, seq: this.seq, at: this.now() };
         }
         this.emitState(this.snapshot());
+        if (event) this.botReact(event);
+    }
+
+    // De temps en temps, un bot réagit à ce qui arrive aux autres (kick, caisse claire, « oooh », scratch)
+    botReact(event) {
+        if (!this.onReaction) return;
+        let pool = null;
+        if (event.type === 'land') pool = event.trap ? BOT_REACTIONS.trap : BOT_REACTIONS[event.kind];
+        else if (event.type === 'star' && event.bought) pool = BOT_REACTIONS.star;
+        else if (event.type === 'steal' || event.type === 'wheel' || event.type === 'duel') pool = BOT_REACTIONS[event.type];
+        if (!pool || this.random() > BOT_REACT_CHANCE) return;
+        const bots = this.players.filter((p) => p.isBot && p.id !== event.playerId);
+        if (!bots.length) return;
+        const bot = bots[this.randInt(0, bots.length - 1)];
+        const id = pool[this.randInt(0, pool.length - 1)];
+        this.schedule(() => this.onReaction({ playerId: bot.id, id }), this.ms(350 + this.random() * 900));
     }
 
     snapshot() {
@@ -340,7 +384,7 @@ class PartyGame {
             deadline: this.deadline,
             serverNow: this.now(),
             hostId: this.hostId,
-            settings: { ...this.settings, turnOptions: TURN_OPTIONS },
+            settings: { ...this.settings, turnOptions: TURN_OPTIONS, botSpeeds: BOT_SPEEDS },
             board: this.board,
             turn: this.turn,
             finale: this.isFinale(),
@@ -404,6 +448,7 @@ class PartyGame {
                 participants: this.minigame.participants,
                 live: this.minigame.live,
                 outcome: this.minigame.outcome,
+                botsOnly: this.minigame.botsOnly,
             },
             finalRanking: this.finalRanking,
             tiebreak: this.tiebreak || null,
@@ -554,9 +599,13 @@ class PartyGame {
 
     updateSettings(requesterId, settings = {}) {
         if (requesterId !== this.hostId) return { error: 'not_host' };
-        if (this.phase !== 'lobby') return { error: 'already_started' };
-        if (TURN_OPTIONS.includes(Number(settings.turns))) this.settings.turns = Number(settings.turns);
-        this.publish({ type: 'settings' });
+        // La vitesse des bots se règle aussi en pleine partie (menu pause de l'hôte)
+        if (BOT_SPEEDS.includes(settings.botSpeed)) this.settings.botSpeed = settings.botSpeed;
+        if (settings.turns != null) {
+            if (this.phase !== 'lobby') return { error: 'already_started' };
+            if (TURN_OPTIONS.includes(Number(settings.turns))) this.settings.turns = Number(settings.turns);
+        }
+        this.publish(this.phase === 'lobby' ? { type: 'settings' } : null);
         return { ok: true };
     }
 
@@ -644,13 +693,13 @@ class PartyGame {
     spinWheel() {
         const player = this.player(this.wheel.playerId);
         this.wheel.spinAt = this.now();
-        const token = this.setStep('turn', 'wheel', this.ms(TIMING.wheel));
+        const token = this.setStep('turn', 'wheel', this.ms(TIMING.wheel, !player.isBot));
         this.publish({ type: 'wheelSpin', playerId: player.id });
         if (player.isBot) {
             this.later(token, this.ms(this.randInt(TIMING.wheelBotMin, TIMING.wheelBotMax)), () => this.stopWheel(player.id));
             return;
         }
-        this.awaitPlayer(token, player, this.ms(TIMING.wheel), () => this.stopWheel(player.id));
+        this.awaitPlayer(token, player, this.ms(TIMING.wheel, true), () => this.stopWheel(player.id));
     }
 
     stopWheel(playerId) {
@@ -1319,10 +1368,12 @@ class PartyGame {
         th.presses = 0;
         // La victime martèle sa touche pour protéger sa Hype (pas son Micro d'or)
         const window = th.kind === 'hype' ? TIMING.steal : 1200;
-        th.until = this.now() + this.ms(window);
-        const token = this.setStep('turn', 'steal', this.ms(window));
+        // Une victime humaine garde tout son temps pour marteler, même si le voleur est un bot rapide
+        const full = th.kind === 'hype' && !(this.player(victimId) || {}).isBot;
+        th.until = this.now() + this.ms(window, full);
+        const token = this.setStep('turn', 'steal', this.ms(window, full));
         this.publish({ type: 'stealStart', playerId, victimId, kind: th.kind, paid: th.paid });
-        this.later(token, this.ms(window), () => this.resolveSteal());
+        this.later(token, this.ms(window, full), () => this.resolveSteal());
         return { ok: true };
     }
 
@@ -1429,15 +1480,19 @@ class PartyGame {
         const seed = this.randInt(1, 2 ** 31 - 1);
         const ctx = { kind: setup.kind, teams: setup.teams, solo: setup.solo, participants };
         const params = MINIGAMES[id].setup(seed, participants, ctx);
+        // Entre bots seulement (un duel de deux bots) : pas de présentation, jeu en accéléré
+        const botsOnly = participants.every((pid) => (this.player(pid) || {}).isBot);
         this.minigame = {
             id, seed, params, raw: {}, results: null, startsAt: null, endsAt: null, context, pot,
             kind: setup.kind, teams: setup.teams, solo: setup.solo, colors: setup.colors || null, participants,
             live: {}, secret: {}, outcome: null,
+            botsOnly, scale: botsOnly ? Math.min(this.minigameScale, BOTS_ONLY_MG_SCALE) : this.minigameScale,
         };
         this.players.forEach((p) => { p.ready = p.isBot || !participants.includes(p.id); });
         const token = this.setStep('minigame', 'intro', this.ms(TIMING.mgIntro));
-        this.publish({ type: 'minigame', id, kind: setup.kind, context });
-        this.later(token, this.ms(TIMING.mgIntro), () => this.playMinigame());
+        this.publish({ type: 'minigame', id, kind: setup.kind, context, botsOnly });
+        if (botsOnly) this.playMinigame();
+        else this.later(token, this.ms(TIMING.mgIntro), () => this.playMinigame());
     }
 
     setReady(playerId) {
@@ -1459,12 +1514,13 @@ class PartyGame {
         const mg = this.minigame;
         const def = MINIGAMES[mg.id];
         const ctx = this.minigameCtx(mg);
-        const scale = this.minigameScale;
-        const countdown = this.ms(TIMING.mgCountdown);
+        const scale = mg.scale;
+        const countdown = mg.botsOnly ? this.ms(150) : this.ms(TIMING.mgCountdown);
+        const grace = mg.botsOnly ? this.ms(300) : this.ms(TIMING.mgGrace);
         mg.startsAt = this.now() + countdown;
         // La durée du jeu n'est jamais accélérée : le client affiche les mêmes repères (signal, tempo)
         mg.endsAt = mg.startsAt + Math.round(mg.params.duration * scale);
-        const token = this.setStep('minigame', 'play', mg.endsAt - this.now() + this.ms(TIMING.mgGrace));
+        const token = this.setStep('minigame', 'play', mg.endsAt - this.now() + grace);
         if (def.init) def.init(mg, ctx);
         this.publish({ type: 'minigameStart', id: mg.id });
         if (def.live) {
@@ -1492,7 +1548,7 @@ class PartyGame {
                 if (raw) this.submitMinigame(botId, raw);
             });
         });
-        this.later(token, mg.endsAt - this.now() + this.ms(TIMING.mgGrace), () => this.finishMinigame());
+        this.later(token, mg.endsAt - this.now() + grace, () => this.finishMinigame());
     }
 
     // Action pendant un mini-jeu en direct (motif, choix secret, frappes…)
@@ -1501,7 +1557,7 @@ class PartyGame {
         const mg = this.minigame;
         const def = MINIGAMES[mg.id];
         if (!def.live || !mg.participants.includes(playerId)) return { error: 'invalid' };
-        const elapsed = (this.now() - mg.startsAt) / this.minigameScale;
+        const elapsed = (this.now() - mg.startsAt) / mg.scale;
         if (elapsed < -50 || elapsed > mg.params.duration + 200) return { error: 'not_now' };
         if (!fromBot && (this.player(playerId) || {}).isBot) return { error: 'invalid' };
         const ok = def.input(mg, playerId, data && typeof data === 'object' ? data : {}, this.minigameCtx(mg), elapsed);
@@ -1581,9 +1637,10 @@ class PartyGame {
                 return { playerId: entry.player.id, rank: place, reward, display: entry.display };
             });
         }
-        const token = this.setStep('minigame', 'results', this.ms(TIMING.mgResults));
+        const showFor = this.ms(mg.botsOnly ? TIMING.mgResultsBots : TIMING.mgResults);
+        const token = this.setStep('minigame', 'results', showFor);
         this.publish({ type: 'minigameResults', id: mg.id, context: mg.context, kind: mg.kind });
-        this.later(token, this.ms(TIMING.mgResults), () => {
+        this.later(token, showFor, () => {
             this.minigame = null;
             // Battle ou duel : retour au plateau, au joueur suivant
             if (mg.context === 'battle' || mg.context === 'duel') {

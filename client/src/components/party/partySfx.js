@@ -97,6 +97,8 @@ const SOUNDS = {
     go: (c, o, at) => tone(c, o, at, { from: 1320, dur: 0.3, type: 'triangle', gain: 0.16 }),
     fail: (c, o, at) => tone(c, o, at, { from: 300, to: 110, dur: 0.35, type: 'sawtooth', gain: 0.1 }),
     win: (c, o, at) => [523, 659, 784, 659, 1047].forEach((f, i) => tone(c, o, at + i * 0.12, { from: f, dur: 0.2, type: 'triangle', gain: 0.15 })),
+    // « Oooh » de la foule : trois voix qui glissent vers le grave
+    ooh: (c, o, at) => [392, 494, 587].forEach((f, i) => tone(c, o, at + i * 0.012, { from: f * 1.05, to: f * 0.82, dur: 0.75, type: 'triangle', gain: 0.07 })),
     banner: (c, o, at) => { hiss(c, o, at, { dur: 0.35, gain: 0.08, freq: 3000, type: 'bandpass', q: 0.5 }); tone(c, o, at, { from: 300, to: 900, dur: 0.3, type: 'triangle', gain: 0.06 }); },
     ...DRUMS,
 };

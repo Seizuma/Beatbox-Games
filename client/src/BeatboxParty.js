@@ -47,6 +47,8 @@ function BeatboxPartyGame() {
     const [clockOffset, setClockOffset] = useState(0);
     // Plan du plateau pour les scènes de l'accueil (en partie, il arrive avec l'état)
     const [lobbyBoard, setLobbyBoard] = useState(null);
+    // Réactions beatbox reçues (une bulle par joueur, effacée après quelques secondes)
+    const [reactions, setReactions] = useState([]);
     const queue = useRef([]);
     const noticeTimer = useRef(null);
 
@@ -61,6 +63,13 @@ function BeatboxPartyGame() {
         if (queue.current.length > 200) queue.current.splice(0, queue.current.length - 200);
         setClockOffset(snapshot.serverNow - Date.now());
         setState(snapshot);
+    }, []);
+
+    const onReaction = useCallback((reaction) => {
+        if (!reaction || !reaction.playerId) return;
+        const item = { playerId: reaction.playerId, id: reaction.id, key: `${reaction.playerId}-${Date.now()}` };
+        setReactions((list) => [...list.filter((r) => r.playerId !== item.playerId), item]);
+        setTimeout(() => setReactions((list) => list.filter((r) => r !== item)), 2200);
     }, []);
 
     const enterRoom = useCallback((response) => {
@@ -102,12 +111,14 @@ function BeatboxPartyGame() {
         partySocket.on('connect', onConnect);
         partySocket.on('disconnect', onDisconnect);
         partySocket.on('party:state', receive);
+        partySocket.on('party:reaction', onReaction);
         partySocket.connectWithAuth();
         if (partySocket.connected) onConnect();
         return () => {
             partySocket.off('connect', onConnect);
             partySocket.off('disconnect', onDisconnect);
             partySocket.off('party:state', receive);
+            partySocket.off('party:reaction', onReaction);
             partySocket.disconnect();
         };
         // Connexion unique pour toute la durée de la page
@@ -137,6 +148,8 @@ function BeatboxPartyGame() {
         submit: (raw) => act('party:mgResult', { raw }),
         // Actions en direct d'un mini-jeu : pas d'accusé de réception (trop fréquentes)
         mgInput: (data) => partySocket.emit('party:mgInput', { data }),
+        react: (id) => partySocket.emit('party:react', { id }),
+        settings: (settings) => act('party:settings', settings),
     }), [act]);
 
     const create = async (payload) => {
@@ -202,7 +215,7 @@ function BeatboxPartyGame() {
     } else if (state.phase === 'end') {
         content = <PartyEnd board={board} state={state} myId={myId} t={t} onRematch={() => act('party:rematch')} onLeave={() => { leaveRoom(); navigate('/'); }} />;
     } else {
-        content = <PartyPlay state={state} myId={myId} t={t} queue={queue} clockOffset={clockOffset} actions={actions} />;
+        content = <PartyPlay state={state} myId={myId} t={t} queue={queue} clockOffset={clockOffset} actions={actions} reactions={reactions} />;
     }
 
     return (

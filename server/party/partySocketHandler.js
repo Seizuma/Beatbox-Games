@@ -9,6 +9,10 @@
 
 const { PartyGame } = require('./PartyGame');
 const { getBoard } = require('./boards');
+const { allowReaction } = require('../services/reactions');
+
+// Réactions beatbox en partie : quatre sons prédéfinis, sans texte libre (rien à modérer)
+const PARTY_REACTIONS = ['kick', 'snare', 'ooh', 'scratch'];
 
 const games = new Map();
 const CODE_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
@@ -34,6 +38,9 @@ function createGame() {
         timeScale: TIME_SCALE,
         emit: (state) => {
             if (ioRef) ioRef.to(roomName(code)).emit('party:state', state);
+        },
+        react: (reaction) => {
+            if (ioRef) ioRef.to(roomName(code)).emit('party:reaction', reaction);
         },
     });
     games.set(code, game);
@@ -174,6 +181,14 @@ function handlePartySocketConnection(socket, io) {
     action('party:mgResult', (game, id, p) => game.submitMinigame(id, p.raw));
     action('party:mgInput', (game, id, p) => game.minigameInput(id, p.data));
     action('party:rematch', (game, id) => game.rematch(id));
+
+    // Réaction d'un joueur, relayée à toute la salle (une par seconde au plus)
+    socket.on('party:react', (payload = {}) => {
+        const { game, playerId } = context();
+        const id = String((payload && payload.id) || '');
+        if (!game || !game.player(playerId) || !PARTY_REACTIONS.includes(id) || !allowReaction(socket)) return;
+        io.to(roomName(game.code)).emit('party:reaction', { playerId, id });
+    });
 
     socket.on('disconnect', () => {
         const { game, playerId } = context();

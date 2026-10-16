@@ -137,6 +137,24 @@ export default function PartyLobby({ board, state, myId, t, language, onCharacte
                                 ))}
                             </div>
                         </Section>
+                        <Section title={t('lobby.botSpeed')}>
+                            <div role="radiogroup" aria-label={t('lobby.botSpeed')} className="grid grid-cols-2 gap-2">
+                                {(state.settings.botSpeeds || ['normal', 'fast']).map((speed) => (
+                                    <Key
+                                        key={speed}
+                                        size="md"
+                                        role="radio"
+                                        aria-checked={(state.settings.botSpeed || 'fast') === speed}
+                                        disabled={!isHost}
+                                        className="disabled:!opacity-80"
+                                        onClick={() => onSettings({ botSpeed: speed })}
+                                    >
+                                        {t(`lobby.botSpeedValue.${speed}`)}
+                                    </Key>
+                                ))}
+                            </div>
+                            <p className="hw-text mt-2 text-sm">{t('lobby.botSpeedInfo')}</p>
+                        </Section>
                         <Section title={t('screen.palette')}>
                             <Key size="md" aria-pressed={palette === 'adapted'} className="w-full" onClick={togglePalette}>
                                 {`${t('screen.palette')} : ${palette === 'adapted' ? t('screen.on') : t('screen.off')}`}
