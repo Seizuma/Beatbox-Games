@@ -1,9 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Navigate, useLocation, useNavigate } from 'react-router-dom';
 import SEO from './components/SEO';
-import GameShell from './components/show/GameShell';
-import { GameToast } from './components/show/GameNotices';
-import { LanguageSwitch } from './components/UI';
+import PartyShell from './components/party/ui/PartyShell';
 import { useI18n } from './utils/i18n';
 import partySocket from './party-socket';
 import { PARTY_ENABLED } from './components/party/partyFlag';
@@ -33,7 +31,7 @@ const writeSession = (value) => {
 };
 
 function BeatboxPartyGame() {
-    const { language, isEnglish, switchLanguage } = useI18n();
+    const { language, switchLanguage } = useI18n();
     const t = useMemo(() => createPartyT(language), [language]);
     const navigate = useNavigate();
     const location = useLocation();
@@ -173,7 +171,7 @@ function BeatboxPartyGame() {
     let content;
     if (!inRoom) {
         content = restoring || !connected ? (
-            <p className="party-blink py-16 text-center font-extrabold text-[color:var(--px-muted)]">{restoring ? t('home.rejoining') : t('home.connecting')}</p>
+            <p className="hw-label hw-blink py-16 text-center !text-base">{restoring ? t('home.rejoining') : t('home.connecting')}</p>
         ) : (
             <PartyHome board={board} t={t} language={language} discordName={discordName} initialCode={initialCode} busy={busy} onCreate={create} onJoin={join} />
         );
@@ -199,15 +197,14 @@ function BeatboxPartyGame() {
     }
 
     return (
-        <GameShell
-            title={t('title')}
+        <PartyShell
+            t={t}
             language={language}
+            onLanguage={switchLanguage}
             onQuit={handleQuit}
-            quitLabel={t('quit')}
-            showSettings={false}
-            quitConfirm={inGame ? { title: t('quitTitle'), text: t('quitText'), confirmLabel: t('quitConfirm'), cancelLabel: t('keepPlaying'), closeLabel: t('close') } : null}
-            tools={<LanguageSwitch switchLanguage={switchLanguage} isEnglish={isEnglish} />}
-            contentClassName={fullScreen ? 'party !max-w-none !p-0' : 'party !max-w-6xl'}
+            quitConfirm={inGame ? { title: t('quitTitle'), text: t('quitText'), confirmLabel: t('quitConfirm'), cancelLabel: t('keepPlaying') } : null}
+            full={fullScreen}
+            notice={notice}
         >
             <SEO
                 title={inRoom ? `${state.code} · Beatbox Party | BeatBox Games` : 'Beatbox Party | BeatBox Games'}
@@ -216,10 +213,9 @@ function BeatboxPartyGame() {
                 language={language}
                 noindex
             />
-            <GameToast message={notice} />
-            {!fullScreen && <span className="mb-4 inline-block rounded-full bg-[color:var(--px-yellow)] px-2.5 py-0.5 text-xs font-extrabold text-[#0A1B45]">{t('testBadge')}</span>}
+            {!fullScreen && <p className="hw-label mb-3 flex items-center gap-2"><span className="hw-led is-on" style={{ '--led': '#F0AE22' }} />{t('testBadge')}</p>}
             {content}
-        </GameShell>
+        </PartyShell>
     );
 }
 

@@ -23,18 +23,18 @@
 // l'ingé son le garde.
 function buildSetup() {
     const loop = [
-        // Loopstation : pads de pistes et boutons, de gauche à droite
-        [310, 742, 'loop', 'track'], [380, 742, 'loop', 'button'], [450, 742, 'loop', 'track'], [520, 742, 'loop', 'button'],
-        [590, 742, 'loop', 'track'], [660, 742, 'loop', 'button'], [730, 742, 'loop', 'track'], [800, 742, 'loop', 'button'],
-        [870, 742, 'loop', 'track'], [940, 742, 'loop', 'button'],
+        // Loopstation : pads de pistes et boutons STOP, de gauche à droite
+        [403, 965, 'loop', 'track'], [494, 965, 'loop', 'stop'], [585, 965, 'loop', 'track'], [676, 965, 'loop', 'stop'],
+        [767, 965, 'loop', 'track'], [858, 965, 'loop', 'stop'], [949, 965, 'loop', 'track'], [1040, 965, 'loop', 'stop'],
+        [1131, 965, 'loop', 'track'], [1222, 965, 'loop', 'stop'],
         // Pédales d'effet, de bas en haut
-        [1036, 702, 'pedal'], [1052, 632, 'pedal'], [1056, 562, 'pedal'], [1052, 492, 'pedal'], [1040, 422, 'pedal'],
+        [1347, 913, 'pedal'], [1368, 822, 'pedal'], [1373, 731, 'pedal'], [1368, 640, 'pedal'], [1352, 549, 'pedal'],
         // Câble, puis la scène devant le micro géant, de droite à gauche
-        [1000, 352, 'cable'], [930, 332, 'stage'], [865, 322, 'stage'], [800, 318, 'stage'], [735, 322, 'stage'], [670, 332, 'stage'],
+        [1300, 458, 'cable'], [1209, 432, 'stage'], [1125, 419, 'stage'], [1040, 413, 'stage'], [956, 419, 'stage'], [871, 432, 'stage'],
         // Carrefour, puis le casque posé sur le bureau
-        [592, 336, 'desk'], [512, 332, 'phones', 'cup'], [440, 292, 'phones', 'band'], [362, 292, 'phones', 'band'], [288, 334, 'phones', 'cup'],
+        [767, 437, 'desk'], [666, 432, 'phones', 'cup'], [572, 380, 'phones', 'band'], [471, 380, 'phones', 'band'], [374, 434, 'phones', 'cup'],
         // Pad controller, de haut en bas, puis le câble USB qui ramène à la loopstation
-        [212, 405, 'pads'], [212, 470, 'pads'], [212, 535, 'pads'], [206, 610, 'cable'], [206, 670, 'cable'], [240, 728, 'cable'],
+        [276, 527, 'pads'], [276, 611, 'pads'], [276, 696, 'pads'], [268, 793, 'cable'], [268, 871, 'cable'], [312, 946, 'cable'],
     ];
 
     // 32 cases : départ, puis surtout des Applaudissements, quelques Larsen et Drops
@@ -44,7 +44,7 @@ function buildSetup() {
         x,
         y,
         zone,
-        kind: kind || 'button',
+        kind: kind || 'pad',
         type: { s: 'start', b: 'blue', r: 'red', d: 'drop' }[pattern[index]],
         next: [(index + 1) % loop.length],
         stage: zone === 'stage',
@@ -54,13 +54,13 @@ function buildSetup() {
     const junction = spaces[21];
     const rejoin = spaces[4];
     const corridorTypes = ['red', 'drop', 'blue', 'red', 'blue'];
-    const corridorY = [400, 464, 528, 606, 672];
+    const corridorY = [520, 603, 686, 788, 874];
     const corridor = corridorTypes.map((type, i) => ({
         id: spaces.length + i,
-        x: 592,
+        x: 767,
         y: corridorY[i],
         zone: i < 3 ? 'mixer' : 'loop',
-        kind: i < 3 ? 'fader' : 'button',
+        kind: 'pad',
         type,
         next: [],
         corridor: true,
@@ -74,7 +74,7 @@ function buildSetup() {
 
     return {
         id: 'setup',
-        size: { w: 1280, h: 880 },
+        size: { w: 1664, h: 1144 },
         start: 0,
         starPrice: 15,
         // Cases où le Micro d'or peut apparaître

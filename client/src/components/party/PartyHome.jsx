@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import CharacterPicker from './CharacterPicker';
 import PartyScene, { VIEWS } from './board/PartyScene';
 import { CHARACTER_IDS, PLAYER_COLORS } from './characters/pixelRig';
+import { Key, Panel, Section } from './ui/Hardware';
 
 export function useNarrow(limit = 640) {
     const [narrow, setNarrow] = useState(() => typeof window !== 'undefined' && window.innerWidth < limit);
@@ -38,65 +39,61 @@ export default function PartyHome({ board, t, language, discordName, initialCode
     const actors = useMemo(() => {
         const others = CHARACTER_IDS.filter((id) => id !== character).slice(0, 3);
         return [
-            { id: others[0], pose: 'dance', color: PLAYER_COLORS[1], x: 735, y: 322, facing: 1 },
-            { id: character, pose: 'beatbox', color: PLAYER_COLORS[0], x: 800, y: 318, facing: 1 },
-            { id: others[1], pose: 'dance', color: PLAYER_COLORS[2], x: 865, y: 322, facing: -1 },
-            { id: others[2], pose: 'idle', color: PLAYER_COLORS[3], x: 930, y: 332, facing: -1 },
+            { id: others[0], pose: 'dance', color: PLAYER_COLORS[1], x: 956, y: 419, facing: 1 },
+            { id: character, pose: 'beatbox', color: PLAYER_COLORS[0], x: 1040, y: 413, facing: 1 },
+            { id: others[1], pose: 'dance', color: PLAYER_COLORS[2], x: 1125, y: 419, facing: -1 },
+            { id: others[2], pose: 'idle', color: PLAYER_COLORS[3], x: 1209, y: 432, facing: -1 },
         ];
     }, [character]);
 
     return (
         <div className="flex flex-col gap-6">
-            <header className="party-panel grid overflow-hidden md:grid-cols-[minmax(0,1fr)_minmax(0,1.15fr)]">
-                <div className="order-2 flex flex-col justify-center gap-4 p-5 sm:p-7 md:order-1">
-                    <span className="party-chip self-start">{t('home.kicker')}</span>
-                    <h1 className="party-display text-5xl text-[color:var(--px-yellow)] drop-shadow-[0_0_18px_rgba(255,199,44,0.35)] sm:text-6xl">{t('title')}</h1>
-                    <p className="text-[1.05rem] leading-relaxed text-[color:var(--px-muted)]">{t('home.intro')}</p>
+            <Panel as="header" className="grid gap-5 p-4 sm:p-6 md:grid-cols-[minmax(0,1fr)_minmax(0,1.2fr)] md:items-center">
+                <div className="order-2 flex flex-col gap-4 md:order-1 md:pl-2">
+                    <p className="hw-label">{t('home.kicker')}</p>
+                    <h1 className="hw-title text-6xl sm:text-7xl">{t('title')}</h1>
+                    <div className="hw-rule" />
+                    <p className="hw-text text-[1.02rem]">{t('home.intro')}</p>
                 </div>
-                <PartyScene board={board} view={VIEWS.hero} actors={actors} className="order-1 md:order-2" />
-            </header>
+                <div className="party-scene-bezel order-1 md:order-2">
+                    <PartyScene board={board} view={VIEWS.hero} actors={actors} />
+                </div>
+            </Panel>
 
-            {initialCode && <p className="party-panel px-4 py-3 font-extrabold">{t('home.invited', { code: initialCode })}</p>}
+            {initialCode && <Panel as="p" className="px-5 py-4 font-semibold">{t('home.invited', { code: initialCode })}</Panel>}
 
             <div className="grid gap-6 lg:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)]">
-                <section className="party-panel flex flex-col gap-4 p-5">
+                <Panel className="flex flex-col gap-6 p-5 pt-7 sm:p-6 sm:pt-8">
                     {discordName ? (
-                        <p className="text-sm text-[color:var(--px-muted)]">{t('home.discordName')} <strong className="text-[color:var(--px-ink)]">{discordName}</strong></p>
+                        <p className="hw-text text-sm">{t('home.discordName')} <strong className="text-[color:var(--hw-silk)]">{discordName}</strong></p>
                     ) : (
-                        <label className="flex flex-col gap-2">
-                            <span className="party-kicker">{t('home.name')}</span>
-                            <input className="party-input" maxLength={16} value={name} onChange={(event) => setName(event.target.value)} placeholder={t('home.namePlaceholder')} autoComplete="nickname" />
-                        </label>
+                        <Section title={t('home.name')}>
+                            <input className="hw-input" maxLength={16} value={name} onChange={(event) => setName(event.target.value)} placeholder={t('home.namePlaceholder')} autoComplete="nickname" />
+                        </Section>
                     )}
-                    <div className="flex flex-col gap-2">
-                        <span className="party-kicker">{t('home.pick')}</span>
+                    <Section title={t('home.pick')}>
                         <CharacterPicker value={character} onChange={setCharacter} t={t} language={language} />
-                    </div>
+                    </Section>
                     {!initialCode && (
-                        <button
-                            type="button"
-                            className="party-btn party-btn-big mt-1 w-full sm:w-auto sm:self-start"
-                            disabled={!canPlay}
-                            onClick={() => { remember(); onCreate({ name: finalName, characterId: character }); }}
-                        >
+                        <Key size="lg" led="red" disabled={!canPlay} className="w-full sm:w-auto sm:self-start" onClick={() => { remember(); onCreate({ name: finalName, characterId: character }); }}>
                             {t('home.create')}
-                        </button>
+                        </Key>
                     )}
-                </section>
+                </Panel>
 
-                <form
-                    className="party-panel flex flex-col gap-4 p-5"
+                <Panel
+                    as="form"
+                    className="flex flex-col gap-5 p-5 pt-7 sm:p-6 sm:pt-8"
                     onSubmit={(event) => {
                         event.preventDefault();
                         remember();
                         onJoin({ code: code.trim().toUpperCase(), name: finalName, characterId: character });
                     }}
                 >
-                    <h2 className="party-display text-2xl">{t('home.joinTitle')}</h2>
-                    <label className="flex flex-col gap-2">
-                        <span className="party-kicker">{t('home.code')}</span>
+                    <h2 className="hw-title text-3xl">{t('home.joinTitle')}</h2>
+                    <Section title={t('home.code')}>
                         <input
-                            className="party-input party-lcd-digits text-center text-3xl uppercase tracking-[0.25em] text-[color:var(--px-yellow)]"
+                            className="hw-input text-center !text-3xl uppercase tracking-[0.3em]"
                             maxLength={5}
                             value={code}
                             onChange={(event) => setCode(event.target.value.replace(/[^a-z0-9]/gi, '').toUpperCase())}
@@ -104,11 +101,11 @@ export default function PartyHome({ board, t, language, discordName, initialCode
                             autoComplete="off"
                             inputMode="text"
                         />
-                    </label>
-                    <button type="submit" className={`party-btn ${initialCode ? 'party-btn-big' : 'party-btn-white'}`} disabled={!canPlay || code.trim().length < 5}>
+                    </Section>
+                    <Key type="submit" size={initialCode ? 'lg' : 'md'} led="green" disabled={!canPlay || code.trim().length < 5}>
                         {t('home.join')}
-                    </button>
-                </form>
+                    </Key>
+                </Panel>
             </div>
         </div>
     );

@@ -1,9 +1,9 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import PartyBoard, { choiceDirections } from './board/PartyBoard';
-import PixelCharacter from './PixelCharacter';
 import MinigameStage from './minigames/MinigameStage';
 import { PLAYER_COLORS } from './characters/pixelRig';
 import Icon from '../icons/Icon';
+import { Key, Lcd, LcdText, LoopPad, Panel, PlayerRing } from './ui/Hardware';
 import { isMusicOn, jingle, setMusicFinale, setMusicOn, sfx, startMusic, stopMusic, unlockAudio } from './partySfx';
 
 // L'écran de jeu, construit comme un Mario Party :
@@ -120,30 +120,29 @@ function PlayerCard({ player, rank, active, isMe, t, compact, orderRoll }) {
     const [hype, hypeFlash] = useRollingNumber(player.hype);
     const [stars, starFlash] = useRollingNumber(player.stars);
     const color = PLAYER_COLORS[player.seat];
+    const offline = !player.isBot && !player.connected;
     return (
-        <div className={`party-hud-card ${active ? 'is-active' : ''} ${compact ? 'is-compact' : ''}`} style={{ '--pc': color }}>
-            <div className="party-hud-portrait" style={{ width: compact ? 48 : 52, height: compact ? 40 : 52 }}>
-                <PixelCharacter id={player.characterId} color={color} pose={active ? 'beatbox' : 'idle'} crop="bust" scale={1} />
-            </div>
+        <div className={`hw-strip ${active ? 'is-active' : ''} ${compact ? 'is-compact' : ''}`}>
+            <PlayerRing player={player} color={color} size={compact ? 46 : 54} active={active} pose={active ? 'beatbox' : 'idle'} dim={offline} className={compact ? 'self-center' : ''} />
             <div className="min-w-0 flex-1">
                 <div className={`flex items-center gap-1.5 ${compact ? 'justify-center' : ''}`}>
-                    <span className="party-hud-rank">{t(`screen.rank.${rank}`)}</span>
-                    {!compact && <span className="truncate text-sm font-extrabold">{player.name}</span>}
-                    {isMe && !compact && <span className="text-[0.65rem] font-extrabold uppercase text-[color:var(--px-yellow)]">{t('lobby.you')}</span>}
+                    <span className="hw-strip-rank">{t(`screen.rank.${rank}`)}</span>
+                    {!compact && <span className="hw-strip-name">{player.name}</span>}
+                    {isMe && !compact && <span className="hw-label !text-[0.62rem] !text-[color:var(--hw-amber)]">{t('lobby.you')}</span>}
                 </div>
-                {compact && <p className="truncate text-[0.7rem] font-extrabold leading-tight">{player.name}</p>}
-                <div className="party-lcd party-hud-stats leading-none">
-                    <span className={`items-center gap-1 ${starFlash === 'up' ? 'party-flash-up' : 'flex'}`}>
-                        <MicIcon size={compact ? 12 : 15} />
-                        <span className={`party-lcd-digits ${compact ? 'text-sm' : 'text-lg'}`}>{stars}</span>
+                {compact && <p className="hw-strip-name !text-[0.78rem]">{player.name}</p>}
+                <Lcd className="hw-strip-lcd">
+                    <span className={`flex items-center gap-1 ${starFlash === 'up' ? 'hw-bump' : ''}`}>
+                        <MicIcon size={compact ? 11 : 13} />
+                        <LcdText text={stars} font="bold" scale={compact ? 1 : 2} label={`${stars} ${t('board.stars')}`} />
                     </span>
-                    <span className={`items-center gap-1 ${hypeFlash === 'up' ? 'party-flash-up' : hypeFlash === 'down' ? 'party-flash-down' : 'flex'}`}>
-                        <CoinIcon size={compact ? 11 : 14} />
-                        <span className={`party-lcd-digits ${compact ? 'text-sm' : 'text-lg'}`}>{hype}</span>
+                    <span className={`flex items-center gap-1 ${hypeFlash ? 'hw-bump' : ''}`}>
+                        <CoinIcon size={compact ? 10 : 12} />
+                        <LcdText text={hype} font="bold" scale={compact ? 1 : 2} label={`${hype} ${t('board.hype')}`} color={hypeFlash === 'down' ? '#e2402f' : undefined} />
                     </span>
-                    {orderRoll != null && <span className="party-lcd-digits rounded bg-white px-1 text-sm text-[#0A1B45]">{orderRoll}</span>}
-                </div>
-                {!player.isBot && !player.connected && <p className="mt-0.5 text-[0.65rem] font-extrabold text-[color:var(--px-red)]">{t('lobby.offline')}</p>}
+                    {orderRoll != null && <LcdText text={`D${orderRoll}`} scale={compact ? 2 : 2} color="#F0AE22" />}
+                </Lcd>
+                {offline && <p className="hw-label mt-0.5 !text-[0.62rem] !text-[color:var(--hw-red)]">{t('lobby.offline')}</p>}
             </div>
         </div>
     );
@@ -180,31 +179,29 @@ function Hud({ state, myId, t, compact, inline }) {
 
 function Banner({ banner, compact }) {
     if (!banner) return null;
-    const color = banner.color || 'var(--px-yellow)';
+    const color = banner.color || '#F0AE22';
     return (
         <div className={`party-banner-layer ${banner.low ? 'is-low' : ''}`} aria-live="assertive">
-            <div key={banner.id} className="party-banner" style={{ '--bc': color }}>
-                {banner.character && (
-                    <div className="party-banner-portrait">
-                        <PixelCharacter id={banner.character} color={color} pose="present" crop="body" scale={compact ? 1 : 2} />
-                    </div>
-                )}
+            <Panel key={banner.id} as="div" className="hw-banner" style={{ '--bc': color }}>
+                {banner.player ? (
+                    <PlayerRing player={banner.player} color={color} size={compact ? 64 : 96} active pose="present" />
+                ) : <span className="hw-banner-accent" aria-hidden="true" />}
                 <div className="min-w-0">
-                    {banner.kicker && <p className="party-kicker">{banner.kicker}</p>}
-                    <p className="party-banner-title" style={{ color }}>{banner.title}</p>
-                    {banner.text && <p className="mt-1.5 text-base font-extrabold sm:text-lg">{banner.text}</p>}
+                    {banner.kicker && <Lcd className="mb-2 inline-flex px-2 py-1"><LcdText text={banner.kicker} scale={2} /></Lcd>}
+                    <p className="hw-banner-title">{banner.title}</p>
+                    {banner.text && <p className="hw-text mt-1.5 text-base font-semibold sm:text-lg">{banner.text}</p>}
                     {banner.list && (
-                        <ol className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-base font-extrabold">
+                        <ol className="mt-2 flex flex-wrap gap-x-4 gap-y-1.5">
                             {banner.list.map((item, i) => (
-                                <li key={item.id} className="flex items-center gap-1.5">
-                                    <span className="party-display text-lg" style={{ color: item.color }}>{i + 1}</span>
-                                    {item.name}
+                                <li key={item.id} className="flex items-center gap-2">
+                                    <span className="h-2.5 w-2.5 rounded-full" style={{ background: item.color }} aria-hidden="true" />
+                                    <span className="hw-strip-name !text-lg">{i + 1}. {item.name}</span>
                                 </li>
                             ))}
                         </ol>
                     )}
                 </div>
-            </div>
+            </Panel>
         </div>
     );
 }
@@ -220,61 +217,46 @@ function Dock({ state, myId, t, secondsLeft, actions, message, mapMode, onToggle
     const mine = current && current.id === myId;
     const name = current ? current.name : '';
 
-    let body = null;
+    let text = message;
+    let controls = null;
     if (state.phase === 'order') {
         const rolled = state.orderRolls[myId] != null;
         if (state.step === 'roll' && !rolled) {
-            body = (
-                <div className="flex flex-wrap items-center gap-3">
-                    <button type="button" className="party-btn party-btn-big" onClick={actions.roll}>
-                        {t('board.roll')} <span className="party-key hidden sm:inline-flex">{t('screen.rollHint')}</span>
-                    </button>
-                    <p className="party-dock-text">{t('board.orderRoll')}</p>
-                </div>
-            );
-        } else body = <p className="party-dock-text party-blink">{state.step === 'roll' ? t('board.orderWaiting') : message}</p>;
+            text = t('board.orderRoll');
+            controls = <LoopPad color="amber" onClick={actions.roll} hint={t('screen.rollHint')}>{t('board.roll')}</LoopPad>;
+        } else if (state.step === 'roll') text = t('board.orderWaiting');
     } else if (mine && state.step === 'roll') {
-        body = (
-            <div className="flex flex-wrap items-center gap-3">
-                <button type="button" className="party-btn party-btn-big" onClick={actions.roll}>
-                    {t('board.roll')} <span className="party-key hidden sm:inline-flex">{t('screen.rollHint')}</span>
-                </button>
-                <p className="party-display text-xl text-[color:var(--px-yellow)]">{t('board.yourTurn')}</p>
-            </div>
-        );
+        text = t('board.yourTurn');
+        controls = <LoopPad color="amber" onClick={actions.roll} hint={t('screen.rollHint')}>{t('board.roll')}</LoopPad>;
     } else if (mine && state.step === 'choice' && state.choice) {
-        body = (
-            <div className="flex flex-col gap-2">
-                <p className="party-display text-xl text-[color:var(--px-yellow)]">{t('board.choiceTitle')}</p>
-                <div className="grid gap-2 sm:grid-cols-2">
-                    {choiceDirections(state).map((o) => (
-                        <button key={o.spaceId} type="button" className={`party-btn ${o.gate ? '' : 'party-btn-white'} !justify-start !rounded-2xl !py-2 text-left`} disabled={!o.affordable} onClick={() => actions.choose(o.spaceId)}>
-                            <Icon name={DIR_ICON[o.dir]} size={22} />
+        text = t('board.choiceTitle');
+        controls = (
+            <div className="grid w-full gap-2 sm:grid-cols-2">
+                {choiceDirections(state).map((o) => (
+                    <Key key={o.spaceId} size="md" led={o.gate ? 'red' : 'green'} ledOn={o.affordable} className="!justify-start !py-2 text-left" disabled={!o.affordable} onClick={() => actions.choose(o.spaceId)}>
+                        <span className="flex items-center gap-2">
+                            <Icon name={DIR_ICON[o.dir]} size={20} />
                             <span className="flex flex-col gap-0.5">
-                                <span className="text-[0.95rem]">{o.gate ? t('board.choiceGate') : t('board.choiceMain')}</span>
-                                <span className="text-[0.72rem] font-bold opacity-75">
+                                <span>{o.gate ? t('board.choiceGate') : t('board.choiceMain')}</span>
+                                <span className="font-sans text-[0.72rem] font-medium normal-case tracking-normal text-[color:var(--hw-silk-dim)]">
                                     {o.gate ? t('board.choiceGateInfo', { n: o.gate }) : t('board.choiceMainInfo')}
                                     {!o.affordable && ` · ${t('board.notEnough')}`}
                                 </span>
                             </span>
-                        </button>
-                    ))}
-                </div>
-                <p className="text-xs font-bold text-[color:var(--px-muted)]">{t('screen.choiceHint')}</p>
+                        </span>
+                    </Key>
+                ))}
             </div>
         );
     } else if (mine && state.step === 'star' && state.starOffer && state.starOffer.affordable) {
-        body = (
-            <div className="flex flex-col gap-3">
-                <p className="party-dock-text flex items-center gap-2"><MicIcon size={22} /> {t('board.starAsk', { price: state.starOffer.price })}</p>
-                <div className="flex flex-wrap gap-3">
-                    <button type="button" className="party-btn party-btn-big" onClick={() => actions.star(true)}>{t('board.buy')}</button>
-                    <button type="button" className="party-btn party-btn-ghost" onClick={() => actions.star(false)}>{t('board.skip')}</button>
-                </div>
+        text = t('board.starAsk', { price: state.starOffer.price });
+        controls = (
+            <div className="flex items-center gap-3">
+                <LoopPad color="green" size="md" onClick={() => actions.star(true)}>{t('board.buy')}</LoopPad>
+                <Key size="md" led="red" onClick={() => actions.star(false)}>{t('board.skip')}</Key>
             </div>
         );
     } else {
-        let text = message;
         if (state.step === 'roll' && current) text = t('board.rolling', { name });
         if (state.step === 'choice' && current) text = t('board.waitingChoice', { name });
         if (state.step === 'star' && state.starOffer) {
@@ -282,30 +264,40 @@ function Dock({ state, myId, t, secondsLeft, actions, message, mapMode, onToggle
         }
         if ((state.step === 'rolled' || state.step === 'moving') && state.roll && current) text = t(state.roll.value === 1 ? 'board.movingOne' : 'board.moving', { name, n: state.roll.value });
         if (!text && current) text = mine ? t('board.yourTurn') : t('board.turnOf', { name });
-        body = <p className={`party-dock-text ${state.step === 'roll' && !mine ? 'party-blink' : ''}`}>{text || ' '}</p>;
     }
 
     const myDecision = mine && ['roll', 'choice', 'star'].includes(state.step);
     const duration = { roll: 30, choice: 15, star: 15 }[state.step] || 30;
+    const cells = 20;
+    const lit = secondsLeft != null ? Math.ceil((Math.min(duration, secondsLeft) / duration) * cells) : 0;
+    const choice = mine && state.step === 'choice';
     return (
-        <div className="party-dock">
-            {myDecision && secondsLeft != null && (
-                <div className="party-dock-timer" aria-hidden="true">
-                    <div style={{ width: `${Math.min(100, (secondsLeft / duration) * 100)}%`, background: secondsLeft < 5 ? 'var(--px-red)' : 'var(--px-yellow)', boxShadow: `0 0 10px ${secondsLeft < 5 ? 'var(--px-red)' : 'var(--px-yellow)'}` }} />
+        <Panel as="div" className="party-dock">
+            <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 sm:grid-cols-[auto_minmax(0,1fr)_auto]">
+                {controls && (
+                    <div className={`order-3 col-span-2 flex justify-center ${choice ? 'sm:col-span-3' : 'sm:order-none sm:col-span-1'}`}>{controls}</div>
+                )}
+                <div className={`min-w-0 ${controls && !choice ? '' : 'sm:col-span-2'}`}>
+                    <Lcd className="party-dock-lcd">
+                        <p className={`hw-lcd-text text-base sm:text-lg ${state.step === 'roll' && !mine ? 'hw-blink' : ''}`}>{text || ' '}</p>
+                    </Lcd>
+                    {myDecision && secondsLeft != null && (
+                        <div className={`party-dock-timer ${secondsLeft < 5 ? 'is-late' : ''}`} aria-hidden="true">
+                            {Array.from({ length: cells }, (_, i) => <span key={i} className={i < lit ? 'is-on' : ''} />)}
+                        </div>
+                    )}
+                    {choice && <p className="hw-label mt-2 !text-[0.66rem]">{t('screen.choiceHint')}</p>}
                 </div>
-            )}
-            <div className="flex items-center gap-3">
-                <div className="min-w-0 flex-1">{body}</div>
-                <div className="flex shrink-0 flex-col gap-1.5">
-                    <button type="button" className="party-btn party-btn-ghost party-btn-icon" onClick={onToggleMap} aria-pressed={mapMode} aria-label={mapMode ? t('screen.mapBack') : t('screen.map')} title={mapMode ? t('screen.mapBack') : t('screen.map')}>
+                <div className="flex shrink-0 gap-1.5 sm:flex-col">
+                    <Key size="sm" className="hw-key-icon" onClick={onToggleMap} aria-pressed={mapMode} aria-label={mapMode ? t('screen.mapBack') : t('screen.map')} title={mapMode ? t('screen.mapBack') : t('screen.map')}>
                         <Icon name={mapMode ? 'close' : 'map'} size={18} />
-                    </button>
-                    <button type="button" className="party-btn party-btn-ghost party-btn-icon" onClick={onToggleMusic} aria-label={musicOn ? t('screen.musicOn') : t('screen.musicOff')} title={musicOn ? t('screen.musicOn') : t('screen.musicOff')}>
+                    </Key>
+                    <Key size="sm" className="hw-key-icon" onClick={onToggleMusic} aria-label={musicOn ? t('screen.musicOn') : t('screen.musicOff')} title={musicOn ? t('screen.musicOn') : t('screen.musicOff')}>
                         <Icon name={musicOn ? 'volume' : 'volume-off'} size={18} />
-                    </button>
+                    </Key>
                 </div>
             </div>
-        </div>
+        </Panel>
     );
 }
 
@@ -369,7 +361,7 @@ export default function PartyPlay({ state, myId, t, queue, clockOffset, actions 
                     kicker,
                     title: player.id === myId ? t('banner.yourTurn') : player.name,
                     color: PLAYER_COLORS[player.seat],
-                    character: player.characterId,
+                    player,
                 }, 2100);
                 jingle(player.characterId);
                 if (player.id === myId && navigator.vibrate) navigator.vibrate([30, 40, 30]);
@@ -377,17 +369,17 @@ export default function PartyPlay({ state, myId, t, queue, clockOffset, actions 
                 break;
             }
             case 'finale':
-                show({ title: t('banner.finale'), text: t('banner.finaleText'), color: '#E8402F' }, 2800);
+                show({ title: t('banner.finale'), text: t('banner.finaleText'), color: '#E2402F' }, 2800);
                 setMusicFinale(true);
                 break;
             case 'land':
-                if (event.kind === 'drop' && player) show({ title: t('banner.drop'), text: t('banner.dropText', { name: player.name }), color: '#2DBE6C' }, 1700);
+                if (event.kind === 'drop' && player) show({ title: t('banner.drop'), text: t('banner.dropText', { name: player.name }), color: '#2EB75E' }, 1700);
                 break;
             case 'star':
-                if (event.bought && player) show({ title: t('banner.bought', { name: player.name }), kicker: t('banner.starMoved'), color: '#FFC72C', low: true }, 2600);
+                if (event.bought && player) show({ title: t('banner.bought', { name: player.name }), kicker: t('banner.starMoved'), color: '#F0AE22', low: true }, 2600);
                 break;
             case 'minigame':
-                show({ title: t('banner.minigame'), text: t(`minigame.${event.id}.name`), color: '#FF5FA8' }, 1600);
+                show({ title: t('banner.minigame'), text: t(`minigame.${event.id}.name`), color: '#3F7EEA' }, 1600);
                 break;
             default:
         }
@@ -461,7 +453,7 @@ export default function PartyPlay({ state, myId, t, queue, clockOffset, actions 
 
     if (state.phase === 'minigame') {
         return (
-            <div className="mx-auto flex w-full max-w-6xl flex-col gap-4 px-4 py-4 sm:px-6">
+            <div className="mx-auto flex w-full max-w-5xl flex-col gap-5 px-4 py-4 sm:px-6">
                 <Hud state={state} myId={myId} t={t} compact inline />
                 <MinigameStage state={state} myId={myId} t={t} clockOffset={clockOffset} onReady={actions.ready} onSubmit={actions.submit} />
             </div>
@@ -472,11 +464,11 @@ export default function PartyPlay({ state, myId, t, queue, clockOffset, actions 
         <div ref={screenRef} className={`party-screen ${myTurn ? 'is-my-turn' : ''}`} onPointerDown={unlockAudio}>
             <PartyBoard state={state} queue={queue} myId={myId} mapMode={mapMode} onEvent={onEvent} onChoose={actions.choose} insets={insets} />
             <div className="party-screen-top">
-                <span className="party-chip">
-                    {state.turn > 0 ? t('board.turn', { turn: state.turn, total: state.settings.turns }) : t('board.orderTitle')}
+                <span className="hw-chip">
+                    <LcdText text={state.turn > 0 ? t('board.turn', { turn: state.turn, total: state.settings.turns }) : t('board.orderTitle')} scale={2} />
                 </span>
-                {state.finale && <span className="party-chip party-blink !border-transparent !bg-[color:var(--px-red)] !text-white">{t('board.finale')} ×2</span>}
-                {mapMode && <span className="party-chip !border-transparent !bg-[color:var(--px-blue)] !text-white">{t('screen.mapBadge')}</span>}
+                {state.finale && <span className="hw-chip"><span className="hw-led is-on hw-blink" style={{ '--led': '#E2402F' }} /><LcdText text={`${t('board.finale')} x2`} scale={2} color="#E2402F" /></span>}
+                {mapMode && <span className="hw-chip"><LcdText text={t('screen.mapBadge')} scale={2} color="#F0AE22" /></span>}
             </div>
             <Hud state={state} myId={myId} t={t} compact={compact} />
             <Banner banner={banner} compact={compact} />

@@ -3,11 +3,12 @@ import CharacterPicker from './CharacterPicker';
 import PartyScene, { VIEWS, scenePoint } from './board/PartyScene';
 import { useNarrow } from './PartyHome';
 import { PLAYER_COLORS } from './characters/pixelRig';
+import { Key, Lcd, LcdText, Panel, PlayerRing, Section } from './ui/Hardware';
 import { copyToClipboard } from '../../utils/clipboard';
 
 const MAX = 4;
 // Places sur la scène du micro géant, de gauche à droite
-export const SEATS = [[704, 326], [772, 320], [840, 320], [908, 326]];
+export const SEATS = [[915, 424], [1004, 416], [1092, 416], [1180, 424]];
 
 // Salon : les joueurs montent sur scène, choix du personnage, réglages de l'hôte
 export default function PartyLobby({ board, state, myId, t, language, onCharacter, onAddBot, onRemoveBot, onSettings, onStart }) {
@@ -42,108 +43,120 @@ export default function PartyLobby({ board, state, myId, t, language, onCharacte
 
     return (
         <div className="flex flex-col gap-6">
-            <section className="party-panel overflow-hidden">
-                <PartyScene board={board} view={view} actors={actors} stageColor={me ? PLAYER_COLORS[me.seat] : null}>
-                    {seats.map((p, seat) => (
-                        <span key={seat} className="party-scene-label" style={{ ...scenePoint(view, SEATS[seat][0], SEATS[seat][1] + 8), borderColor: p ? PLAYER_COLORS[seat] : undefined, color: p ? undefined : 'var(--px-muted)' }}>
-                            {p ? p.name : t('lobby.empty')}
-                        </span>
-                    ))}
-                    <div className="absolute left-3 top-3 z-[3] flex flex-col gap-1 sm:left-5 sm:top-5">
-                        <span className="party-kicker">{t('lobby.room')}</span>
-                        <span className="party-lcd party-lcd-digits px-3 py-1 text-3xl tracking-[0.2em] sm:text-4xl">{state.code}</span>
+            <Panel className="flex flex-col gap-4 p-4 sm:p-5">
+                <div className="flex flex-wrap items-end justify-between gap-3 pt-2">
+                    <div className="flex flex-col gap-2">
+                        <span className="hw-label">{t('lobby.room')}</span>
+                        <Lcd className="inline-flex px-3 py-2"><LcdText text={state.code} font="bold" scale={4} /></Lcd>
                     </div>
-                    <div className="absolute right-3 top-3 z-[3] sm:right-5 sm:top-5">
-                        <button type="button" className="party-btn party-btn-white" onClick={copy}>
-                            {copied ? t('lobby.copied') : t('lobby.copy')}
-                        </button>
-                    </div>
-                </PartyScene>
-                <div aria-label={t('lobby.players')} className="grid grid-cols-2 gap-2 p-3 sm:grid-cols-4 sm:p-4">
+                    <Key size="md" led="green" ledOn={copied} onClick={copy}>
+                        {copied ? t('lobby.copied') : t('lobby.copy')}
+                    </Key>
+                </div>
+                <div className="party-scene-bezel">
+                    <PartyScene board={board} view={view} actors={actors}>
+                        {seats.map((p, seat) => (
+                            <span key={seat} className="party-scene-label" style={{ ...scenePoint(view, SEATS[seat][0], SEATS[seat][1] + 10), '--tag': p ? PLAYER_COLORS[seat] : undefined }}>
+                                {p ? p.name : t('lobby.empty')}
+                            </span>
+                        ))}
+                    </PartyScene>
+                </div>
+                <div aria-label={t('lobby.players')} className="grid grid-cols-2 gap-2 sm:grid-cols-4">
                     {seats.map((p, seat) => (
-                        <div key={seat} className="flex min-h-[3.4rem] items-center gap-2 rounded-xl bg-[#0A0F27]/70 px-3 py-2 shadow-[inset_0_0_0_1px_rgba(255,255,255,0.08)]" style={{ boxShadow: p && p.id === myId ? `inset 0 0 0 2px ${PLAYER_COLORS[seat]}` : undefined }}>
-                            <span className="h-3 w-3 shrink-0 rounded-full" style={{ background: p ? PLAYER_COLORS[seat] : '#2A3470', boxShadow: p ? `0 0 10px ${PLAYER_COLORS[seat]}` : 'none' }} aria-hidden="true" />
-                            {p ? (
-                                <div className="min-w-0 flex-1">
-                                    <p className="truncate font-extrabold leading-tight">{p.name}</p>
-                                    <p className="flex flex-wrap gap-x-2 text-[0.72rem] font-bold text-[color:var(--px-muted)]">
-                                        {p.id === myId && <span className="text-[color:var(--px-yellow)]">{t('lobby.you')}</span>}
-                                        {p.id === state.hostId && <span>{t('lobby.host')}</span>}
-                                        {p.isBot && <span>{t('lobby.bot')}</span>}
-                                        {!p.isBot && !p.connected && <span className="text-[color:var(--px-red)]">{t('lobby.offline')}</span>}
-                                        {isHost && p.isBot && (
-                                            <button type="button" className="underline underline-offset-2 hover:text-[color:var(--px-ink)]" onClick={() => onRemoveBot(p.id)}>
-                                                {t('lobby.removeBot')}
-                                            </button>
-                                        )}
-                                    </p>
-                                </div>
-                            ) : (
-                                <div className="flex min-w-0 flex-1 items-center justify-between gap-2">
-                                    <span className="text-sm font-bold text-[color:var(--px-muted)]">{t('lobby.empty')}</span>
-                                    {isHost && <button type="button" className="party-btn party-btn-ghost !min-h-[2.2rem] !px-3 text-xs" onClick={onAddBot}>{t('lobby.addBot')}</button>}
-                                </div>
-                            )}
+                        <div key={seat} className="hw-strip min-h-[4.2rem]">
+                            <PlayerRing player={p} color={PLAYER_COLORS[seat]} size={46} active={Boolean(p && p.id === myId)} dim={!p || (!p.isBot && !p.connected)} />
+                            <div className="min-w-0 flex-1">
+                                <p className="hw-label !text-[0.62rem]">{`Track ${seat + 1}`}</p>
+                                {p ? (
+                                    <>
+                                        <p className="hw-strip-name">{p.name}</p>
+                                        <p className="flex flex-wrap gap-x-2 text-[0.72rem] font-semibold text-[color:var(--hw-silk-dim)]">
+                                            {p.id === myId && <span className="text-[color:var(--hw-amber)]">{t('lobby.you')}</span>}
+                                            {p.id === state.hostId && <span>{t('lobby.host')}</span>}
+                                            {p.isBot && <span>{t('lobby.bot')}</span>}
+                                            {!p.isBot && !p.connected && <span className="text-[color:var(--hw-red)]">{t('lobby.offline')}</span>}
+                                            {isHost && p.isBot && (
+                                                <button type="button" className="underline underline-offset-2 hover:text-[color:var(--hw-silk)]" onClick={() => onRemoveBot(p.id)}>
+                                                    {t('lobby.removeBot')}
+                                                </button>
+                                            )}
+                                        </p>
+                                    </>
+                                ) : (
+                                    <div className="flex flex-wrap items-center gap-2">
+                                        <span className="text-sm font-semibold text-[color:var(--hw-silk-dim)]">{t('lobby.empty')}</span>
+                                        {isHost && <Key size="sm" led="amber" onClick={onAddBot}>{t('lobby.addBot')}</Key>}
+                                    </div>
+                                )}
+                            </div>
                         </div>
                     ))}
                 </div>
-            </section>
+            </Panel>
 
             <div className="grid gap-6 lg:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)]">
-                <section className="party-panel flex flex-col gap-3 p-5">
-                    <h2 className="party-display text-2xl">{t('lobby.character')}</h2>
-                    <CharacterPicker
-                        value={me && me.characterId}
-                        onChange={onCharacter}
-                        takenBy={takenBy}
-                        color={me ? PLAYER_COLORS[me.seat] : PLAYER_COLORS[0]}
-                        t={t}
-                        language={language}
-                    />
-                </section>
+                <Panel className="p-5 pt-7 sm:p-6 sm:pt-8">
+                    <Section title={t('lobby.character')}>
+                        <CharacterPicker
+                            value={me && me.characterId}
+                            onChange={onCharacter}
+                            takenBy={takenBy}
+                            color={me ? PLAYER_COLORS[me.seat] : PLAYER_COLORS[0]}
+                            t={t}
+                            language={language}
+                        />
+                    </Section>
+                </Panel>
 
                 <div className="flex flex-col gap-6">
-                    <section className="party-panel flex flex-col gap-4 p-5">
-                        <h2 className="party-display text-2xl">{t('lobby.settings')}</h2>
-                        <div>
-                            <p className="party-kicker">{t('lobby.board')}</p>
-                            <p className="mt-1 text-lg font-extrabold">{t('lobby.boardName')}</p>
-                            <p className="text-sm text-[color:var(--px-muted)]">{t('lobby.boardInfo')}</p>
-                        </div>
-                        <div role="radiogroup" aria-label={t('lobby.turns')} className="flex flex-col gap-2">
-                            <p className="party-kicker">{t('lobby.turns')}</p>
-                            <div className="flex flex-wrap gap-2">
+                    <Panel className="flex flex-col gap-5 p-5 pt-7 sm:p-6 sm:pt-8">
+                        <Section title={t('lobby.board')}>
+                            <p className="hw-strip-name !text-xl uppercase">{t('lobby.boardName')}</p>
+                            <p className="hw-text mt-1 text-sm">{t('lobby.boardInfo')}</p>
+                        </Section>
+                        <Section title={t('lobby.turns')}>
+                            <div role="radiogroup" aria-label={t('lobby.turns')} className="grid grid-cols-4 gap-2">
                                 {(state.settings.turnOptions || [5, 10, 15, 20]).map((n) => (
-                                    <button
+                                    <Key
                                         key={n}
-                                        type="button"
+                                        size="md"
                                         role="radio"
+                                        aria-label={t('lobby.turnsValue', { n })}
                                         aria-checked={state.settings.turns === n}
+                                        led="amber"
+                                        ledOn={state.settings.turns === n}
                                         disabled={!isHost}
+                                        className="!flex-col !gap-1 !px-1 disabled:!opacity-80"
                                         onClick={() => onSettings({ turns: n })}
-                                        className="party-option disabled:cursor-default"
                                     >
-                                        {t('lobby.turnsValue', { n })}
-                                    </button>
+                                        {n}
+                                    </Key>
                                 ))}
                             </div>
-                        </div>
+                        </Section>
                         {isHost ? (
                             <>
-                                <button type="button" className="party-btn party-btn-big w-full" onClick={onStart}>{t('lobby.start')}</button>
-                                {state.players.length < MAX && <p className="text-sm text-[color:var(--px-muted)]">{t('lobby.fillBots')}</p>}
+                                <Key size="lg" led="red" className="w-full" onClick={onStart}>{t('lobby.start')}</Key>
+                                {state.players.length < MAX && <p className="hw-text text-sm">{t('lobby.fillBots')}</p>}
                             </>
                         ) : (
-                            <p className="party-blink text-sm font-bold text-[color:var(--px-muted)]">{t('lobby.waitingHost')}</p>
+                            <p className="hw-label hw-blink !text-sm">{t('lobby.waitingHost')}</p>
                         )}
-                    </section>
+                    </Panel>
 
-                    <section className="party-panel p-5">
-                        <h2 className="party-display text-2xl">{t('lobby.rules')}</h2>
-                        <ol className="mt-3 flex list-decimal flex-col gap-2 pl-5 text-[0.95rem] leading-relaxed marker:font-extrabold marker:text-[color:var(--px-yellow)]">
-                            {[1, 2, 3, 4, 5].map((n) => <li key={n}>{t(`lobby.rule${n}`)}</li>)}
-                        </ol>
-                    </section>
+                    <Panel className="p-5 pt-7 sm:p-6 sm:pt-8">
+                        <Section title={t('lobby.rules')}>
+                            <ol className="flex flex-col gap-2.5">
+                                {[1, 2, 3, 4, 5].map((n) => (
+                                    <li key={n} className="flex gap-3">
+                                        <Lcd className="flex h-7 w-7 shrink-0 items-center justify-center"><LcdText text={n} font="bold" scale={1.5} /></Lcd>
+                                        <span className="hw-text text-[0.95rem]">{t(`lobby.rule${n}`)}</span>
+                                    </li>
+                                ))}
+                            </ol>
+                        </Section>
+                    </Panel>
                 </div>
             </div>
         </div>

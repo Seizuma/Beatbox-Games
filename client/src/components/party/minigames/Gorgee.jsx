@@ -84,22 +84,23 @@ export default function Gorgee({ minigame, myId, t, clock, onSubmit }) {
     const label = result === 'overflow' ? t('minigame.display.overflow') : result != null ? t('minigame.display.percent', { n: result }) : null;
     return (
         <div className="mx-auto flex w-full max-w-[720px] flex-col gap-4">
-            <div className="party-panel flex flex-col items-center gap-2 p-4" style={{ background: 'radial-gradient(circle at 50% 30%, #1d2a66 0%, #0a0f27 70%)' }}>
+            <div className="hw-panel flex flex-col items-center gap-2 p-4" style={{ background: 'radial-gradient(circle at 50% 30%, #2a2a30 0%, #141416 70%)' }}>
                 <div className="relative">
                     <canvas ref={canvasRef} className="party-pixel" style={{ width: CW * 3, height: CH * 3 }} aria-hidden="true" />
-                    <span className="absolute right-[-4.5rem] text-xs font-extrabold text-[color:var(--px-yellow)]" style={{ top: LINE * 3 - 8 }}>{t('minigame.gorgee.line')}</span>
+                    <span className="absolute right-[-4.5rem] text-xs font-extrabold text-[color:var(--hw-amber)]" style={{ top: LINE * 3 - 8 }}>{t('minigame.gorgee.line')}</span>
                 </div>
-                {label && <p className={`party-display text-3xl ${result === 'overflow' ? 'text-[color:var(--px-red)]' : 'text-[color:var(--px-yellow)]'}`}>{label}</p>}
+                {label && <p className={`hw-title text-3xl ${result === 'overflow' ? 'text-[color:var(--hw-red)]' : 'text-[color:var(--hw-amber)]'}`}>{label}</p>}
             </div>
             <button
                 type="button"
-                className="party-btn party-btn-big w-full"
+                className="hw-key hw-key-lg w-full"
                 disabled={done}
                 onPointerDown={(event) => { event.preventDefault(); event.currentTarget.setPointerCapture?.(event.pointerId); press(); }}
                 onPointerUp={release}
                 onPointerCancel={release}
                 onContextMenu={(event) => event.preventDefault()}
             >
+                <span className="hw-led is-on" style={{ '--led': '#2EB75E' }} aria-hidden="true" />
                 {t('minigame.gorgee.hold')}
             </button>
         </div>

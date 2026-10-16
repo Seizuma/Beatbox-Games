@@ -6,12 +6,12 @@ import { OUT, px, setupPixelCanvas, useFrame, useOnce, usePressKeys } from './sh
 // Mic drop : un micro se balance au-dessus de la loopstation (même mouvement que le
 // calcul du serveur) ; on le lâche pour qu'il tombe pile sur le pad de la piste 3.
 // Le décor est celui du plateau, vu de près.
-const VIEW = { x: 430, y: 572, w: 320, h: 200 };
+const VIEW = { x: 559, y: 745, w: 416, h: 260 };
 const CW = VIEW.w;
 const CH = VIEW.h;
-const TARGET = { x: 590 - VIEW.x, y: 742 - VIEW.y };
-const RANGE = 128;
-const HANG = 16;
+const TARGET = { x: 767 - VIEW.x, y: 965 - VIEW.y };
+const RANGE = 166;
+const HANG = 20;
 
 // Micro dynamique vu de face, boule en haut
 const MIC = [
@@ -30,7 +30,7 @@ const MIC = [
     '....OkO....',
     '....OOO....',
 ];
-const PAL = { O: OUT, W: '#F4F7FF', w: '#C3CBE6', d: '#7E89AE', Y: '#FFC72C', k: '#262A40', K: '#4A5070' };
+const PAL = { O: OUT, W: '#F4F4F2', w: '#C2C2C6', d: '#7a7a82', Y: '#bfbfc4', k: '#232327', K: '#46464d' };
 
 const position = (params, t) => Math.sin((t / params.period) * Math.PI * 2 + params.phase);
 
@@ -75,7 +75,7 @@ export default function MicDrop({ board, minigame, t, clock, onSubmit }) {
         // Le pad cible clignote, avec un anneau de visée
         const pulse = Math.floor(performance.now() / 250) % 2;
         for (let a = 0; a < Math.PI * 2; a += 0.05) {
-            px(ctx, TARGET.x + Math.cos(a) * (30 + pulse), TARGET.y + 1 + Math.sin(a) * (19 + pulse), 1, 1, '#FFC72C');
+            px(ctx, TARGET.x + Math.cos(a) * (38 + pulse), TARGET.y + 1 + Math.sin(a) * (25 + pulse), 1, 1, '#F0AE22');
         }
         // Câble et micro
         let mx;
@@ -91,7 +91,7 @@ export default function MicDrop({ board, minigame, t, clock, onSubmit }) {
                 if (age < 500) {
                     const r = 6 + age / 12;
                     ctx.globalAlpha = 1 - age / 500;
-                    for (let a = 0; a < Math.PI * 2; a += 0.08) px(ctx, mx + Math.cos(a) * r, TARGET.y + Math.sin(a) * r * 0.6, 2, 1, d.good ? '#FFE07A' : '#FFFFFF');
+                    for (let a = 0; a < Math.PI * 2; a += 0.08) px(ctx, mx + Math.cos(a) * r, TARGET.y + Math.sin(a) * r * 0.6, 2, 1, d.good ? '#F0AE22' : '#F2F0EA');
                     ctx.globalAlpha = 1;
                 }
             }
@@ -110,11 +110,12 @@ export default function MicDrop({ board, minigame, t, clock, onSubmit }) {
 
     return (
         <div className="mx-auto flex w-full max-w-[640px] flex-col gap-4">
-            <div className="party-panel overflow-hidden p-0" role="presentation" onPointerDown={press}>
+            <div className="hw-panel overflow-hidden p-0" role="presentation" onPointerDown={press}>
                 <canvas ref={canvasRef} className="party-pixel block h-auto w-full" style={{ aspectRatio: `${CW} / ${CH}` }} aria-hidden="true" />
             </div>
-            {score != null && <p className="party-display text-center text-3xl text-[color:var(--px-yellow)]">{t('minigame.display.percent', { n: score })}</p>}
-            <button type="button" className="party-btn party-btn-big w-full" disabled={done} onPointerDown={(event) => { event.preventDefault(); press(); }}>
+            {score != null && <p className="hw-title text-center text-3xl text-[color:var(--hw-amber)]">{t('minigame.display.percent', { n: score })}</p>}
+            <button type="button" className="hw-key hw-key-lg w-full" disabled={done} onPointerDown={(event) => { event.preventDefault(); press(); }}>
+                <span className="hw-led is-on" style={{ '--led': '#2EB75E' }} aria-hidden="true" />
                 {t('minigame.micdrop.drop')}
             </button>
         </div>

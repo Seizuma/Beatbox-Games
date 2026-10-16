@@ -11,11 +11,11 @@ import { drawAmbient, drawGlows } from './fx';
 
 /** Cadrages de la scène du micro géant (accueil, salon, fin), en large et en étroit */
 export const VIEWS = {
-    hero: { x: 590, y: 14, w: 420, h: 350 },
-    lobby: { x: 560, y: 150, w: 520, h: 240 },
-    lobbyNarrow: { x: 636, y: 166, w: 344, h: 224 },
-    end: { x: 540, y: 60, w: 560, h: 320 },
-    endNarrow: { x: 606, y: 96, w: 388, h: 284 },
+    hero: { x: 767, y: 18, w: 546, h: 455 },
+    lobby: { x: 728, y: 195, w: 676, h: 312 },
+    lobbyNarrow: { x: 827, y: 216, w: 447, h: 291 },
+    end: { x: 702, y: 78, w: 728, h: 416 },
+    endNarrow: { x: 788, y: 125, w: 504, h: 369 },
 };
 export const STAGE_VIEW = VIEWS.hero;
 
@@ -45,16 +45,16 @@ export default function PartyScene({ board, view = STAGE_VIEW, actors = [], stag
             px.imageSmoothingEnabled = false;
             px.drawImage(world.canvas, 0, 0);
             const glows = [];
-            drawWorldLive(px, t, info, glows);
+            drawWorldLive(px, t, info, glows, board);
             board.spaces.forEach((space) => {
                 const c = SPACE_COLORS[space.type] || SPACE_COLORS.blue;
-                glows.push({ x: space.x, y: space.y - 2, r: 26, color: c.glow, a: 0.3, squash: 0.7 });
+                glows.push({ x: space.x, y: space.y + 1, r: 34, color: c.ring, a: 0.1, squash: 0.65 });
             });
-            const list = [{ y: 420, draw: () => drawCrowd(px, t, info) }];
+            const list = [{ y: 545, draw: () => drawCrowd(px, t, info) }];
             if (data.current.goldMic) {
                 const g = data.current.goldMic;
                 list.push({ y: g.y, draw: () => drawGoldMic(px, g.x, g.y - 2, t) });
-                glows.push({ x: g.x, y: g.y - 30, r: 54, color: '#FFC72C', a: 0.6 });
+                glows.push({ x: g.x, y: g.y - 28, r: 40, color: '#f2c26a', a: 0.22 });
             }
             data.current.actors.forEach((a, i) => {
                 list.push({ y: a.y, draw: () => {

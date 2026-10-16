@@ -45,15 +45,15 @@ export default function Degaine({ minigame, players, myId, t, clock, onSubmit })
             <div
                 role="presentation"
                 onPointerDown={press}
-                className="party-panel flex min-h-[16rem] cursor-pointer select-none flex-col items-center justify-center gap-3 overflow-hidden p-4 text-center transition-colors"
+                className="hw-panel flex min-h-[16rem] cursor-pointer select-none flex-col items-center justify-center gap-3 overflow-hidden p-4 text-center transition-colors"
                 style={go && phase !== 'tooSoon'
-                    ? { background: 'radial-gradient(circle at 50% 40%, #FFE07A 0%, #FFC72C 45%, #C98A00 100%)', color: '#0A1B45' }
-                    : phase === 'tooSoon' ? { background: 'linear-gradient(180deg, #5a1a14, #2a0c0a)' } : undefined}
+                    ? { background: 'radial-gradient(circle at 50% 40%, #f6c65a 0%, #F0AE22 50%, #a8740e 100%)', color: '#141210' }
+                    : phase === 'tooSoon' ? { background: 'linear-gradient(180deg, #4a1712, #1f0a08)' } : undefined}
             >
-                <p className={`party-display ${go ? 'party-pop text-6xl sm:text-8xl' : 'party-blink text-2xl text-[color:var(--px-muted)] sm:text-3xl'}`}>
+                <p className={`hw-title ${go ? 'hw-pop text-6xl sm:text-8xl' : 'hw-blink text-2xl text-[color:var(--hw-silk-dim)] sm:text-3xl'}`}>
                     {phase === 'tooSoon' ? t('minigame.degaine.tooSoon') : go ? t('minigame.degaine.go') : t('minigame.degaine.wait')}
                 </p>
-                {reaction != null && <p className="party-display text-3xl">{t('minigame.display.ms', { n: reaction })}</p>}
+                {reaction != null && <p className="hw-title text-3xl">{t('minigame.display.ms', { n: reaction })}</p>}
                 <div className="flex items-end justify-center gap-1 sm:gap-3">
                     {players.map((p) => (
                         <PixelCharacter
@@ -67,7 +67,8 @@ export default function Degaine({ minigame, players, myId, t, clock, onSubmit })
                     ))}
                 </div>
             </div>
-            <button type="button" className="party-btn party-btn-big w-full" onPointerDown={(event) => { event.preventDefault(); press(); }} disabled={done}>
+            <button type="button" className="hw-key hw-key-lg w-full" onPointerDown={(event) => { event.preventDefault(); press(); }} disabled={done}>
+                <span className="hw-led is-on" style={{ '--led': '#2EB75E' }} aria-hidden="true" />
                 {t('minigame.degaine.press')}
             </button>
         </div>

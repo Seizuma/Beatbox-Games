@@ -3,12 +3,13 @@ import PartyScene, { VIEWS, scenePoint } from './board/PartyScene';
 import { useNarrow } from './PartyHome';
 import { PLAYER_COLORS } from './characters/pixelRig';
 import { sfx } from './partySfx';
+import { Key, Lcd, LcdText, Panel, PlayerRing } from './ui/Hardware';
 
 // Places sur la scène selon le classement : le vainqueur au micro, au centre
-const SPOTS = [[800, 318], [728, 324], [872, 324], [940, 334]];
+const SPOTS = [[1040, 413], [946, 421], [1134, 421], [1222, 434]];
 const POSES = ['cheer', 'dance', 'fist', 'sad'];
 
-// Fin de partie : le vainqueur sous le projecteur, classement complet, revanche
+// Fin de partie : le vainqueur au micro géant, classement complet, revanche
 export default function PartyEnd({ board, state, myId, t, onRematch, onLeave }) {
     const ranking = state.finalRanking || [];
     const byId = (id) => state.players.find((p) => p.id === id);
@@ -28,62 +29,60 @@ export default function PartyEnd({ board, state, myId, t, onRematch, onLeave }) 
         color: PLAYER_COLORS[p.seat],
         x: SPOTS[Math.min(i, 3)][0],
         y: SPOTS[Math.min(i, 3)][1],
-        facing: SPOTS[Math.min(i, 3)][0] > 800 ? -1 : 1,
+        facing: SPOTS[Math.min(i, 3)][0] > 1040 ? -1 : 1,
     }));
 
     return (
         <div className="flex flex-col gap-6">
-            <section className="party-panel overflow-hidden">
-                <div className="px-5 pb-4 pt-5 text-center sm:pt-6">
-                    <p className="party-kicker">{t('end.title')}</p>
-                    {winner && <h1 className="party-display party-pop mt-1 text-3xl sm:text-5xl" style={{ color: PLAYER_COLORS[winner.seat], textShadow: `0 0 24px ${PLAYER_COLORS[winner.seat]}88` }}>{t('end.winner', { name: winner.name })}</h1>}
+            <Panel className="flex flex-col gap-4 p-4 pt-6 sm:p-6">
+                <div className="flex flex-col items-center gap-2 text-center">
+                    <span className="hw-label">{t('end.title')}</span>
+                    {winner && <h1 className="hw-title hw-pop text-4xl sm:text-6xl">{t('end.winner', { name: winner.name })}</h1>}
                 </div>
-                <PartyScene board={board} view={view} actors={actors} stageColor={winner ? PLAYER_COLORS[winner.seat] : null} goldMic={{ x: 664, y: 334 }} cheering>
-                    {placed.map(({ p, i }) => (
-                        <span key={p.id} className="party-scene-label" style={{ ...scenePoint(view, SPOTS[Math.min(i, 3)][0], SPOTS[Math.min(i, 3)][1] + 8), borderColor: PLAYER_COLORS[p.seat] }}>
-                            {narrow ? i + 1 : `${i + 1}. ${p.name}`}
-                        </span>
-                    ))}
-                </PartyScene>
-            </section>
-
-            <section className="party-panel p-5">
-                <h2 className="party-display text-2xl">{t('end.rank')}</h2>
-                <ol className="mt-4 flex flex-col gap-2">
-                    {placed.map(({ r, p }) => (
-                        <li
-                            key={r.playerId}
-                            className="flex items-center gap-3 rounded-xl bg-[#0A0F27]/70 px-3 py-2"
-                            style={{ boxShadow: r.playerId === myId ? `inset 0 0 0 2px ${PLAYER_COLORS[p.seat]}` : 'inset 0 0 0 1px rgba(255,255,255,0.08)' }}
-                        >
-                            <span className="party-display w-8 text-center text-2xl" style={{ color: PLAYER_COLORS[p.seat] }}>{r.rank}</span>
-                            <span className="min-w-0 flex-1 truncate text-lg font-extrabold">{p.name}</span>
-                            <span className="party-lcd flex items-center gap-4 px-3 py-1">
-                                <span className="flex flex-col items-center leading-none">
-                                    <span className="party-lcd-digits text-xl">{r.stars}</span>
-                                    <span className="mt-0.5 text-[0.62rem] font-bold text-[color:var(--px-muted)]">{t('end.stars')}</span>
-                                </span>
-                                <span className="flex flex-col items-center leading-none">
-                                    <span className="party-lcd-digits text-xl">{r.hype}</span>
-                                    <span className="mt-0.5 text-[0.62rem] font-bold text-[color:var(--px-muted)]">{t('end.hype')}</span>
-                                </span>
-                                <span className="hidden flex-col items-center leading-none sm:flex">
-                                    <span className="party-lcd-digits text-xl">{r.minigameWins}</span>
-                                    <span className="mt-0.5 text-[0.62rem] font-bold text-[color:var(--px-muted)]">{t('end.wins')}</span>
-                                </span>
+                <div className="party-scene-bezel">
+                    <PartyScene board={board} view={view} actors={actors} stageColor={winner ? PLAYER_COLORS[winner.seat] : null} goldMic={{ x: 863, y: 434 }} cheering>
+                        {placed.map(({ p, i }) => (
+                            <span key={p.id} className="party-scene-label" style={{ ...scenePoint(view, SPOTS[Math.min(i, 3)][0], SPOTS[Math.min(i, 3)][1] + 10), '--tag': PLAYER_COLORS[p.seat] }}>
+                                {narrow ? i + 1 : `${i + 1}. ${p.name}`}
                             </span>
+                        ))}
+                    </PartyScene>
+                </div>
+            </Panel>
+
+            <Panel className="p-5 pt-8 sm:p-6 sm:pt-9" label={t('end.rank')}>
+                <ol className="flex flex-col gap-2">
+                    {placed.map(({ r, p }) => (
+                        <li key={r.playerId} className={`hw-strip ${r.playerId === myId ? 'is-active' : ''}`}>
+                            <Lcd className="flex h-10 w-10 shrink-0 items-center justify-center"><LcdText text={r.rank} font="bold" scale={2} color={r.rank === 1 ? '#F0AE22' : undefined} /></Lcd>
+                            <PlayerRing player={p} color={PLAYER_COLORS[p.seat]} size={46} active={r.rank === 1} pose={r.rank === 1 ? 'cheer' : 'idle'} />
+                            <span className="hw-strip-name min-w-0 flex-1 !text-lg">{p.name}</span>
+                            <Lcd className="flex items-center gap-4 px-3 py-1.5">
+                                <span className="flex flex-col items-center gap-1">
+                                    <LcdText text={r.stars} font="bold" scale={2} color="#F0AE22" />
+                                    <span className="hw-label !text-[0.58rem]">{t('end.stars')}</span>
+                                </span>
+                                <span className="flex flex-col items-center gap-1">
+                                    <LcdText text={r.hype} font="bold" scale={2} />
+                                    <span className="hw-label !text-[0.58rem]">{t('end.hype')}</span>
+                                </span>
+                                <span className="hidden flex-col items-center gap-1 sm:flex">
+                                    <LcdText text={r.minigameWins} font="bold" scale={2} />
+                                    <span className="hw-label !text-[0.58rem]">{t('end.wins')}</span>
+                                </span>
+                            </Lcd>
                         </li>
                     ))}
                 </ol>
-            </section>
+            </Panel>
 
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
                 {isHost ? (
-                    <button type="button" className="party-btn party-btn-big" onClick={onRematch}>{t('end.rematch')}</button>
+                    <Key size="lg" led="red" onClick={onRematch}>{t('end.rematch')}</Key>
                 ) : (
-                    <p className="font-bold text-[color:var(--px-muted)]">{t('end.waitingHost')}</p>
+                    <p className="hw-label !text-sm">{t('end.waitingHost')}</p>
                 )}
-                <button type="button" className="party-btn party-btn-ghost" onClick={onLeave}>{t('end.back')}</button>
+                <Key size="md" onClick={onLeave}>{t('end.back')}</Key>
             </div>
         </div>
     );

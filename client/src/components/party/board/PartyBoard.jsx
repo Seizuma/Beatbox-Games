@@ -2,7 +2,7 @@ import React, { useEffect, useRef } from 'react';
 import { DICE_HIT_Y, FOOT_X, FOOT_Y, MIC_MOUTH, PLAYER_COLORS, beatboxHit, getFrame } from '../characters/pixelRig';
 import { beatIndex, beatPhase, sfx } from '../partySfx';
 import { getWorld, SPACE_COLORS, WORLD_H, WORLD_W } from './world';
-import { drawArrow, drawBadge, drawBurst, drawCoin, drawCrowd, drawCube, drawGoldMic, drawRing, drawShadow, drawWorldLive } from './live';
+import { drawArrow, drawBadge, drawBurst, drawCoin, drawCrowd, drawGoldMic, drawLoopDie, drawRing, drawShadow, drawWorldLive, lightRing } from './live';
 import { drawAmbient, drawBeam, drawGlows, drawShade, drawSoundWaves } from './fx';
 import { drawText } from './pixelFont';
 
@@ -18,7 +18,18 @@ import { drawText } from './pixelFont';
 // les lumières (résolution de l'écran, mode « screen ») et l'ombre (vignette, projecteur).
 
 const HOP_T = 0.6;
-const ORDINAL_OFFSETS = [[-26, 12], [26, 12], [-13, 20], [13, 20]];
+const ORDINAL_OFFSETS = [[-15, -4], [15, -4], [-15, 8], [15, 8]];
+// Plusieurs joueurs sur un même pad : en formation, à l'intérieur de l'anneau
+const ORDER_LINE = {
+    2: [[-17, 0], [17, 0]],
+    3: [[-32, 2], [0, -2], [32, 2]],
+    4: [[-46, 2], [-15, -2], [15, 2], [46, -2]],
+};
+const FORMATIONS = {
+    2: [[-13, 0], [13, 0]],
+    3: [[-14, -5], [14, -5], [0, 6]],
+    4: [[-15, -6], [15, -6], [-15, 6], [15, 6]],
+};
 
 // Directions des routes proposées au carrefour (pour les boutons et le clavier)
 export function choiceDirections(state) {
@@ -51,6 +62,7 @@ export default function PartyBoard({ state, queue, myId, mapMode = false, onEven
         flashes: [],
         dice: null,
         counters: {},
+        rollTotals: {},
         lastSeq: 0,
         prevSpaces: null,
         cam: { x: WORLD_W / 2, y: WORLD_H / 2, s: 1, ready: false },
@@ -108,6 +120,7 @@ export default function PartyBoard({ state, queue, myId, mapMode = false, onEven
             case 'roll':
                 L.dice = { playerId: event.playerId, value: event.value, at: now };
                 L.counters[event.playerId] = event.value;
+                L.rollTotals[event.playerId] = event.value;
                 pose(event.playerId, 'diceHit', 1000);
                 sfx('hit', 0.3);
                 break;
@@ -132,12 +145,12 @@ export default function PartyBoard({ state, queue, myId, mapMode = false, onEven
                 if (event.kind === 'drop') {
                     sfx('drop');
                     L.cheerUntil = now + 2000;
-                    L.rings.push({ spaceId: event.spaceId, at: now, color: '#35E085' });
-                    confetti(event.spaceId, ['#35E085', '#97F2BF', '#FFFFFF'], 28);
+                    L.rings.push({ spaceId: event.spaceId, at: now, color: '#2EB75E' });
+                    confetti(event.spaceId, ['#2EB75E', '#93E8B2', '#F2F0EA'], 28);
                 }
                 if (event.kind === 'red') {
                     L.shakeUntil = now + 420;
-                    L.rings.push({ spaceId: event.spaceId, at: now, color: '#FF5A47' });
+                    L.rings.push({ spaceId: event.spaceId, at: now, color: '#E2402F' });
                 }
                 if (event.delta < 0) {
                     pose(event.playerId, 'shock', 700);
@@ -152,7 +165,7 @@ export default function PartyBoard({ state, queue, myId, mapMode = false, onEven
             case 'star':
                 if (event.bought) {
                     float('+1', ['#FFF2B0', '#FFC72C'], player && player.space);
-                    if (player) confetti(player.space, ['#FFC72C', '#FF5FA8', '#4C8DFF', '#35E085', '#FFFFFF'], 60);
+                    if (player) confetti(player.space, ['#F0AE22', '#E2402F', '#3F7EEA', '#2EB75E', '#F2F0EA'], 60);
                     pose(event.playerId, 'cheer', 2400);
                     L.cheerUntil = now + 2600;
                     L.focusStarUntil = now + 2800;
@@ -295,12 +308,12 @@ export default function PartyBoard({ state, queue, myId, mapMode = false, onEven
             px.fillRect(ox, oy, vw, vh);
             px.drawImage(world.canvas, 0, 0);
             const glows = [];
-            drawWorldLive(px, t, info, glows);
+            drawWorldLive(px, t, info, glows, s.board);
 
             // Cases : halo de leur LED, éclat quand un joueur passe dessus
             s.board.spaces.forEach((space) => {
                 const c = SPACE_COLORS[space.type] || SPACE_COLORS.blue;
-                glows.push({ x: space.x, y: space.y - 2, r: 26, color: c.glow, a: 0.28 + kick * 0.1, squash: 0.7 });
+                glows.push({ x: space.x, y: space.y + 1, r: 34, color: c.ring, a: 0.1, squash: 0.65 });
             });
             L.flashes = L.flashes.filter((f) => nowMs - f.at < 500);
             L.flashes.forEach((f) => {
@@ -311,27 +324,28 @@ export default function PartyBoard({ state, queue, myId, mapMode = false, onEven
                 px.globalAlpha = 1 - age / 500;
                 px.drawImage(fl.canvas, fl.ox, fl.oy);
                 px.globalAlpha = 1;
-                glows.push({ x: space.x, y: space.y - 4, r: 46, color: '#ffffff', a: 0.8 * (1 - age / 500), squash: 0.8 });
+                glows.push({ x: space.x, y: space.y, r: 40, color: '#fff3dc', a: 0.35 * (1 - age / 500), squash: 0.7 });
             });
 
             // Case du joueur actif : anneau à sa couleur
             if (activeActor && !map && !activeActor.moving) {
                 const space = s.board.spaces[activeActor.p.space];
-                const pulse = 0.5 + Math.sin(t * 6) * 0.5;
-                drawRing(px, space.x, space.y + 1, 30 + pulse * 2, 19 + pulse, PLAYER_COLORS[activeActor.p.seat], 0.9);
+                // Son pad prend sa couleur : l'anneau tourne comme une boucle qui joue
+                const head = Math.floor(t * 10) % 16;
+                lightRing(px, space, Array.from({ length: 6 }, (_, k) => head - k), PLAYER_COLORS[activeActor.p.seat], 1);
             }
 
             // Acteurs triés de l'arrière vers l'avant : joueurs, ingé son, foule, Micro d'or
             const drawList = [];
             const gate = s.board.spaces.find((sp) => sp.gate);
             if (gate) drawList.push({ y: gate.y + 2, draw: () => {
-                drawShadow(px, gate.x + 46, gate.y + 3, 12, 4);
-                px.drawImage(getFrame('inge', 'guard', t, '#000000', { base: false, facing: -1 }), gate.x + 46 - FOOT_X, gate.y + 2 - FOOT_Y);
+                drawShadow(px, gate.x + 62, gate.y + 3, 12, 4);
+                px.drawImage(getFrame('inge', 'guard', t, '#000000', { base: false, facing: -1 }), gate.x + 62 - FOOT_X, gate.y + 2 - FOOT_Y);
             } });
-            drawList.push({ y: 420, draw: () => drawCrowd(px, t, info) });
+            drawList.push({ y: 545, draw: () => drawCrowd(px, t, info) });
             if (starSpace) {
                 drawList.push({ y: starSpace.y - 0.5, draw: () => drawGoldMic(px, starSpace.x, starSpace.y - 2, t) });
-                glows.push({ x: starSpace.x, y: starSpace.y - 30, r: 54, color: '#FFC72C', a: 0.6 + Math.sin(t * 4) * 0.12 });
+                glows.push({ x: starSpace.x, y: starSpace.y - 28, r: 40, color: '#f2c26a', a: 0.22 });
             }
 
             const visible = actors.filter((a) => showAll || a.p.id === currentId);
@@ -342,9 +356,12 @@ export default function PartyBoard({ state, queue, myId, mapMode = false, onEven
             visible.forEach((a) => { if (!a.moving) bySpace[a.p.space] = (bySpace[a.p.space] || []).concat(a); });
             Object.values(bySpace).forEach((group) => {
                 if (group.length < 2) return;
-                const gap = s.phase === 'order' ? 34 : 26;
+                // Ordre de passage : tout le monde en ligne sur le départ, chacun sous son dé
+                const spots = s.phase === 'order' ? ORDER_LINE[Math.min(4, group.length)] : FORMATIONS[Math.min(4, group.length)];
                 group.sort((a, b) => a.p.seat - b.p.seat).forEach((a, i) => {
-                    a.pos = [a.pos[0] + (i - (group.length - 1) / 2) * gap, a.pos[1] + (i % 2 ? 5 : -3)];
+                    const [dx, dy] = spots[i % spots.length];
+                    a.pos = [a.pos[0] + dx, a.pos[1] + dy];
+                    a.grouped = true;
                 });
             });
 
@@ -383,26 +400,23 @@ export default function PartyBoard({ state, queue, myId, mapMode = false, onEven
                     if (s.phase === 'order') {
                         const value = s.orderRolls[p.id];
                         const text = value != null ? value : 1 + (Math.floor(t * 14 + p.seat * 3) % 10);
-                        drawCube(px, pos[0], headY - (value == null ? Math.round(Math.sin(t * 5 + p.seat) * 2) : 0), text, { gold: value == null, size: 22 });
+                        drawLoopDie(px, pos[0], headY + (a.grouped ? 2 : -2), text, { mode: value != null ? 'result' : 'roll', t: t + p.seat * 0.3, size: 0.68 });
                     }
                     // Dé au-dessus de la tête : il tourne, on le frappe, il affiche le résultat
                     if (p.id === currentId) {
                         let text = null;
-                        let gold = true;
+                        let mode = 'roll';
                         let bob = 0;
                         if (s.step === 'roll') { text = 1 + (Math.floor(t * 14) % 10); bob = Math.round(Math.sin(t * 5) * 2); }
                         if (L.dice && L.dice.playerId === p.id && !moving && (s.step === 'rolled' || s.step === 'roll')) {
                             const age = nowMs - L.dice.at;
                             text = age < 340 ? 1 + (Math.floor(t * 30) % 10) : L.dice.value;
-                            if (age >= 340 && age < 900) {
-                                drawBurst(px, pos[0], headY - 18, age - 340);
-                                glows.push({ x: pos[0], y: headY - 18, r: 50, color: '#FFE07A', a: 1 - (age - 340) / 560 });
-                            }
+                            if (age >= 340) mode = 'result';
+                            if (age >= 340 && age < 900) drawBurst(px, pos[0], headY - 22, age - 340);
                         }
-                        if (left != null && left > 0 && (moving || s.step !== 'rolled')) { text = left; gold = false; }
+                        if (left != null && left > 0 && (moving || s.step !== 'rolled')) { text = left; mode = 'steps'; }
                         if (text != null) {
-                            drawCube(px, pos[0], headY - 4 + bob, text, { gold, size: gold ? 26 : 20 });
-                            glows.push({ x: pos[0], y: headY - 20, r: 30, color: gold ? '#FFC72C' : '#ffffff', a: 0.35 });
+                            drawLoopDie(px, pos[0], headY - 2 + bob, text, { mode, total: L.rollTotals[p.id] || 10, t, size: mode === 'steps' ? 0.8 : 1 });
                         }
                     }
                 } });
@@ -416,16 +430,16 @@ export default function PartyBoard({ state, queue, myId, mapMode = false, onEven
                 choiceDirections(s).forEach((o) => {
                     const v = DIR_VEC[o.dir];
                     const pulse = Math.round(Math.sin(t * 7) * 3);
-                    const dist = 50 + pulse;
+                    const dist = 66 + pulse;
                     const ax = here.x + v[0] * dist;
                     const ay = here.y - 24 + v[1] * (dist - 6);
-                    const color = o.affordable ? (s.choice.playerId === me ? '#FFC72C' : '#FFFFFF') : '#6C7AA6';
+                    const color = o.affordable ? (s.choice.playerId === me ? '#F0AE22' : '#F2F0EA') : '#5b5b64';
                     drawArrow(px, ax, ay, o.dir, color);
-                    glows.push({ x: ax, y: ay, r: 26, color: o.affordable ? '#FFC72C' : '#6C7AA6', a: 0.5 });
+                    
                     if (o.gate) {
                         const label = `${o.gate}`;
                         drawCoin(px, ax + 6, ay + 16);
-                        drawText(px, label, ax - 2, ay + 17, o.affordable ? ['#FFF2B0', '#FFC72C'] : '#A9B3DA');
+                        drawText(px, label, ax - 2, ay + 17, o.affordable ? '#F2F0EA' : '#8a8a92');
                     }
                     L.arrows.push({ spaceId: o.spaceId, x: ax, y: ay, affordable: o.affordable });
                 });
@@ -461,8 +475,8 @@ export default function PartyBoard({ state, queue, myId, mapMode = false, onEven
             L.rings.forEach((r) => {
                 const sp = s.board.spaces[r.spaceId];
                 const k = (nowMs - r.at) / 700;
-                drawRing(px, sp.x, sp.y + 1, 24 + k * 70, 15 + k * 44, r.color, 1 - k);
-                glows.push({ x: sp.x, y: sp.y, r: 40 + k * 80, color: r.color, a: 0.6 * (1 - k), squash: 0.6 });
+                drawRing(px, sp.x, sp.y + 1, 34 + k * 70, 21 + k * 44, r.color, 1 - k);
+                glows.push({ x: sp.x, y: sp.y, r: 40 + k * 80, color: r.color, a: 0.25 * (1 - k), squash: 0.6 });
             });
 
             // ---------------- Lumières ----------------
@@ -475,8 +489,7 @@ export default function PartyBoard({ state, queue, myId, mapMode = false, onEven
             gx.clearRect(0, 0, GW, GH);
             gx.setTransform(sc * dpr, 0, 0, sc * dpr, -viewLeft * sc * dpr, -viewTop * sc * dpr);
             drawAmbient(gx, t, info);
-            if (starSpace) drawBeam(gx, starSpace.x, starSpace.y, 26, '#FFC72C', 0.22 + Math.sin(t * 3) * 0.05);
-            if (activeActor && !map) drawBeam(gx, activeActor.pos[0], activeActor.pos[1] - activeActor.lift, 40, '#fff4dc', 0.16);
+            if (activeActor && !map) drawBeam(gx, activeActor.pos[0], activeActor.pos[1] - activeActor.lift, 46, '#fff4dc', 0.09);
             drawGlows(gx, glows);
             visible.forEach((a) => { if (a.waves) drawSoundWaves(gx, a.waves.x, a.waves.y, a.waves.facing, a.waves.hit, t); });
 

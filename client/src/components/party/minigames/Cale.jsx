@@ -116,14 +116,15 @@ export default function Cale({ minigame, t, clock, onSubmit }) {
 
     return (
         <div className="mx-auto flex w-full max-w-[640px] flex-col gap-4">
-            <p className={`text-center text-sm font-extrabold uppercase tracking-[0.12em] ${listening ? 'text-[#5FE0C8]' : 'text-[color:var(--px-yellow)]'}`}>
+            <p className={`text-center text-sm font-extrabold uppercase tracking-[0.12em] ${listening ? 'text-[#5FE0C8]' : 'text-[color:var(--hw-amber)]'}`}>
                 {listening ? t('minigame.cale.listen') : t('minigame.cale.go')}
             </p>
-            <div className="party-panel overflow-hidden p-0" role="presentation" onPointerDown={tap}>
+            <div className="hw-panel overflow-hidden p-0" role="presentation" onPointerDown={tap}>
                 <canvas ref={canvasRef} className="party-pixel block h-auto w-full" style={{ aspectRatio: `${CW} / ${CH}` }} aria-hidden="true" />
             </div>
-            <p className="party-display h-9 text-center text-3xl text-[color:var(--px-yellow)]" aria-live="polite">{feedback || ''}</p>
-            <button type="button" className="party-btn party-btn-big w-full" disabled={done} onPointerDown={(event) => { event.preventDefault(); tap(); }}>
+            <p className="hw-title h-9 text-center text-3xl text-[color:var(--hw-amber)]" aria-live="polite">{feedback || ''}</p>
+            <button type="button" className="hw-key hw-key-lg w-full" disabled={done} onPointerDown={(event) => { event.preventDefault(); tap(); }}>
+                <span className="hw-led is-on" style={{ '--led': '#2EB75E' }} aria-hidden="true" />
                 {t('minigame.cale.tap')}
             </button>
         </div>

@@ -1,45 +1,56 @@
 // Le décor du plateau « Le Setup » : le bureau d'un beatboxer, la nuit, vu de trois
 // quarts. Les joueurs sont des beatboxers miniatures qui marchent sur le matériel.
 //
+// Direction artistique : du matériel réel, sans néon. Châssis noir mat et sérigraphie
+// blanche inspirés des loopstations de table (pads ronds en caoutchouc entourés d'un
+// anneau de LED, faders, écran LCD graphique), bois chaud, mousse acoustique, et
+// l'éclairage d'une lampe de bureau et de la lune. Les seules lumières colorées sont
+// de petites LED de matériel.
+//
 // Le décor fixe est peint une seule fois, en deux temps :
 // 1. chaque objet pose dans deux tampons une matière (bois, plastique, métal…) et un
 //    « ton » de base (relief : dessus clair, face avant sombre, arêtes brillantes) ;
-// 2. l'éclairage de la scène (lampe de bureau, lune, projecteur de la scène) s'ajoute
-//    au ton, puis chaque pixel prend la couleur de la rampe de sa matière, avec une
-//    trame ordonnée (Bayer) entre deux tons : c'est ce qui donne les dégradés tramés
-//    du pixel art. Les LED, écrans et néons sont « émissifs » : l'éclairage ne les touche pas.
+// 2. l'éclairage de la scène s'ajoute au ton, puis chaque pixel prend la couleur de la
+//    rampe de sa matière, avec une trame ordonnée (Bayer) entre deux tons. Les LED et
+//    les écrans sont « émissifs » : l'éclairage ne les touche pas.
 //
-// Les éléments animés (LED, vumètres, écran, enceintes…) sont dessinés à chaque image
-// par live.js, aux positions exportées ici.
+// Les éléments animés (LED, écran, enceintes…) sont dessinés à chaque image par
+// live.js, aux positions exportées ici.
 
-export const WORLD_W = 1280;
-export const WORLD_H = 880;
-export const DESK_Y = 150;
-export const DESK_FRONT = 840;
+import { glyphPixels, plain } from './pixelFont';
+
+export const WORLD_W = 1664;
+export const WORLD_H = 1144;
+export const DESK_Y = 196;
+export const DESK_FRONT = 1092;
 
 // ---------------------------------------------------------------------------
-// Matières : rampes de couleurs, du plus sombre au plus clair (ombres froides,
-// lumières chaudes)
+// Matières : rampes de couleurs, du plus sombre au plus clair. Tons neutres et
+// chauds (bois, noir mat), pas de bleu nuit saturé.
 // ---------------------------------------------------------------------------
 
 const RAMPS = {
-    void: ['#030409', '#06070e', '#0a0b15', '#0f111d', '#151827'],
-    wall: ['#07081a', '#0b0d22', '#10132c', '#151937', '#1b2043', '#232951', '#2c3360', '#363e70'],
-    foam: ['#07081a', '#0b0d24', '#101330', '#15193d', '#1b204b', '#22285a', '#2b326a', '#353d7b', '#41498b'],
+    void: ['#050404', '#090807', '#0e0c0b', '#141210', '#1b1816'],
+    wall: ['#0c0a0a', '#131010', '#1a1616', '#221d1c', '#2b2523', '#352e2b', '#403734', '#4c423e'],
+    foam: ['#0b0b0d', '#111114', '#18181c', '#202025', '#29292f', '#33333a', '#3e3e46', '#4a4a53', '#57575f'],
     wood: ['#0b070e', '#120a13', '#1a0f17', '#24151b', '#2f1b1f', '#3c2224', '#4b2a28', '#5d342d', '#713f33', '#884b38', '#a1593e', '#bb6a46', '#d47f53'],
-    gear: ['#05060c', '#090b14', '#0e111d', '#141827', '#1b2032', '#232940', '#2d344f', '#394161', '#475074', '#59638a', '#6f79a1'],
-    metal: ['#10131f', '#181c2c', '#22273b', '#2e344b', '#3b425c', '#4b5370', '#5e6786', '#737d9d', '#8b95b4', '#a6b0ca', '#c4ccdf', '#e3e8f3'],
-    rubber: ['#07080e', '#0c0e16', '#12141f', '#181c29', '#1f2433', '#272d3f', '#31384c', '#3c445b'],
-    cable: ['#030408', '#07080f', '#0c0e17', '#121521', '#191d2b', '#222737', '#2d3347', '#3b425a', '#4d5571'],
-    chrome: ['#0d1019', '#161a28', '#21263a', '#2e354d', '#3e4663', '#525c7c', '#6a7597', '#8590b1', '#a3adc9', '#c3cbdf', '#e3e8f2', '#ffffff'],
+    chassis: ['#050506', '#09090b', '#0e0e11', '#141417', '#1a1a1e', '#212126', '#29292f', '#333339', '#3e3e45', '#4b4b53', '#5b5b64'],
+    gear: ['#08080a', '#0d0d10', '#131317', '#1a1a1f', '#222228', '#2b2b32', '#35353d', '#41414a', '#4f4f59', '#60606b', '#74747f'],
+    metal: ['#141416', '#1d1d21', '#27272c', '#323238', '#3f3f46', '#4e4e56', '#5f5f68', '#73737c', '#8a8a92', '#a3a3aa', '#bfbfc4', '#dcdcdf'],
+    rubber: ['#0a0a0b', '#101012', '#17171a', '#1f1f23', '#28282d', '#323238', '#3d3d44', '#4a4a52', '#58585f'],
+    cable: ['#040404', '#08080a', '#0e0e10', '#151517', '#1d1d20', '#26262a', '#313136', '#3e3e44', '#4e4e55'],
+    chrome: ['#101012', '#19191c', '#242428', '#313136', '#414147', '#55555c', '#6c6c73', '#86868c', '#a3a3a8', '#c2c2c6', '#e0e0e3', '#ffffff'],
+    silk: ['#3b3a37', '#57554f', '#76736b', '#95918a', '#b3afa7', '#cfcbc3', '#e6e3dc', '#f6f4ef'],
     gold: ['#241403', '#3d2304', '#5d3502', '#814a00', '#a86200', '#cd7d00', '#ec9d0b', '#ffbe28', '#ffd65e', '#ffeaa0', '#fff7d9'],
-    paper: ['#2a230b', '#453a12', '#64561c', '#857426', '#a69231', '#c6b03f', '#e1cb52', '#f5e273', '#fff2a6'],
-    pink: ['#22091a', '#3a0f2b', '#561840', '#742357', '#93306f', '#b24188', '#cf5ba2', '#e67fbc', '#f6a9d4'],
-    ceramic: ['#121220', '#1e1e2d', '#2e2e40', '#424256', '#59596f', '#73738a', '#8f8fa6', '#adadc2', '#cbcbdb', '#e6e6f0', '#fbfbfe'],
+    brass: ['#1c1307', '#2e200d', '#443015', '#5c421d', '#765627', '#916b33', '#ad8243', '#c79b58', '#dcb574', '#ecd09a'],
+    cork: ['#1d140c', '#2c1f13', '#3d2b1a', '#503923', '#64482c', '#7a5836', '#8f6840', '#a5794b', '#b98b5a'],
+    paper: ['#2b2618', '#463e28', '#62583b', '#80754f', '#9d9165', '#b8ac7f', '#d0c59a', '#e4dab5', '#f3ebcf'],
+    rose: ['#24141a', '#3a1f28', '#522b37', '#6c3947', '#864858', '#a05a6a', '#b86f7e', '#cd8794', '#dfa1ab'],
+    ceramic: ['#141414', '#202020', '#303030', '#434343', '#595959', '#727272', '#8d8d8d', '#aaaaaa', '#c8c8c6', '#e2e1dd', '#f6f5f1'],
     coffee: ['#0b0503', '#150a06', '#21110a', '#2e180e', '#3d2113', '#4e2b18'],
-    orange: ['#1c0a05', '#331208', '#511d0c', '#732a10', '#983914', '#bd4c19', '#dc6423', '#f2823a', '#ffa45c', '#ffc589'],
-    teal: ['#031315', '#062126', '#0a3239', '#0f454d', '#145b63', '#1b737b', '#268f95', '#3aabae', '#5cc6c5', '#8ddfdb'],
-    purple: ['#0d071c', '#160c30', '#221247', '#2f1a5f', '#3e2378', '#4f2e92', '#633dab', '#7b55c2', '#9873d6', '#b897e6'],
+    orange: ['#1c0a05', '#331208', '#511d0c', '#732a10', '#983914', '#b84b1c', '#d1622b', '#e27d42', '#ee9a62', '#f6b88a'],
+    teal: ['#061212', '#0b1e1e', '#122e2d', '#1a403e', '#235350', '#2e6762', '#3b7b75', '#4c908a', '#62a59f', '#7fbab4'],
+    purple: ['#0e0b14', '#181322', '#231c32', '#2f2643', '#3c3155', '#4a3d67', '#5a4b79', '#6c5c8b', '#806f9d', '#9585af'],
     cream: ['#171410', '#28231c', '#3e362b', '#584d3e', '#756753', '#94846b', '#b3a185', '#cfbea1', '#e8d8bc', '#f8ecd6'],
     velvet: ['#1a0408', '#2e070e', '#460b15', '#62101d', '#801726', '#9e2130', '#bb2f3c', '#d4464e'],
 };
@@ -212,36 +223,35 @@ class Paint {
 }
 
 // ---------------------------------------------------------------------------
-// Éclairage de la scène
+// Éclairage de la scène : lampe de bureau (chaude), lune (froide), projecteur doux
 // ---------------------------------------------------------------------------
 
 export const LIGHTS = {
-    lamp: { x: 320, y: 360, r: 640, amp: 4.4 },
-    moon: { x: 1060, y: 240, r: 360, amp: 1.2 },
-    stage: { x: 800, y: 290, r: 230, amp: 1.8 },
+    lamp: { x: 420, y: 480, r: 900, amp: 4.6 },
+    moon: { x: 1380, y: 310, r: 470, amp: 1.0 },
+    stage: { x: 1040, y: 380, r: 290, amp: 1.4 },
 };
 
 function lightAt(x, y) {
-    let v = -1.7;
+    let v = -1.35;
     Object.values(LIGHTS).forEach((L) => {
         const d = Math.hypot(x - L.x, (y - L.y) * 1.25) / L.r;
         if (d < 1) v += L.amp * (1 - d) ** 1.6;
     });
-    v -= 1.6 * smooth(760, 880, y);
-    v -= 0.8 * smooth(1100, 1280, x) + 0.6 * smooth(140, 0, x);
+    v -= 1.6 * smooth(990, 1144, y);
+    v -= 0.8 * smooth(1430, 1664, x) + 0.6 * smooth(180, 0, x);
     return v;
 }
 
 // ---------------------------------------------------------------------------
-// Volumes
+// Volumes et détails de matériel
 // ---------------------------------------------------------------------------
 
 // Boîtier vu de trois quarts : dessus (x, y, w, d) et face avant de hauteur h
 function box(P, { x, y, w, d, h, r = 8, m, top = 4, front = 2.2, shadow = 2.4 }) {
-    P.shadowRect(x + 10, y + d * 0.35, w + 4, d * 0.65 + h + 6, shadow, 12);
+    P.shadowRect(x + 12, y + d * 0.35, w + 6, d * 0.65 + h + 8, shadow, 16);
     P.rrect(x, y + h, w, d, r, m, front - 0.8);
     P.rect(x, y + d, w, h, m, (px, py, u, v) => {
-        // coins arrondis en bas de la face avant
         const left = px - x;
         const right = x + w - 1 - px;
         const bottom = y + d + h - 1 - py;
@@ -263,21 +273,49 @@ function box(P, { x, y, w, d, h, r = 8, m, top = 4, front = 2.2, shadow = 2.4 })
     });
 }
 
-// Bouton rond en relief (bouton d'appareil, potard)
-function knob(P, cx, cy, r, m = M.metal, base = 6) {
+// Sérigraphie blanche (texte en petite police)
+function silk(P, text, x, y, { tone = 5, align = 'left' } = {}) {
+    const { pixels, width } = glyphPixels(plain(text), 'tiny');
+    const x0 = Math.round(align === 'center' ? x - width / 2 : align === 'right' ? x - width : x);
+    pixels.forEach(([px, py]) => P.put(x0 + px, Math.round(y) + py, M.silk, tone));
+}
+
+// Filet sérigraphié autour d'une section, avec son titre
+function silkFrame(P, x, y, w, h, label) {
+    const tone = 3.6;
+    P.rect(x, y, w, 1, M.silk, tone);
+    P.rect(x, y + h - 1, w, 1, M.silk, tone);
+    P.rect(x, y, 1, h, M.silk, tone);
+    P.rect(x + w - 1, y, 1, h, M.silk, tone);
+    if (label) {
+        const { width } = glyphPixels(plain(label), 'tiny');
+        P.rect(x + 8, y - 3, width + 6, 7, M.chassis, 4.4);
+        silk(P, label, x + 11, y - 2, { tone: 5.4 });
+    }
+}
+
+// Potard : jupe, capuchon, trait blanc
+function knob(P, cx, cy, r, m = M.chassis, base = 5) {
     P.shadowEllipse(cx + 2, cy + 3, r + 2, r * 0.7 + 2, 1.6);
     P.ellipse(cx, cy + 2, r, r * 0.62, m, base - 2.5);
-    P.ellipse(cx, cy, r, r * 0.62, m, (nx, ny) => base + (-nx * 0.6 - ny * 0.8) * 1.6);
-    P.rect(cx - 0.5, cy - r * 0.62, 1, Math.max(2, r * 0.5), m, base + 3);
+    P.ellipse(cx, cy, r, r * 0.62, m, (nx, ny, px, py, d) => base + (-nx * 0.6 - ny * 0.8) * 1.4 + (d > 0.8 ? -0.6 : 0) + ((px + py) % 3 === 0 && d > 0.75 ? 0.6 : 0));
+    P.rect(cx - 0.5, cy - r * 0.62 + 1, 1, Math.max(2, r * 0.45), M.silk, 6);
 }
 
 // Fente de fader avec son curseur
-function fader(P, cx, y0, y1, pos, m = M.gear) {
-    P.rect(cx - 2, y0, 4, y1 - y0, m, (px) => (px === cx - 2 ? 0.6 : 1.2));
+function fader(P, cx, y0, y1, pos) {
+    P.rect(cx - 2, y0, 4, y1 - y0, M.chassis, (px) => (px === cx - 2 ? 0.4 : 0.9));
+    for (let k = 0; k <= 4; k += 1) P.rect(cx - 9, Math.round(y0 + ((y1 - y0) * k) / 4), 4, 1, M.silk, 3.2);
     const fy = y0 + (y1 - y0) * pos;
-    P.shadowRect(cx - 7, fy + 2, 14, 8, 1.5, 3);
-    P.rrect(cx - 8, fy - 4, 16, 9, 2, M.metal, (px, py) => (py === Math.round(fy - 4) ? 9 : py > fy + 2 ? 4.5 : 6.5));
-    P.rect(cx - 6, fy, 12, 1, M.metal, 3);
+    P.shadowRect(cx - 8, fy + 2, 16, 10, 1.5, 3);
+    P.rrect(cx - 10, fy - 5, 20, 11, 2, M.rubber, (px, py) => (py === Math.round(fy - 5) ? 7 : py > fy + 3 ? 3.5 : 5.2));
+    P.rect(cx - 8, fy, 16, 1, M.silk, 5.6);
+}
+
+// Petit bouton en caoutchouc rectangulaire (avec sa LED, allumée dans live.js)
+function rubberKey(P, x, y, w, h) {
+    P.rrect(x, y + 2, w, h, 3, M.rubber, 1.4);
+    P.rrect(x, y, w, h, 3, M.rubber, (px, py) => (py === y ? 6 : py > y + h - 3 ? 3.4 : 4.6));
 }
 
 // ---------------------------------------------------------------------------
@@ -287,108 +325,121 @@ function fader(P, cx, y0, y1, pos, m = M.gear) {
 function paintWall(P) {
     P.rect(0, 0, WORLD_W, DESK_Y, M.wall, 3);
     // Panneaux de mousse acoustique : dents alternées (verticales / horizontales)
-    const PW = 62;
-    const PH = 62;
+    const PW = 80;
+    const PH = 80;
     for (let row = 0; row < 3; row += 1) {
         for (let col = 0; col * PW < WORLD_W; col += 1) {
             const x0 = col * PW + 2;
             const y0 = row * PH + 6;
-            if (y0 > DESK_Y - 8) continue;
+            if (y0 > DESK_Y - 10) continue;
             const vertical = (row + col) % 2 === 0;
-            P.rect(x0, y0, PW - 4, Math.min(PH - 4, DESK_Y - 8 - y0), M.foam, (px, py, u, v) => {
-                const k = vertical ? (px - x0) % 10 : (py - y0) % 10;
-                let t = k < 3 ? 5.2 : k < 6 ? 4 : k < 8 ? 3 : 2.2;
+            P.rect(x0, y0, PW - 4, Math.min(PH - 4, DESK_Y - 10 - y0), M.foam, (px, py) => {
+                const k = vertical ? (px - x0) % 13 : (py - y0) % 13;
+                let t = k < 4 ? 5 : k < 8 ? 3.9 : k < 11 ? 2.9 : 2.1;
                 if (py === y0) t += 0.8;
-                return t + (hash(px, py) - 0.5) * 0.3;
+                return t + (hash(px, py) - 0.5) * 0.5;
             });
         }
     }
-    // Plinthe : jonction mur / bureau
-    P.rect(0, DESK_Y - 8, WORLD_W, 8, M.wall, (px, py) => 1.2 - (py - (DESK_Y - 8)) * 0.1);
+    P.rect(0, DESK_Y - 10, WORLD_W, 10, M.wall, (px, py) => 1.2 - (py - (DESK_Y - 10)) * 0.08);
 }
 
 // Fenêtre : ciel de nuit, lune, immeubles (les fenêtres allumées scintillent dans live.js)
-export const WINDOW = { x: 930, y: 12, w: 236, h: 118 };
+export const WINDOW = { x: 1209, y: 16, w: 306, h: 152 };
 function paintWindow(P) {
     const { x, y, w, h } = WINDOW;
-    P.rect(x - 6, y - 6, w + 12, h + 14, M.gear, (px, py) => (py < y - 4 ? 6 : py > y + h + 2 ? 3 : 4.5));
+    P.rect(x - 8, y - 8, w + 16, h + 18, M.wood, (px, py) => (py < y - 6 ? 7 : py > y + h + 2 ? 3.6 : 5));
     for (let j = 0; j < h; j += 1) {
         const k = j / h;
-        const r = Math.round(10 + k * 22);
-        const g = Math.round(14 + k * 22);
-        const b = Math.round(42 + k * 40);
+        const r = Math.round(14 + k * 20);
+        const g = Math.round(17 + k * 20);
+        const b = Math.round(32 + k * 26);
         for (let i = 0; i < w; i += 1) P.put(x + i, y + j, EMIT, (r << 16) | (g << 8) | b);
     }
-    // Étoiles
-    for (let i = 0; i < 40; i += 1) {
+    for (let i = 0; i < 50; i += 1) {
         const sx = x + Math.floor(hash(i, 3) * w);
-        const sy = y + Math.floor(hash(i, 7) * h * 0.6);
-        P.put(sx, sy, EMIT, hash(i, 9) > 0.7 ? '#fff6d8' : '#7d86c4');
+        const sy = y + Math.floor(hash(i, 7) * h * 0.55);
+        P.put(sx, sy, EMIT, hash(i, 9) > 0.7 ? '#efe8d6' : '#6f7488');
     }
-    // Lune
-    const mx = x + w - 40;
-    const my = y + 30;
-    for (let j = -12; j <= 12; j += 1) {
-        for (let i = -12; i <= 12; i += 1) {
-            if (i * i + j * j <= 132) {
-                const crater = (i + 3) ** 2 + (j - 2) ** 2 < 10 || (i - 5) ** 2 + (j + 4) ** 2 < 6;
-                P.put(mx + i, my + j, EMIT, crater ? '#d9cfae' : i + j < -8 ? '#fffaea' : '#f3e9c8');
+    const mx = x + w - 52;
+    const my = y + 38;
+    for (let j = -15; j <= 15; j += 1) {
+        for (let i = -15; i <= 15; i += 1) {
+            if (i * i + j * j <= 210) {
+                const crater = (i + 4) ** 2 + (j - 3) ** 2 < 14 || (i - 6) ** 2 + (j + 5) ** 2 < 8;
+                P.put(mx + i, my + j, EMIT, crater ? '#cfc8b4' : i + j < -10 ? '#fbf6e9' : '#ece4cc');
             }
         }
     }
-    // Immeubles en silhouette
-    const skyline = [[0, 70], [22, 52], [48, 80], [70, 40], [96, 62], [120, 30], [142, 58], [168, 46], [190, 74], [214, 54]];
+    const skyline = [[0, 92], [29, 68], [62, 104], [91, 52], [125, 80], [156, 40], [185, 76], [218, 60], [247, 96], [278, 70]];
     skyline.forEach(([bx, bh], i) => {
         const bw = (skyline[i + 1] ? skyline[i + 1][0] : w) - bx;
         for (let j = h - bh; j < h; j += 1) {
-            for (let k = 0; k < bw; k += 1) P.put(x + bx + k, y + j, EMIT, j === h - bh ? '#1a1f3e' : '#0b0d1f');
+            for (let k = 0; k < bw; k += 1) P.put(x + bx + k, y + j, EMIT, j === h - bh ? '#22232b' : '#0f1015');
         }
     });
-    // Croisillons
-    P.rect(x + w / 2 - 3, y, 6, h, M.gear, 5);
-    P.rect(x, y + h / 2 - 2, w, 5, M.gear, 5);
-    // Rebord
-    P.rect(x - 10, y + h + 6, w + 20, 6, M.gear, (px, py) => (py === y + h + 6 ? 7 : 4));
+    P.rect(x + w / 2 - 4, y, 8, h, M.wood, 5);
+    P.rect(x, y + h / 2 - 3, w, 6, M.wood, 5);
+    P.rect(x - 12, y + h + 8, w + 24, 8, M.wood, (px, py) => (py === y + h + 8 ? 7.5 : 4));
 }
 
-// Néon : l'onde sonore du logo de BeatBox Games
-export const NEON = { x: 392, y: 20, w: 214, h: 104, bars: [16, 34, 56, 36, 76, 44, 62, 30, 46, 22, 12] };
-export const NEON_TUBES = [];
-function paintNeon(P) {
-    const { x, y, w, h, bars } = NEON;
-    NEON_TUBES.length = 0;
-    P.shadowRect(x + 4, y + 6, w, h, 1.4, 8);
-    P.rrect(x, y, w, h, 6, M.gear, (px, py) => (py === y ? 4 : px === x || px === x + w - 1 ? 2.6 : 1.8));
-    [[x + 8, y + 8], [x + w - 10, y + 8], [x + 8, y + h - 10], [x + w - 10, y + h - 10]].forEach(([sx, sy]) => P.ellipse(sx, sy, 2.5, 2.5, M.chrome, 7));
-    const step = (w - 30) / (bars.length - 1);
-    bars.forEach((bh, i) => {
-        const cx = Math.round(x + 15 + i * step);
-        const cy = y + h / 2;
-        NEON_TUBES.push({ x: cx - 3, y: Math.round(cy - bh / 2), w: 7, h: Math.round(bh) });
-        for (let j = Math.round(cy - bh / 2); j < Math.round(cy + bh / 2); j += 1) {
-            const end = Math.min(j - (cy - bh / 2), cy + bh / 2 - j);
-            for (let k = -3; k <= 3; k += 1) {
-                if (end < 2 && Math.abs(k) > 2 - end) continue;
-                const c = Math.abs(k) <= 1 ? '#fff4c7' : Math.abs(k) === 2 ? '#ffc72c' : '#c98a00';
-                P.put(cx + k, j, EMIT, c);
-            }
-        }
-    });
+// Tableau en liège : flyers de battles, polaroïd, setlist (aucune lumière)
+function paintCorkboard(P) {
+    const x = 500;
+    const y = 24;
+    const w = 286;
+    const h = 140;
+    P.shadowRect(x + 6, y + 8, w, h, 1.6, 10);
+    P.rect(x, y, w, h, M.wood, (px, py) => (px < x + 6 || py < y + 6 || px > x + w - 7 || py > y + h - 7 ? (py < y + 2 || px < x + 2 ? 7 : 4.6) : null));
+    P.rect(x + 6, y + 6, w - 12, h - 12, M.cork, (px, py) => 4.2 + (hash(px, py) > 0.7 ? 0.8 : hash(px + 7, py) > 0.85 ? -0.8 : 0));
+    const pin = (px, py, m) => {
+        P.ellipse(px + 1, py + 2, 3, 2, M.cork, 2);
+        P.ellipse(px, py, 3, 3, m, (nx, ny) => 6 + (-nx - ny) * 1.5);
+    };
+    // Flyer de battle : grande onde imprimée, lignes de titre
+    const f1 = [x + 18, y + 16, 84, 108];
+    P.shadowRect(f1[0] + 3, f1[1] + 4, f1[2], f1[3], 1.4, 4);
+    P.rect(f1[0], f1[1], f1[2], f1[3], M.paper, (px, py, u, v) => 6 - v * 0.6);
+    P.rect(f1[0] + 8, f1[1] + 10, 68, 9, M.chassis, 3);
+    P.rect(f1[0] + 8, f1[1] + 22, 44, 4, M.chassis, 4);
+    [10, 22, 34, 18, 40, 26, 14, 30, 20].forEach((bh, i) => P.rect(f1[0] + 10 + i * 7, f1[1] + 64 - bh / 2, 4, bh, M.velvet, 4.6));
+    P.rect(f1[0] + 8, f1[1] + 90, 58, 3, M.chassis, 4);
+    P.rect(f1[0] + 8, f1[1] + 96, 40, 3, M.chassis, 4);
+    pin(f1[0] + 42, f1[1] + 4, M.velvet);
+    // Affiche rose : silhouette de micro
+    const f2 = [x + 116, y + 26, 74, 96];
+    P.shadowRect(f2[0] + 3, f2[1] + 4, f2[2], f2[3], 1.4, 4);
+    P.rect(f2[0], f2[1], f2[2], f2[3], M.rose, (px, py, u, v) => 5.4 - v * 0.6);
+    P.ellipse(f2[0] + 37, f2[1] + 32, 13, 14, M.chassis, 3);
+    P.rect(f2[0] + 33, f2[1] + 44, 8, 30, M.chassis, 3);
+    P.rect(f2[0] + 10, f2[1] + 80, 54, 4, M.chassis, 3.6);
+    pin(f2[0] + 37, f2[1] + 4, M.teal);
+    // Polaroïd : une scène, de loin
+    const f3 = [x + 204, y + 16, 62, 72];
+    P.shadowRect(f3[0] + 3, f3[1] + 4, f3[2], f3[3], 1.4, 4);
+    P.rect(f3[0], f3[1], f3[2], f3[3], M.ceramic, 8);
+    P.rect(f3[0] + 5, f3[1] + 5, f3[2] - 10, 48, M.chassis, (px, py, u, v) => 1.5 + (Math.abs(u - 0.5) < 0.18 && v > 0.4 ? 4 : 0) + (v > 0.85 ? 1 : 0));
+    pin(f3[0] + 31, f3[1] + 3, M.gold);
+    // Setlist griffonnée
+    const f4 = [x + 200, y + 96, 70, 34];
+    P.rect(f4[0], f4[1], f4[2], f4[3], M.paper, 6.4);
+    for (let l = 0; l < 3; l += 1) for (let i = 0; i < 52; i += 1) if (hash(i, l + 4) < 0.75) P.put(f4[0] + 8 + i, f4[1] + 8 + l * 8, M.chassis, 4);
 }
 
 // Disque vinyle encadré
 function paintVinyl(P) {
-    const x = 640;
-    const y = 30;
-    P.shadowRect(x + 4, y + 6, 84, 84, 1.3, 8);
-    P.rect(x, y, 84, 84, M.wood, (px, py) => (px === x || py === y ? 8 : px === x + 83 || py === y + 83 ? 4 : 6));
-    P.rect(x + 5, y + 5, 74, 74, M.cream, 3.4);
-    P.ellipse(x + 42, y + 42, 33, 33, M.rubber, (nx, ny, px, py, d) => {
-        const ring = Math.floor(Math.sqrt(d) * 14) % 2;
-        return (nx < -0.2 && ny < -0.2 && d > 0.3 ? 5.5 : 2.5) + ring * 0.6;
+    const x = 832;
+    const y = 38;
+    const s = 110;
+    P.shadowRect(x + 5, y + 8, s, s, 1.4, 10);
+    P.rect(x, y, s, s, M.wood, (px, py) => (px === x || py === y ? 8 : px === x + s - 1 || py === y + s - 1 ? 4 : 6));
+    P.rect(x + 6, y + 6, s - 12, s - 12, M.cream, 3.4);
+    P.ellipse(x + s / 2, y + s / 2, 43, 43, M.rubber, (nx, ny, px, py, d) => {
+        const ring = Math.floor(Math.sqrt(d) * 18) % 2;
+        return (nx < -0.2 && ny < -0.2 && d > 0.3 ? 5 : 2.2) + ring * 0.6;
     });
-    P.ellipse(x + 42, y + 42, 10, 10, M.velvet, (nx, ny) => 5 + (-nx - ny) * 0.8);
-    P.ellipse(x + 42, y + 42, 1.6, 1.6, M.void, 0);
+    P.ellipse(x + s / 2, y + s / 2, 13, 13, M.velvet, (nx, ny) => 5 + (-nx - ny) * 0.8);
+    P.ellipse(x + s / 2, y + s / 2, 2, 2, M.void, 0);
 }
 
 // ---------------------------------------------------------------------------
@@ -397,28 +448,25 @@ function paintVinyl(P) {
 
 function paintDesk(P) {
     for (let y = DESK_Y; y < DESK_FRONT; y += 1) {
-        const plank = Math.floor((y - DESK_Y) / 46);
-        const inPlank = (y - DESK_Y) % 46;
+        const plank = Math.floor((y - DESK_Y) / 60);
+        const inPlank = (y - DESK_Y) % 60;
         const shift = (hash(plank, 1) - 0.5) * 0.6;
         for (let x = 0; x < WORLD_W; x += 1) {
             let t = 5.2 + shift;
-            const g = Math.sin((y + Math.sin(x * 0.012 + plank * 2.1) * 7 + Math.sin(x * 0.047 + plank) * 1.6) * 0.85 + plank * 1.3);
+            const g = Math.sin((y + Math.sin(x * 0.009 + plank * 2.1) * 9 + Math.sin(x * 0.036 + plank) * 2) * 0.65 + plank * 1.3);
             if (g > 0.86) t -= 0.8;
             else if (g < -0.93) t += 0.5;
             if (inPlank === 0) t -= 2.2;
             else if (inPlank === 1) t += 0.7;
-            // Joints décalés entre deux planches
-            const seam = (x + plank * 173) % 420;
+            const seam = (x + plank * 225) % 546;
             if (seam === 0) t -= 1.8;
             else if (seam === 1) t += 0.5;
             P.put(x, y, M.wood, t);
         }
     }
-    // Ombre du mur sur le fond du bureau
-    for (let y = DESK_Y; y < DESK_Y + 26; y += 1) for (let x = 0; x < WORLD_W; x += 1) P.add(x, y, -1.8 * (1 - (y - DESK_Y) / 26));
-    // Chant du bureau, puis le vide (le sol est loin en dessous)
-    P.rect(0, DESK_FRONT, WORLD_W, 16, M.wood, (px, py) => (py === DESK_FRONT ? 8.2 : py === DESK_FRONT + 1 ? 6.5 : 4.2 - (py - DESK_FRONT) * 0.12));
-    P.rect(0, DESK_FRONT + 16, WORLD_W, WORLD_H - DESK_FRONT - 16, M.void, (px, py) => Math.max(0, 1.4 - (py - DESK_FRONT - 16) * 0.05));
+    for (let y = DESK_Y; y < DESK_Y + 34; y += 1) for (let x = 0; x < WORLD_W; x += 1) P.add(x, y, -1.8 * (1 - (y - DESK_Y) / 34));
+    P.rect(0, DESK_FRONT, WORLD_W, 20, M.wood, (px, py) => (py === DESK_FRONT ? 8.2 : py === DESK_FRONT + 1 ? 6.5 : 4.2 - (py - DESK_FRONT) * 0.1));
+    P.rect(0, DESK_FRONT + 20, WORLD_W, WORLD_H - DESK_FRONT - 20, M.void, (px, py) => Math.max(0, 1.4 - (py - DESK_FRONT - 20) * 0.05));
 }
 
 // ---------------------------------------------------------------------------
@@ -426,119 +474,91 @@ function paintDesk(P) {
 // ---------------------------------------------------------------------------
 
 // Enceintes de monitoring (les membranes battent dans live.js)
-export const MONITORS = [{ x: 24, y: 76, w: 90, h: 186 }, { x: 1166, y: 76, w: 90, h: 186 }];
+export const MONITORS = [{ x: 31, y: 99, w: 117, h: 242 }, { x: 1516, y: 99, w: 117, h: 242 }];
 function paintMonitor(P, { x, y, w, h }) {
-    const top = 56;
-    P.shadowRect(x + 12, y + h - 40, w + 6, 44, 2.6, 14);
-    // Dessus
-    P.rrect(x, y, w, top, 6, M.gear, (px, py) => (py === y ? 7.5 : 5.6 - (py - y) * 0.02));
-    // Face avant
+    const top = 73;
+    P.shadowRect(x + 14, y + h - 52, w + 8, 56, 2.6, 18);
+    P.rrect(x, y, w, top, 7, M.gear, (px, py) => (py === y ? 7.5 : 5.4 - (py - y) * 0.02));
     P.rect(x, y + top, w, h - top, M.gear, (px, py, u, v) => (py === y + top ? 6.8 : px === x ? 4.2 : px === x + w - 1 ? 2 : 3.2 - v * 0.8));
     const cx = x + w / 2;
-    // Tweeter et boomer
-    P.ellipse(cx, y + top + 30, 12, 12, M.rubber, (nx, ny) => 2 + (-nx * 0.6 - ny * 0.8) * 1.2);
-    P.ellipse(cx, y + top + 30, 5, 5, M.chrome, (nx, ny) => 6 + (-nx - ny) * 2);
-    P.ellipse(cx, y + top + 86, 34, 34, M.gear, (nx, ny, px, py, d) => (d > 0.82 ? 5.2 + (-nx - ny) : 2));
-    P.ellipse(cx, y + top + 86, 27, 27, M.rubber, (nx, ny, px, py, d) => 1.5 + d * 2.5 + (-nx * 0.5 - ny * 0.5) * 1.2);
-    P.ellipse(cx, y + top + 86, 8, 8, M.rubber, (nx, ny) => 3 + (-nx - ny) * 1.2);
-    // Évent bass reflex et LED (allumée dans live.js)
-    P.rrect(cx - 14, y + h - 18, 28, 7, 3, M.void, 0.5);
+    P.ellipse(cx, y + top + 39, 16, 16, M.rubber, (nx, ny) => 2 + (-nx * 0.6 - ny * 0.8) * 1.2);
+    P.ellipse(cx, y + top + 39, 6, 6, M.chrome, (nx, ny) => 6 + (-nx - ny) * 2);
+    P.ellipse(cx, y + top + 112, 44, 44, M.gear, (nx, ny, px, py, d) => (d > 0.82 ? 5.2 + (-nx - ny) : 2));
+    P.ellipse(cx, y + top + 112, 35, 35, M.rubber, (nx, ny, px, py, d) => 1.5 + d * 2.5 + (-nx * 0.5 - ny * 0.5) * 1.2);
+    P.ellipse(cx, y + top + 112, 10, 10, M.rubber, (nx, ny) => 3 + (-nx - ny) * 1.2);
+    P.rrect(cx - 18, y + h - 23, 36, 9, 4, M.void, 0.5);
+    silk(P, 'STUDIO 5', cx, y + top + 8, { align: 'center', tone: 4.2 });
 }
 
-// Lampe de bureau articulée
+// Lampe de bureau articulée, en laiton
+export const LAMP_BULB = { x: 421, y: 146 };
 function paintLamp(P) {
-    const bx = 196;
-    const by = 232;
-    P.shadowEllipse(bx + 14, by + 8, 46, 14, 2.4);
-    P.ellipse(bx, by + 4, 34, 11, M.gear, 2.2);
-    P.ellipse(bx, by, 34, 11, M.gear, (nx, ny) => 5 + (-nx * 0.6 - ny * 0.8) * 1.6);
-    P.ellipse(bx - 2, by - 2, 8, 3, M.metal, 7);
+    const bx = 255;
+    const by = 302;
+    P.shadowEllipse(bx + 18, by + 10, 60, 18, 2.4);
+    P.ellipse(bx, by + 5, 44, 14, M.chassis, 2.2);
+    P.ellipse(bx, by, 44, 14, M.chassis, (nx, ny) => 5 + (-nx * 0.6 - ny * 0.8) * 1.6);
+    P.ellipse(bx - 3, by - 3, 10, 4, M.brass, 7);
     const arm = (nx, ny) => 5.5 + (-nx * 0.7 - ny * 0.7) * 2.5;
-    P.tube([[bx, by - 2], [bx + 30, by - 104], [bx + 98, by - 150]], 3.2, M.metal, arm);
-    P.ellipse(bx + 30, by - 104, 5, 5, M.chrome, 7);
-    // Abat-jour, ouverture vers le bas à droite
-    const hx = bx + 98;
-    const hy = by - 150;
-    P.poly([[hx - 12, hy - 14], [hx + 16, hy - 20], [hx + 50, hy + 18], [hx + 8, hy + 34]], M.gold, (px, py, u, v) => 4.2 + (1 - u) * 2 - v * 1.4);
-    P.poly([[hx + 8, hy + 34], [hx + 50, hy + 18], [hx + 46, hy + 26], [hx + 12, hy + 40]], EMIT, (px, py) => ((px + py) % 3 ? '#fff1c2' : '#ffe08a'));
+    P.tube([[bx, by - 3], [bx + 39, by - 135], [bx + 127, by - 195]], 4, M.brass, arm);
+    P.ellipse(bx + 39, by - 135, 6, 6, M.brass, 7);
+    const hx = bx + 127;
+    const hy = by - 195;
+    P.poly([[hx - 16, hy - 18], [hx + 21, hy - 26], [hx + 65, hy + 23], [hx + 10, hy + 44]], M.chassis, (px, py, u, v) => 3.6 + (1 - u) * 2 - v * 1.2);
+    P.poly([[hx + 10, hy + 44], [hx + 65, hy + 23], [hx + 60, hy + 34], [hx + 16, hy + 52]], EMIT, (px, py) => ((px + py) % 3 ? '#fff0c9' : '#ffe2a0'));
 }
-export const LAMP_BULB = { x: 324, y: 112 };
 
-// Micro géant sur son pied, au centre d'une scène ronde
-export const STAGE = { cx: 800, cy: 292, rx: 168, ry: 56, h: 16 };
-export const MIC = { x: 800, top: 18 };
+// Micro géant sur son pied, au centre d'une scène ronde en bois
+export const STAGE = { cx: 1040, cy: 380, rx: 218, ry: 73, h: 20 };
+export const MIC = { x: 1040, top: 23 };
 function paintStage(P) {
     const { cx, cy, rx, ry, h } = STAGE;
-    P.shadowEllipse(cx + 14, cy + h + 6, rx + 8, ry + 6, 2.6);
-    P.ellipse(cx, cy + h, rx, ry, M.gear, (nx, ny) => (ny > 0.2 ? 1.6 : null));
-    P.rect(cx - rx, cy, rx * 2, h, M.gear, (px, py) => {
+    P.shadowEllipse(cx + 18, cy + h + 8, rx + 10, ry + 8, 2.6);
+    P.ellipse(cx, cy + h, rx, ry, M.wood, (nx, ny) => (ny > 0.2 ? 2.2 : null));
+    P.rect(cx - rx, cy, rx * 2, h, M.wood, (px, py) => {
         const nx = (px + 0.5 - cx) / rx;
         if (nx * nx > 1) return null;
-        return 2.6 - (py - cy) * 0.06;
+        return 3.4 - (py - cy) * 0.05 + ((px - cx + 900) % 34 === 0 ? -1 : 0);
     });
-    P.ellipse(cx, cy + h, rx, ry, M.gear, (nx, ny, px, py, d) => (ny > 0 && d > 0.9 ? 2 : null));
-    // Plancher de la scène : lattes sombres
     P.ellipse(cx, cy, rx, ry, M.wood, (nx, ny, px, py, d) => {
-        let t = 4.2 + ((px - cx + 400) % 26 === 0 ? -1.4 : 0);
-        if (d > 0.9) t = ny < 0 ? 6.5 : 3.2;
+        let t = 5.4 + ((px - cx + 900) % 34 === 0 ? -1.4 : 0) + (hash(px, Math.floor(py / 3)) - 0.5) * 0.4;
+        if (d > 0.93) t = ny < 0 ? 7 : 4;
         return t;
     });
-    // Pied du micro : socle rond en chrome, tige
-    P.shadowEllipse(cx + 8, cy - 8, 50, 16, 2.2);
-    P.ellipse(cx, cy - 6, 44, 14, M.chrome, 3);
-    P.ellipse(cx, cy - 10, 44, 14, M.chrome, (nx, ny) => 5.2 + (-nx * 0.6 - ny * 0.8) * 2.4);
-    P.ellipse(cx - 12, cy - 15, 12, 3, M.chrome, 9);
+    // Retours de scène en fond de scène
+    [[cx - 150, cy - 36, 1], [cx + 150, cy - 36, -1]].forEach(([wx, wy, dir]) => {
+        P.shadowRect(wx - 22, wy + 6, 50, 16, 1.6, 6);
+        P.poly([[wx - 26, wy + 12], [wx + 26, wy + 12], [wx + 22, wy - 10], [wx - 22, wy - 10]], M.chassis, (px, py, u, v) => 3.4 + (1 - v) * 1.2);
+        P.rect(wx - 20, wy - 8, 40, 16, M.rubber, (px, py) => ((px + py) % 2 ? 2.4 : 1.6));
+        P.rect(wx - 26, wy + 12, 52, 5, M.chassis, 2);
+        void dir;
+    });
+    // Pied du micro : socle rond, tige
+    P.shadowEllipse(cx + 10, cy - 10, 64, 21, 2.2);
+    P.ellipse(cx, cy - 8, 57, 18, M.chrome, 3);
+    P.ellipse(cx, cy - 13, 57, 18, M.chrome, (nx, ny) => 5.2 + (-nx * 0.6 - ny * 0.8) * 2.4);
+    P.ellipse(cx - 16, cy - 19, 16, 4, M.chrome, 9);
     const rod = (nx) => 5.8 + -nx * 3.4 + (nx > 0.6 ? -1.5 : 0);
-    P.tube([[cx, cy - 12], [cx, 168]], 4.2, M.chrome, rod);
-    P.rect(cx - 7, 160, 14, 10, M.chrome, (px) => 4 + (cx - px) * 0.3);
-    P.tube([[cx, 160], [cx, 134]], 3.2, M.chrome, rod);
-    // Pince et micro dynamique : corps noir effilé, bague dorée, grosse grille argentée
-    P.rrect(cx - 16, 128, 32, 22, 5, M.gear, (px, py) => 3.4 + (cx - px) * 0.08 + (py === 128 ? 1.5 : 0));
-    P.poly([[cx - 10, 156], [cx + 10, 156], [cx + 15, 88], [cx - 15, 88]], M.gear, (px, py, u) => 3.2 + (0.5 - u) * 4 + (u > 0.82 ? -1 : 0) + (u > 0.18 && u < 0.26 ? 1.6 : 0));
-    P.rect(cx - 16, 78, 32, 11, M.gold, (px, py) => 7 + (cx - px) * 0.14 + (py === 78 ? 1.5 : py === 88 ? -2 : 0));
-    const gy = MIC.top + 34;
-    P.ellipse(cx, gy, 36, 40, M.chrome, (nx, ny, px, py, d) => {
-        if (py > 80) return null;
+    P.tube([[cx, cy - 15], [cx, 218]], 5.4, M.chrome, rod);
+    P.rect(cx - 9, 208, 18, 13, M.chrome, (px) => 4 + (cx - px) * 0.3);
+    // Pince et micro dynamique : corps noir effilé, bague, grosse grille argentée
+    P.rrect(cx - 21, 166, 42, 29, 6, M.chassis, (px, py) => 3.4 + (cx - px) * 0.06 + (py === 166 ? 1.5 : 0));
+    P.poly([[cx - 13, 203], [cx + 13, 203], [cx + 19, 114], [cx - 19, 114]], M.chassis, (px, py, u) => 3.2 + (0.5 - u) * 4 + (u > 0.82 ? -1 : 0) + (u > 0.18 && u < 0.26 ? 1.6 : 0));
+    P.rect(cx - 21, 101, 42, 14, M.metal, (px, py) => 6.4 + (cx - px) * 0.1 + (py === 101 ? 1.5 : py === 114 ? -2 : 0));
+    const gy = MIC.top + 44;
+    P.ellipse(cx, gy, 47, 52, M.chrome, (nx, ny, px, py, d) => {
+        if (py > 104) return null;
         const light = -nx * 0.65 - ny * 0.55;
-        const mesh = (px + py) % 4 === 0 || (px - py + 400) % 4 === 0 ? -1.3 : 0;
-        const band = Math.abs(py - gy - 4) < 2 ? -1.2 : Math.abs(py - gy - 4) === 2 ? 1 : 0;
-        return 6.6 + light * 3.4 + mesh + band + (d > 0.9 ? -1.4 : 0);
+        const mesh = (px + py) % 4 === 0 || (px - py + 800) % 4 === 0 ? -1.3 : 0;
+        const band = Math.abs(py - gy - 5) < 2 ? -1.2 : Math.abs(py - gy - 5) === 2 ? 1 : 0;
+        return 6.4 + light * 3.4 + mesh + band + (d > 0.9 ? -1.4 : 0);
     });
-    P.ellipse(cx - 14, MIC.top + 16, 7, 9, M.chrome, (nx, ny, px, py) => ((px + py) % 4 ? 11 : 9.5));
-    P.rect(cx - 30, 74, 60, 5, M.chrome, (px) => 6 + (cx - px) * 0.06);
-}
-
-// Casque audio posé à plat : deux oreillettes, l'arceau sert de chemin
-function paintHeadphones(P) {
-    const cups = [[288, 342], [512, 340]];
-    P.shadowEllipse(400, 340, 170, 42, 1.6);
-    // Câble qui part de l'oreillette gauche
-    cable(P, [[262, 362], [210, 372], [150, 350], [96, 368], [40, 360], [-10, 372]], 3.4);
-    cups.forEach(([cx, cy]) => {
-        P.shadowEllipse(cx + 8, cy + 10, 42, 26, 2.4);
-        P.ellipse(cx, cy + 10, 40, 24, M.gear, 1.8);
-        P.rect(cx - 40, cy, 80, 10, M.gear, (px) => {
-            const nx = (px + 0.5 - cx) / 40;
-            return nx * nx > 1 ? null : 2.6 - Math.abs(nx);
-        });
-        P.ellipse(cx, cy, 40, 24, M.gear, (nx, ny) => 4.8 + (-nx * 0.6 - ny * 0.8) * 1.5);
-        P.ellipse(cx, cy, 33, 19, M.pink, (nx, ny, px, py, d) => (d > 0.78 ? 4.2 + (-nx - ny) * 1.2 : null));
-        // Coussinet en simili cuir
-        P.ellipse(cx, cy, 28, 16, M.rubber, (nx, ny, px, py, d) => 3 + (1 - d) * 1.6 + (-nx * 0.4 - ny * 0.6) * 1.4 + (hash(px, py) > 0.92 ? 0.8 : 0));
-        P.ellipse(cx, cy + 1, 17, 10, M.rubber, (nx, ny) => 1.6 + (nx + ny) * 0.4);
-    });
-    // Arceau : bande matelassée
-    const band = [[300, 320], [326, 300], [362, 292], [440, 292], [478, 300], [500, 318]];
-    P.tube(band.map(([x, y]) => [x + 4, y + 12]), 9, M.gear, 1.4);
-    P.tube(band.map(([x, y]) => [x, y + 4]), 10, M.gear, (nx, ny) => 4.6 + (-nx * 0.5 - ny * 0.8) * 1.8);
-    P.tube(band.map(([x, y]) => [x, y + 2]), 6.5, M.rubber, (nx, ny, s) => 3.6 + (-ny) * 1.2 + (Math.floor(s * 6) % 2 ? 0 : -0.5));
-    P.ellipse(326, 304, 7, 5, M.metal, (nx, ny) => 6 + (-nx - ny) * 1.6);
-    P.ellipse(478, 304, 7, 5, M.metal, (nx, ny) => 6 + (-nx - ny) * 1.6);
+    P.ellipse(cx - 18, MIC.top + 20, 9, 12, M.chrome, (nx, ny, px, py) => ((px + py) % 4 ? 10.5 : 9.5));
+    P.rect(cx - 39, 96, 78, 6, M.chrome, (px) => 6 + (cx - px) * 0.05);
 }
 
 // Câble en caoutchouc noir, avec reflet et ombre
-function cable(P, pts, r = 4) {
-    // Lissage : courbe de Chaikin
+function cable(P, pts, r = 5) {
     let path = pts;
     for (let k = 0; k < 3; k += 1) {
         const next = [path[0]];
@@ -550,150 +570,197 @@ function cable(P, pts, r = 4) {
         next.push(path[path.length - 1]);
         path = next;
     }
-    P.tube(path.map(([x, y]) => [x + 3, y + 4]), r + 1.5, M.cable, null);
-    path.forEach(([x, y], i) => { if (i % 2 === 0) P.shadowEllipse(x + 4, y + 5, r + 3, r + 2, 0.5); });
-    P.tube(path, r, M.cable, (nx, ny) => 3 + (-nx * 0.5 - ny * 0.85) * 3.2);
+    path.forEach(([x, y], i) => { if (i % 2 === 0) P.shadowEllipse(x + 5, y + 6, r + 4, r + 2, 0.5); });
+    P.tube(path, r, M.cable, (nx, ny) => 3 + (-nx * 0.5 - ny * 0.85) * 3);
     return path;
 }
 
-// Table de mixage, au centre : quatre voies et le fader master (le raccourci)
-export const MIXER = { x: 466, y: 362, w: 252, d: 200, h: 18 };
-export const MIXER_METERS = [{ x: 560, y: 380, n: 12 }, { x: 618, y: 380, n: 12 }];
-function paintMixer(P) {
-    const { x, y, w, d, h } = MIXER;
-    box(P, { x, y, w, d, h, r: 10, m: M.gear, top: 4.6, front: 2.4 });
-    // Plaque métal brossé
-    P.rrect(x + 8, y + 8, w - 16, d - 18, 6, M.metal, (px, py) => 3.6 + (hash(px * 0.2, py) - 0.5) * 0.35 + (py === y + 8 ? 1.4 : 0));
-    // Quatre voies : potards et faders
-    [496, 528, 656, 688].forEach((cx, i) => {
-        [384, 410, 436].forEach((ky, j) => knob(P, cx, ky, 7, j === 0 ? M.gold : M.metal, j === 0 ? 5 : 6));
-        fader(P, cx, 460, 540, [0.3, 0.55, 0.4, 0.25][i]);
+// Casque audio posé à plat : deux oreillettes, l'arceau sert de chemin
+function paintHeadphones(P) {
+    const cups = [[374, 445], [666, 442]];
+    P.shadowEllipse(520, 442, 220, 54, 1.6);
+    cable(P, [[340, 470], [273, 484], [195, 455], [125, 478], [52, 468], [-13, 484]], 4.4);
+    cups.forEach(([cx, cy]) => {
+        P.shadowEllipse(cx + 10, cy + 13, 55, 34, 2.4);
+        P.ellipse(cx, cy + 13, 52, 31, M.chassis, 1.8);
+        P.rect(cx - 52, cy, 104, 13, M.chassis, (px) => {
+            const nx = (px + 0.5 - cx) / 52;
+            return nx * nx > 1 ? null : 2.6 - Math.abs(nx);
+        });
+        P.ellipse(cx, cy, 52, 31, M.chassis, (nx, ny) => 4.6 + (-nx * 0.6 - ny * 0.8) * 1.5);
+        P.ellipse(cx, cy, 43, 25, M.metal, (nx, ny, px, py, d) => (d > 0.84 ? 4.6 + (-nx - ny) * 1.2 : null));
+        P.ellipse(cx, cy, 37, 21, M.rubber, (nx, ny, px, py, d) => 3 + (1 - d) * 1.6 + (-nx * 0.4 - ny * 0.6) * 1.4 + (hash(px, py) > 0.92 ? 0.8 : 0));
     });
-    // Rail du master : une gorge éclairée où passent les cases
-    P.rrect(574, y + 14, 36, d - 30, 8, M.gear, (px, py) => (px < 577 ? 1.2 : 2.2) + (py === y + 14 ? -0.6 : 0));
-    // Vumètres (allumés dans live.js)
-    MIXER_METERS.forEach(({ x: mx, y: my, n }) => P.rect(mx - 3, my - 2, 8, n * 7 + 3, M.void, 1));
+    const band = [[390, 416], [424, 390], [471, 380], [572, 380], [621, 390], [650, 413]];
+    P.tube(band.map(([x, y]) => [x + 5, y + 15]), 12, M.chassis, 1.4);
+    P.tube(band.map(([x, y]) => [x, y + 5]), 13, M.chassis, (nx, ny) => 4.4 + (-nx * 0.5 - ny * 0.8) * 1.8);
+    P.tube(band.map(([x, y]) => [x, y + 3]), 8.5, M.rubber, (nx, ny, s) => 3.6 + (-ny) * 1.2 + (Math.floor(s * 6) % 2 ? 0 : -0.5));
+    P.ellipse(424, 395, 9, 6, M.metal, (nx, ny) => 6 + (-nx - ny) * 1.6);
+    P.ellipse(621, 395, 9, 6, M.metal, (nx, ny) => 6 + (-nx - ny) * 1.6);
 }
 
-// Pad controller, à gauche : 4 x 4 pads, le chemin descend la première colonne
-export const PADS = { x: 156, y: 364, w: 292, d: 196, h: 18, cols: [212, 278, 344, 410], rows: [405, 470, 535] };
+// Table de mixage, au centre : quatre voies et le fader master (le raccourci)
+export const MIXER = { x: 606, y: 471, w: 328, d: 260, h: 23 };
+export const MIXER_METERS = [{ x: 726, y: 492, n: 12 }, { x: 806, y: 492, n: 12 }];
+function paintMixer(P) {
+    const { x, y, w, d, h } = MIXER;
+    box(P, { x, y, w, d, h, r: 12, m: M.chassis, top: 4.4, front: 2.2 });
+    [645, 686, 848, 889].forEach((cx, i) => {
+        silk(P, `CH ${i + 1}`, cx, y + 12, { align: 'center', tone: 4.8 });
+        [500, 532, 564].forEach((ky, j) => knob(P, cx, ky, 9, M.chassis, j === 0 ? 5.6 : 5));
+        fader(P, cx, 598, 700, [0.3, 0.55, 0.4, 0.25][i]);
+    });
+    // Rail du master : une gorge où passent les cases
+    P.rrect(745, y + 16, 44, d - 36, 10, M.chassis, (px) => (px < 749 ? 0.8 : 1.6));
+    silk(P, 'MASTER', 767, y + d - 15, { align: 'center', tone: 5.2 });
+    MIXER_METERS.forEach(({ x: mx, y: my, n }) => P.rect(mx - 4, my - 3, 10, n * 9 + 4, M.void, 1));
+}
+
+// Pad controller, à gauche : 4 x 3 pads, le chemin descend la première colonne
+export const PADS = { x: 203, y: 473, w: 380, d: 255, h: 23, cols: [276, 361, 447, 533], rows: [527, 611, 696] };
 function paintPadController(P) {
     const { x, y, w, d, h } = PADS;
-    box(P, { x, y, w, d, h, r: 12, m: M.gear, top: 4.2, front: 2.2 });
-    P.rrect(x + 10, y + 10, w - 20, d - 22, 8, M.gear, (px, py) => 3.2 + (py === y + 10 ? -0.8 : 0));
-    // Pads décoratifs (les trois colonnes de droite) : caoutchouc éteint ; ils s'allument dans live.js
+    box(P, { x, y, w, d, h, r: 14, m: M.chassis, top: 4.2, front: 2.2 });
+    silkFrame(P, x + 12, y + 14, w - 24, d - 26, 'PADS');
     PADS.cols.slice(1).forEach((cx) => PADS.rows.forEach((cy) => {
-        P.rrect(cx - 23, cy - 13, 46, 32, 5, M.rubber, 1.2);
-        P.rrect(cx - 21, cy - 15, 42, 28, 5, M.rubber, (px, py) => 4 + (py < cy - 12 ? 1 : 0) + (px < cx - 18 ? 0.5 : 0));
+        P.rrect(cx - 30, cy - 17, 60, 42, 6, M.rubber, 1.2);
+        P.rrect(cx - 28, cy - 20, 56, 38, 6, M.rubber, (px, py) => 4 + (py < cy - 16 ? 1 : 0) + (px < cx - 24 ? 0.5 : 0));
     }));
 }
 
-// Loopstation, en bas : cinq pistes (pad rond, fader, numéro), écran LCD
-export const LOOP = { x: 252, y: 574, w: 736, d: 220, h: 22, tracks: [310, 450, 590, 730, 870], screen: { x: 664, y: 590, w: 176, h: 40 } };
+// Loopstation, en bas, inspirée des loopstations de table à cinq pistes :
+// section INPUT FX, écran LCD graphique, section TRACK FX ; pour chaque piste, fader,
+// boutons et grand pad rond entouré de son anneau de LED (les cases).
+export const LOOP = {
+    x: 328, y: 746, w: 957, d: 286, h: 29,
+    tracks: [403, 585, 767, 949, 1131],
+    screen: { x: 832, y: 772, w: 200, h: 50 },
+    inputKeys: [376, 432, 488, 544],
+    trackKeys: [1072, 1124, 1176, 1228],
+};
 function paintLoopstation(P) {
     const { x, y, w, d, h } = LOOP;
-    box(P, { x, y, w, d, h, r: 14, m: M.gear, top: 4.4, front: 2.4, shadow: 2.8 });
-    // Bandeau métal en haut, écran, potards
-    P.rrect(x + 12, y + 10, w - 24, 50, 8, M.metal, (px, py) => 3.4 + (py === y + 10 ? 1.4 : 0) + (hash(px * 0.3, py) - 0.5) * 0.3);
-    const s = LOOP.screen;
-    P.rrect(s.x - 4, s.y - 4, s.w + 8, s.h + 8, 4, M.gear, 1.2);
-    [300, 352, 404, 456, 508].forEach((kx) => knob(P, kx, y + 34, 9, M.metal, 6));
-    [880, 920, 960].forEach((kx, i) => knob(P, kx, y + 34, 8, i === 1 ? M.velvet : M.metal, i === 1 ? 5 : 6));
-    // Pistes : fente de fader au-dessus de chaque pad
-    LOOP.tracks.forEach((cx, i) => {
-        if (cx !== 590) fader(P, cx, y + 72, y + 132, [0.2, 0.45, 0, 0.35, 0.6][i]);
-        // Sérigraphie : numéro de la piste (dessiné par live.js, émissif)
+    box(P, { x, y, w, d, h, r: 16, m: M.chassis, top: 4.3, front: 2.2, shadow: 2.8 });
+    // Section INPUT FX : quatre touches (LED dans live.js), deux potards
+    silkFrame(P, x + 22, y + 14, 330, 74, 'INPUT FX');
+    LOOP.inputKeys.forEach((kx, i) => {
+        rubberKey(P, kx - 20, y + 42, 40, 18);
+        silk(P, 'ABCD'[i], kx, y + 66, { align: 'center', tone: 5 });
     });
-    // Rainure entre les pistes
-    for (let i = 0; i < 4; i += 1) P.rect(LOOP.tracks[i] + 70 - 1, y + 70, 1, d - 84, M.gear, 2.6);
+    knob(P, 612, y + 50, 13, M.chassis, 5.2);
+    knob(P, 660, y + 50, 13, M.chassis, 5.2);
+    silk(P, 'LEVEL', 636, y + 72, { align: 'center', tone: 4.6 });
+    // Écran LCD graphique et sa lunette
+    const s = LOOP.screen;
+    P.rrect(s.x - 8, s.y - 8, s.w + 16, s.h + 16, 5, M.chassis, (px, py) => (py < s.y - 5 ? 2 : 1.2));
+    P.rect(s.x, s.y, s.w, s.h, EMIT, '#0d1213');
+    // Section TRACK FX
+    silkFrame(P, 1050, y + 14, 214, 74, 'TRACK FX');
+    LOOP.trackKeys.forEach((kx, i) => {
+        rubberKey(P, kx - 18, y + 42, 36, 18);
+        silk(P, 'ABCD'[i], kx, y + 66, { align: 'center', tone: 5 });
+    });
+    P.rect(x + 18, y + 100, w - 36, 1, M.silk, 3.4);
+    // Pistes : numéro, fader, petites touches FX et TRACK
+    LOOP.tracks.forEach((cx, i) => {
+        silk(P, `TRACK ${i + 1}`, cx, y + 108, { align: 'center', tone: 5.4 });
+        if (i !== 2) {
+            fader(P, cx, y + 122, y + 184, [0.25, 0.5, 0, 0.35, 0.6][i]);
+            rubberKey(P, cx - 52, y + 124, 26, 14);
+            rubberKey(P, cx + 26, y + 124, 26, 14);
+            silk(P, 'FX', cx - 39, y + 142, { align: 'center', tone: 4.4 });
+            silk(P, 'TRK', cx + 39, y + 142, { align: 'center', tone: 4.4 });
+        }
+    });
+    silk(P, 'LOOP STATION', x + 24, y + d - 14, { tone: 5.6 });
+    silk(P, '5 TRACK', x + w - 24, y + d - 14, { align: 'right', tone: 4.6 });
 }
 
-// Chaîne de pédales d'effet, à droite
+// Chaîne de pédales d'effet compactes, à droite : boîtier, grande pédale articulée
 export const PEDALS = [
-    { cx: 1040, cy: 422, m: 'cream' },
-    { cx: 1052, cy: 492, m: 'purple' },
-    { cx: 1056, cy: 562, m: 'teal' },
-    { cx: 1052, cy: 632, m: 'orange' },
-    { cx: 1036, cy: 702, m: 'metal' },
+    { cx: 1352, cy: 549, m: 'cream', label: 'DELAY' },
+    { cx: 1368, cy: 640, m: 'purple', label: 'REVERB' },
+    { cx: 1373, cy: 731, m: 'teal', label: 'CHORUS' },
+    { cx: 1368, cy: 822, m: 'orange', label: 'DRIVE' },
+    { cx: 1347, cy: 913, m: 'metal', label: 'LOOP' },
 ];
 function paintPedals(P) {
-    // Câbles de liaison sur le côté droit
     for (let i = 0; i < PEDALS.length - 1; i += 1) {
         const a = PEDALS[i];
         const b = PEDALS[i + 1];
-        cable(P, [[a.cx + 44, a.cy - 10], [a.cx + 66, (a.cy + b.cy) / 2 - 12], [b.cx + 44, b.cy - 22]], 2.6);
+        cable(P, [[a.cx + 58, a.cy - 12], [a.cx + 86, (a.cy + b.cy) / 2 - 16], [b.cx + 58, b.cy - 28]], 3.4);
     }
-    PEDALS.forEach(({ cx, cy, m }) => {
+    PEDALS.forEach(({ cx, cy, m, label }) => {
         const mat = M[m];
-        const x = cx - 44;
-        const y = cy - 44;
-        box(P, { x, y, w: 88, d: 56, h: 14, r: 7, m: mat, top: m === 'metal' ? 5 : 5.4, front: 3, shadow: 2.6 });
-        // Deux potards et une vis
-        knob(P, cx - 22, cy - 30, 6, M.gear, 4.5);
-        knob(P, cx + 22, cy - 30, 6, M.gear, 4.5);
-        P.rect(cx - 30, cy - 12, 60, 1, mat, 3);
+        const x = cx - 52;
+        const y = cy - 58;
+        box(P, { x, y, w: 104, d: 76, h: 18, r: 8, m: mat, top: m === 'metal' ? 5 : 5.2, front: 3, shadow: 2.6 });
+        // Bandeau du haut : deux potards, LED (live.js)
+        knob(P, cx - 30, cy - 46, 7, M.chassis, 4.6);
+        knob(P, cx + 30, cy - 46, 7, M.chassis, 4.6);
+        silk(P, label, cx, cy - 50, { align: 'center', tone: m === 'cream' ? 1.4 : 6 });
+        // Pédale articulée : plaque nervurée, un peu en relief
+        P.rrect(x + 6, cy - 32, 92, 46, 6, mat, (px, py) => (py === cy - 32 ? 7 : 4.4 + ((py - cy) % 5 === 0 ? -0.6 : 0)));
+        P.rect(x + 6, cy + 14, 92, 4, mat, 2.6);
     });
 }
 
 // Tasse de café géante (la vapeur monte dans live.js)
-export const MUG = { cx: 884, cy: 478, rx: 30, ry: 11, h: 58 };
+export const MUG = { cx: 1149, cy: 621, rx: 39, ry: 14, h: 75 };
 function paintMug(P) {
     const { cx, cy, rx, ry, h } = MUG;
-    P.shadowEllipse(cx + 14, cy + 6, rx + 14, ry + 6, 2.6);
-    P.rect(cx - rx, cy - h, rx * 2, h, M.ceramic, (px, py) => {
+    P.shadowEllipse(cx + 18, cy + 8, rx + 18, ry + 8, 2.6);
+    P.rect(cx - rx, cy - h, rx * 2, h, M.ceramic, (px) => {
         const nx = (px + 0.5 - cx) / rx;
         if (nx * nx > 1) return null;
         return 7.2 - nx * 3 - (nx > 0.75 ? 1.5 : 0) + (nx < -0.55 && nx > -0.75 ? 1.5 : 0);
     });
     P.ellipse(cx, cy, rx, ry, M.ceramic, (nx, ny) => (ny > 0 ? 7 - nx * 3 : null));
-    // Anse
-    P.tube([[cx + rx - 2, cy - h + 14], [cx + rx + 14, cy - h + 18], [cx + rx + 15, cy - h + 36], [cx + rx - 2, cy - h + 40]], 4.2, M.ceramic, (nx, ny) => 5.4 + (-nx * 0.6 - ny * 0.8) * 2.4);
-    // Bord, café
+    P.tube([[cx + rx - 3, cy - h + 18], [cx + rx + 18, cy - h + 23], [cx + rx + 20, cy - h + 47], [cx + rx - 3, cy - h + 52]], 5.4, M.ceramic, (nx, ny) => 5.4 + (-nx * 0.6 - ny * 0.8) * 2.4);
     P.ellipse(cx, cy - h, rx, ry, M.ceramic, (nx, ny) => 8.6 - ny);
-    P.ellipse(cx, cy - h + 1, rx - 4, ry - 3, M.coffee, (nx, ny) => 2.4 + ny * 1.2 + (nx < -0.3 && ny < -0.2 ? 1.6 : 0));
-    // Logo : l'onde sonore jaune
-    [3, 6, 9, 5, 8, 4].forEach((bh, i) => P.rect(cx - 13 + i * 5, cy - h / 2 - bh / 2 + 6, 2, bh, M.gold, 7));
+    P.ellipse(cx, cy - h + 1, rx - 5, ry - 4, M.coffee, (nx, ny) => 2.4 + ny * 1.2 + (nx < -0.3 && ny < -0.2 ? 1.6 : 0));
+    [4, 8, 12, 6, 10, 5].forEach((bh, i) => P.rect(cx - 17 + i * 6, cy - h / 2 - bh / 2 + 8, 3, bh, M.chassis, 3));
 }
 
-// Téléphone posé à plat, écran allumé (forme d'onde dans live.js)
-export const PHONE = { x: 742, y: 468, w: 52, h: 92 };
+// Téléphone posé à plat (son écran s'allume dans live.js)
+export const PHONE = { x: 965, y: 608, w: 68, h: 120 };
 function paintPhone(P) {
     const { x, y, w, h } = PHONE;
-    P.shadowRect(x + 8, y + 8, w, h, 2.2, 8);
-    P.rrect(x, y + 3, w, h, 8, M.gear, 2);
-    P.rrect(x, y, w, h, 8, M.gear, (px, py) => (py === y ? 6 : 3.4));
-    P.rrect(x + 4, y + 8, w - 8, h - 16, 3, EMIT, '#0b1230');
+    P.shadowRect(x + 10, y + 10, w, h, 2.2, 10);
+    P.rrect(x, y + 4, w, h, 10, M.chassis, 2);
+    P.rrect(x, y, w, h, 10, M.chassis, (px, py) => (py === y ? 6 : 3.4));
+    P.rrect(x + 5, y + 10, w - 10, h - 20, 4, EMIT, '#0b0d10');
 }
 
 // Notes repositionnables avec un pattern de beatbox griffonné
 function paintNotes(P) {
-    const notes = [[24, 452, M.paper], [70, 560, M.pink], [30, 664, M.paper]];
+    const notes = [[31, 588, M.paper], [91, 728, M.rose], [39, 863, M.paper]];
     notes.forEach(([x, y, m], k) => {
-        P.shadowRect(x + 5, y + 6, 66, 62, 1.6, 6);
-        P.rect(x, y, 66, 62, m, (px, py, u, v) => 5.6 - v * 0.8 + (py === y ? 1.2 : 0) + (u > 0.85 && v > 0.85 ? -1.5 : 0));
-        // Griffonnage : lignes de « B t K t »
-        for (let line = 0; line < 4; line += 1) {
-            for (let i = 0; i < 46; i += 1) {
-                if (hash(i + k * 50, line) > 0.72 || (i % 12) > 8) continue;
-                P.put(x + 10 + i, y + 14 + line * 11 + Math.round(Math.sin(i * 0.9 + line) * 1.2), m, 1.6);
+        P.shadowRect(x + 6, y + 8, 86, 81, 1.6, 8);
+        P.rect(x, y, 86, 81, m, (px, py, u, v) => 5.6 - v * 0.8 + (py === y ? 1.2 : 0) + (u > 0.85 && v > 0.85 ? -1.5 : 0));
+        silk(P, ['B T K T', 'PF TS', 'B . K .'][k], x + 12, y + 14, { tone: 0.6 });
+        for (let line = 1; line < 4; line += 1) {
+            for (let i = 0; i < 60; i += 1) {
+                if (hash(i + k * 50, line) > 0.72 || (i % 15) > 11) continue;
+                P.put(x + 12 + i, y + 18 + line * 14 + Math.round(Math.sin(i * 0.9 + line) * 1.4), m, 1.6);
             }
         }
     });
-    // Crayon
-    P.tube([[118, 640], [196, 610]], 3.2, M.gold, (nx, ny) => 6 + (-nx * 0.6 - ny * 0.8) * 2);
-    P.tube([[196, 610], [206, 606]], 2.2, M.cream, 6);
-    P.tube([[112, 642], [118, 640]], 2.6, M.pink, 6);
+    P.tube([[153, 832], [255, 793]], 4.2, M.gold, (nx, ny) => 5.6 + (-nx * 0.6 - ny * 0.8) * 2);
+    P.tube([[255, 793], [268, 788]], 2.8, M.cream, 6);
+    P.tube([[146, 835], [153, 832]], 3.4, M.rose, 6);
 }
 
 // ---------------------------------------------------------------------------
-// Cases : pads lumineux. La couleur dit le type ; le support dépend de l'appareil.
+// Cases : pads ronds en caoutchouc entourés d'un anneau de LED (la couleur dit le
+// type), comme les pads de piste d'une loopstation. Sur le pad controller, pads carrés.
 // ---------------------------------------------------------------------------
 
 export const SPACE_COLORS = {
-    blue: { base: '#3E7BFF', light: '#9CC0FF', dark: '#1F48B8', glow: '#4C8DFF' },
-    red: { base: '#F04A3A', light: '#FFA597', dark: '#A8221A', glow: '#FF5A47' },
-    drop: { base: '#2CC873', light: '#97F2BF', dark: '#127E44', glow: '#35E085' },
-    start: { base: '#FFC72C', light: '#FFE9A6', dark: '#C08A00', glow: '#FFC72C' },
+    blue: { ring: '#3F7EEA', light: '#9DBFFF', dark: '#1D3A78' },
+    red: { ring: '#E2402F', light: '#FFA192', dark: '#741B13' },
+    drop: { ring: '#2EB75E', light: '#93E8B2', dark: '#135A2C' },
+    start: { ring: '#F0AE22', light: '#FFE4A0', dark: '#734D08' },
 };
 
 const ICONS = {
@@ -703,106 +770,120 @@ const ICONS = {
     play: ['##....', '####..', '######', '######', '####..', '##....'],
 };
 const ICON_OF = { blue: 'plus', red: 'minus', drop: 'drop', start: 'play' };
+export const RING_SEGMENTS = 16;
 
-/** Taille du chapeau lumineux d'une case */
-export function capSize(space) {
-    if (space.kind === 'track') return { rx: 21, ry: 13, square: false };
-    if (space.zone === 'pads' && space.kind !== 'button') return { rx: 20, ry: 13, square: true };
-    return { rx: 17, ry: 10.5, square: false };
+/** Géométrie d'une case : pad rond (anneau rx, ry) ou carré (w, h) */
+export function padShape(space) {
+    if (space.zone === 'pads') return { square: true, w: 56, h: 38, ringW: 64, ringH: 46 };
+    return { square: false, rx: 23, ry: 14.5, ringRx: 31, ringRy: 19.5 };
 }
 
-// Le chapeau d'une case, émissif ; `flash` le dessine chauffé à blanc
-function paintCap(P, space, flash = false) {
+// Segment de l'anneau sous un point (null dans les espaces entre segments)
+function ringSegment(nx, ny) {
+    const a = (Math.atan2(ny, nx) + Math.PI * 2.5) % (Math.PI * 2);
+    const f = (a / (Math.PI * 2)) * RING_SEGMENTS;
+    return f % 1 < 0.16 ? null : Math.floor(f);
+}
+
+// Anneau de LED, pad et pictogramme ; flash : chauffé à blanc (éclat au passage)
+function paintPad(P, space, flash = false) {
     const c = SPACE_COLORS[space.type] || SPACE_COLORS.blue;
-    const { rx, ry, square } = capSize(space);
+    const g = padShape(space);
     const cx = space.x;
-    const cy = space.y - 2;
-    const shade = (nx, ny) => {
-        if (flash) return ny < -0.3 ? '#ffffff' : '#fff6e0';
-        const v = -nx * 0.5 - ny * 0.85;
-        return v > 0.5 ? c.light : v < -0.45 ? c.dark : c.base;
+    const cy = space.y;
+    const ringColor = (nx, ny) => {
+        if (flash) return ny < 0 ? '#ffffff' : c.light;
+        return ny < -0.2 ? c.light : ny > 0.55 ? c.dark : c.ring;
     };
-    if (square) P.rrect(cx - rx, cy - ry, rx * 2, ry * 2, 5, EMIT, (px, py, u, v) => shade(u * 2 - 1, v * 2 - 1));
-    else P.ellipse(cx, cy, rx, ry, EMIT, (nx, ny) => shade(nx, ny));
+    if (g.square) {
+        const x0 = cx - g.ringW / 2;
+        const y0 = cy - g.ringH / 2;
+        P.rrect(x0, y0, g.ringW, g.ringH, 8, EMIT, (px, py, u, v) => {
+            const inner = px > x0 + 3 && px < x0 + g.ringW - 4 && py > y0 + 3 && py < y0 + g.ringH - 4;
+            if (inner) return null;
+            const seg = Math.floor(u * 8) + (v > 0.5 ? 8 : 0);
+            if ((u * 8) % 1 < 0.1) return '#0e0e10';
+            void seg;
+            return ringColor(u * 2 - 1, v * 2 - 1);
+        });
+        P.rrect(cx - g.w / 2, cy - g.h / 2 + 4, g.w, g.h, 6, M.rubber, 1.6);
+        P.rrect(cx - g.w / 2, cy - g.h / 2, g.w, g.h, 6, flash ? EMIT : M.rubber, flash ? '#cfcfd4' : (px, py, u, v) => 4.4 + (v < 0.12 ? 1.2 : 0) + (u < 0.1 ? 0.5 : 0) - (v > 0.88 ? 1 : 0));
+    } else {
+        P.ellipse(cx, cy + 1, g.ringRx, g.ringRy, EMIT, (nx, ny, px, py, d) => {
+            if (d < 0.66) return null;
+            const seg = ringSegment(nx, ny);
+            return seg === null ? '#0e0e10' : ringColor(nx, ny);
+        });
+        P.ellipse(cx, cy + 4, g.rx, g.ry, M.rubber, 1.6);
+        P.rect(cx - g.rx, cy, g.rx * 2, 4, M.rubber, (px) => {
+            const nx = (px + 0.5 - cx) / g.rx;
+            return nx * nx > 1 ? null : 2.6 - nx;
+        });
+        if (flash) P.ellipse(cx, cy, g.rx, g.ry, EMIT, (nx, ny) => (ny < -0.3 ? '#ffffff' : '#d8d8de'));
+        else P.ellipse(cx, cy, g.rx, g.ry, M.rubber, (nx, ny, px, py, d) => 4.6 + (-nx * 0.5 - ny * 0.85) * 1.3 + (d > 0.85 ? -0.6 : 0));
+    }
+    // Pictogramme sérigraphié au centre du pad
     const icon = ICONS[ICON_OF[space.type] || 'plus'];
-    const ink = flash ? c.base : '#FFFFFF';
-    const edge = flash ? '#ffffff' : c.dark;
     const ix = Math.round(cx - 3);
     const iy = Math.round(cy - 3);
     icon.forEach((row, j) => {
         for (let i = 0; i < row.length; i += 1) {
             if (row[i] !== '#') continue;
-            [[1, 0], [-1, 0], [0, 1], [0, -1]].forEach(([dx, dy]) => {
-                const nr = icon[j + dy];
-                if (!nr || nr[i + dx] !== '#') P.put(ix + i + dx, iy + j + dy, EMIT, edge);
-            });
+            if (flash) P.put(ix + i, iy + j, EMIT, c.ring);
+            else P.put(ix + i, iy + j, M.silk, 6.4);
         }
-    });
-    icon.forEach((row, j) => {
-        for (let i = 0; i < row.length; i += 1) if (row[i] === '#') P.put(ix + i, iy + j, EMIT, ink);
     });
 }
 
 function paintSpace(P, space) {
-    const { rx, ry, square } = capSize(space);
+    const g = padShape(space);
     const cx = space.x;
     const cy = space.y;
-    const c = SPACE_COLORS[space.type] || SPACE_COLORS.blue;
-    // Lumière de la LED sur la surface autour
-    P.spill(cx, cy + 2, rx * 2.4, 1.6);
-    if (space.zone === 'pedal') {
-        // Pédale : interrupteur au pied en chrome, la LED forme un anneau autour
-        P.ellipse(cx, cy + 4, rx + 6, ry + 5, M.gear, 1.6);
-        P.ellipse(cx, cy + 2, rx + 6, ry + 5, M.metal, (nx, ny) => 5 + (-nx * 0.6 - ny * 0.8) * 1.6);
-    } else if (space.zone === 'stage' || space.zone === 'desk' || space.zone === 'cable') {
-        // Palet de caoutchouc posé au sol
-        P.shadowEllipse(cx + 5, cy + 7, rx + 7, ry + 5, 2);
-        P.ellipse(cx, cy + 6, rx + 5, ry + 4, M.rubber, 1.6);
-        P.rect(cx - rx - 5, cy + 1, (rx + 5) * 2, 5, M.rubber, (px) => {
-            const nx = (px + 0.5 - cx) / (rx + 5);
+    // Lumière de l'anneau sur la surface autour
+    P.spill(cx, cy + 2, (g.ringRx || g.ringW / 2) * 1.8, 0.9);
+    if (space.zone === 'stage' || space.zone === 'desk' || space.zone === 'cable') {
+        // Socle en caoutchouc posé au sol
+        P.shadowEllipse(cx + 6, cy + 9, 40, 25, 2);
+        P.ellipse(cx, cy + 8, 37, 24, M.chassis, 1.6);
+        P.rect(cx - 37, cy + 1, 74, 7, M.chassis, (px) => {
+            const nx = (px + 0.5 - cx) / 37;
             return nx * nx > 1 ? null : 3 - nx;
         });
-        P.ellipse(cx, cy + 1, rx + 5, ry + 4, M.rubber, (nx, ny) => 4.4 + (-nx * 0.6 - ny * 0.8) * 1.2);
+        P.ellipse(cx, cy + 1, 37, 24, M.chassis, (nx, ny) => 4.6 + (-nx * 0.6 - ny * 0.8) * 1.2);
     } else if (space.zone === 'phones' && space.kind === 'band') {
-        P.ellipse(cx, cy + 3, rx + 3, ry + 3, M.gear, (nx, ny) => 4 + (-nx * 0.6 - ny * 0.8));
+        P.ellipse(cx, cy + 4, 35, 23, M.chassis, (nx, ny) => 4 + (-nx * 0.6 - ny * 0.8));
     } else if (space.zone === 'mixer') {
-        P.rrect(cx - rx - 4, cy - ry - 2, (rx + 4) * 2, (ry + 4) * 2, 6, M.gear, (px, py) => (py < cy - ry ? 4.4 : 1.4));
-    } else {
-        // Appareil : lunette métal autour du pad
-        if (square) P.rrect(cx - rx - 4, cy - ry - 4, (rx + 4) * 2, (ry + 4) * 2 + 2, 7, M.gear, 1);
-        else P.ellipse(cx, cy + 1, rx + 5, ry + 4, M.metal, (nx, ny, px, py, d) => (d > 0.75 ? 5.6 + (-nx * 0.6 - ny * 0.8) * 1.6 : 1));
+        P.rrect(cx - 37, cy - 25, 74, 52, 8, M.chassis, (px, py) => (py < cy - 22 ? 4.4 : 1.6));
+    } else if (!g.square) {
+        // Appareil : creux sombre autour de l'anneau
+        P.ellipse(cx, cy + 2, g.ringRx + 4, g.ringRy + 3.5, M.chassis, (nx, ny, px, py, d) => (d > 0.8 ? 2.6 + (ny > 0 ? 1.4 : -0.4) : 1));
     }
-    // Flanc du chapeau, puis le chapeau lumineux
-    if (square) P.rrect(cx - rx, cy - ry + 2, rx * 2, ry * 2 + 2, 5, EMIT, c.dark);
-    else P.ellipse(cx, cy + 1, rx, ry, EMIT, c.dark);
-    paintCap(P, space);
+    paintPad(P, space);
     if (space.gate) paintGate(P, space);
 }
 
-// Cordon de velours à l'entrée du raccourci (l'ingé son est dessiné dans live.js)
+// Cordon de velours à l'entrée du raccourci (l'ingé son est dessiné à part)
 function paintGate(P, space) {
-    const y = space.y - 34;
-    [space.x - 30, space.x + 30].forEach((x) => {
-        P.shadowEllipse(x + 4, y + 30, 9, 4, 1.6);
-        P.ellipse(x, y + 28, 8, 3.5, M.gold, (nx, ny) => 6 + (-nx - ny) * 1.6);
-        P.tube([[x, y + 26], [x, y]], 2.2, M.gold, (nx) => 6.5 - nx * 2.6);
-        P.ellipse(x, y - 1, 3.4, 3.4, M.gold, (nx, ny) => 7 + (-nx - ny) * 1.8);
+    const y = space.y - 44;
+    [space.x - 40, space.x + 40].forEach((x) => {
+        P.shadowEllipse(x + 5, y + 39, 11, 5, 1.6);
+        P.ellipse(x, y + 36, 10, 4.5, M.brass, (nx, ny) => 6 + (-nx - ny) * 1.6);
+        P.tube([[x, y + 34], [x, y]], 2.8, M.brass, (nx) => 6.5 - nx * 2.6);
+        P.ellipse(x, y - 1, 4.4, 4.4, M.brass, (nx, ny) => 7 + (-nx - ny) * 1.8);
     });
     const rope = [];
-    for (let i = 0; i <= 12; i += 1) rope.push([space.x - 30 + i * 5, y + 4 + Math.sin((i / 12) * Math.PI) * 9]);
-    P.tube(rope, 2.6, M.velvet, (nx, ny) => 4.5 + (-nx * 0.5 - ny * 0.9) * 2.4);
+    for (let i = 0; i <= 16; i += 1) rope.push([space.x - 40 + i * 5, y + 5 + Math.sin((i / 16) * Math.PI) * 12]);
+    P.tube(rope, 3.2, M.velvet, (nx, ny) => 4.5 + (-nx * 0.5 - ny * 0.9) * 2.4);
 }
 
-/** Petite image du chapeau d'une case, chauffé à blanc, pour les éclats au passage */
-function capSprite(space, flash) {
-    const { rx, ry } = capSize(space);
-    const w = Math.ceil(rx * 2 + 4);
-    const h = Math.ceil(ry * 2 + 6);
+/** Petite image d'une case chauffée à blanc, pour l'éclat au passage */
+function flashSprite(space) {
+    const w = 72;
+    const h = 52;
     const P = new Paint(w, h);
-    const local = { ...space, x: w / 2, y: h / 2 + 2 };
-    paintCap(P, local, flash);
+    paintPad(P, { ...space, x: w / 2, y: h / 2 }, true);
     const canvas = resolve(P, null);
-    return { canvas, ox: Math.round(space.x - w / 2), oy: Math.round(space.y - h / 2 - 2) };
+    return { canvas, ox: Math.round(space.x - w / 2), oy: Math.round(space.y - h / 2) };
 }
 
 // ---------------------------------------------------------------------------
@@ -853,12 +934,12 @@ export function getWorld(board) {
 
 /**
  * Peint le plateau entier. Renvoie l'image du décor fixe et, pour chaque case,
- * l'image de son chapeau chauffé à blanc (éclat quand un joueur passe dessus).
+ * l'image de son pad chauffé à blanc (éclat quand un joueur passe dessus).
  */
 export function buildWorld(board) {
     const P = new Paint(WORLD_W, WORLD_H);
     paintWall(P);
-    paintNeon(P);
+    paintCorkboard(P);
     paintVinyl(P);
     paintWindow(P);
     paintDesk(P);
@@ -866,13 +947,12 @@ export function buildWorld(board) {
     paintLamp(P);
     paintNotes(P);
     paintHeadphones(P);
-    // Câbles posés sur le bureau, sous les appareils
-    cable(P, [[836, 300], [930, 352], [1010, 368], [1110, 392], [1150, 470], [1146, 640], [1120, 762], [1040, 780], [990, 760]], 4.2);
-    cable(P, [[214, 566], [206, 610], [204, 670], [232, 726], [262, 742]], 3.8);
-    cable(P, [[640, 578], [646, 590]], 3.4);
-    cable(P, [[540, 578], [520, 600]], 3.4);
-    cable(P, [[1256, 250], [1270, 300], [1290, 320]], 3.4);
-    cable(P, [[30, 262], [12, 300], [-10, 310]], 3.4);
+    cable(P, [[1087, 390], [1209, 458], [1313, 478], [1443, 510], [1495, 611], [1490, 832], [1456, 991], [1352, 1014], [1287, 988]], 5.4);
+    cable(P, [[278, 736], [268, 793], [265, 871], [302, 944], [340, 965]], 5);
+    cable(P, [[832, 751], [840, 767]], 4.4);
+    cable(P, [[702, 751], [676, 780]], 4.4);
+    cable(P, [[1633, 325], [1651, 390], [1677, 416]], 4.4);
+    cable(P, [[39, 341], [16, 390], [-13, 403]], 4.4);
     paintStage(P);
     paintPadController(P);
     paintMixer(P);
@@ -883,6 +963,6 @@ export function buildWorld(board) {
     board.spaces.forEach((space) => paintSpace(P, space));
     const canvas = resolve(P, lightAt);
     const flashes = {};
-    board.spaces.forEach((space) => { flashes[space.id] = capSprite(space, true); });
+    board.spaces.forEach((space) => { flashes[space.id] = flashSprite(space); });
     return { canvas, flashes };
 }

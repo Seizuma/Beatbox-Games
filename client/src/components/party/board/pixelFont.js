@@ -34,8 +34,17 @@ const TINY = {
     U: ['#.#', '#.#', '#.#', '#.#', '###'], V: ['#.#', '#.#', '#.#', '#.#', '.#.'], W: ['#.#', '#.#', '###', '###', '#.#'],
     X: ['#.#', '#.#', '.#.', '#.#', '#.#'], Y: ['#.#', '#.#', '.#.', '.#.', '.#.'], Z: ['###', '..#', '.#.', '#..', '###'],
     '+': ['...', '.#.', '###', '.#.', '...'], '-': ['...', '...', '###', '...', '...'], '/': ['..#', '..#', '.#.', '#..', '#..'],
+    J: ['..#', '..#', '..#', '#.#', '.#.'], Q: ['.#.', '#.#', '#.#', '##.', '.##'],
+    '!': ['.#.', '.#.', '.#.', '...', '.#.'], '?': ['##.', '..#', '.#.', '...', '.#.'], '%': ['#.#', '..#', '.#.', '#..', '#.#'],
+    "'": ['.#.', '.#.', '...', '...', '...'], '×': ['...', '#.#', '.#.', '#.#', '...'], '>': ['#..', '.#.', '..#', '.#.', '#..'],
+    '<': ['..#', '.#.', '#..', '.#.', '..#'], '(': ['.#.', '#..', '#..', '#..', '.#.'], ')': ['.#.', '..#', '..#', '..#', '.#.'],
     '.': ['...', '...', '...', '...', '.#.'], ':': ['...', '.#.', '...', '.#.', '...'], ' ': ['..', '..', '..', '..', '..'],
 };
+
+/** Texte ramené aux glyphes disponibles : majuscules sans accents */
+export function plain(text) {
+    return String(text).normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[’‘]/g, "'").replace(/…/g, '...').toUpperCase();
+}
 
 const FONTS = { bold: { glyphs: BOLD, h: 8, gap: 1 }, tiny: { glyphs: TINY, h: 5, gap: 1 } };
 
@@ -44,6 +53,21 @@ const cache = new Map();
 function makeCanvas(w, h) {
     if (typeof OffscreenCanvas !== 'undefined') return new OffscreenCanvas(w, h);
     return Object.assign(document.createElement('canvas'), { width: w, height: h });
+}
+
+/** Pixels allumés d'un texte (pour peindre une sérigraphie dans le décor) */
+export function glyphPixels(text, font = 'tiny') {
+    const f = FONTS[font];
+    const pixels = [];
+    let x = 0;
+    String(text).split('').forEach((ch) => {
+        const g = f.glyphs[ch] || f.glyphs[' '];
+        g.forEach((row, j) => {
+            for (let i = 0; i < row.length; i += 1) if (row[i] === '#') pixels.push([x + i, j]);
+        });
+        x += g[0].length + f.gap;
+    });
+    return { pixels, width: Math.max(0, x - f.gap), height: f.h };
 }
 
 /** Largeur d'un texte, sans contour */
