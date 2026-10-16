@@ -477,7 +477,7 @@ function ReactionBar({ t, onReact, enabled }) {
     return (
         <div className="party-reacts" role="group" aria-label={t('react.title')}>
             {REACTIONS.map((id, i) => (
-                <button key={id} type="button" className="party-react" disabled={cooling} onClick={() => send(id)} aria-label={t(`react.${id}`)} title={`${t(`react.${id}`)} (${i + 1})`}>
+                <button key={id} type="button" className="party-react" disabled={cooling} onMouseDown={(event) => event.preventDefault()} onClick={() => send(id)} aria-label={t(`react.${id}`)} title={`${t(`react.${id}`)} (${i + 1})`}>
                     <span className="party-react-glyph">{t(`react.glyph.${id}`)}</span>
                     <span className="party-react-key" aria-hidden="true">{i + 1}</span>
                 </button>
@@ -510,6 +510,7 @@ function PauseMenu({ t, onClose, mapMode, onMap, musicOn, onMusic, botFast, isHo
         <div className="hw-modal-backdrop" role="presentation" onPointerDown={(event) => { if (event.target === event.currentTarget) onClose(); }}>
             <div role="dialog" aria-modal="true" aria-label={t('screen.pause')} className="hw-pop w-[min(24rem,100%)]">
                 <MenuList
+                    exclusive
                     title={t('screen.pause')}
                     items={[
                         { id: 'resume', label: t('screen.resume'), onSelect: onClose },
@@ -571,6 +572,8 @@ function Iris({ id }) {
 function useCoinFlights(state, rootRef, positionsRef, enabled) {
     const [coins, setCoins] = useState([]);
     const prev = useRef(null);
+    const timers = useRef([]);
+    useEffect(() => () => timers.current.forEach(clearTimeout), []);
     const hypes = state.players.map((p) => `${p.id}:${p.hype}`).join(',');
     useEffect(() => {
         const before = prev.current;
@@ -600,8 +603,13 @@ function useCoinFlights(state, rootRef, positionsRef, enabled) {
         if (!born.length) return undefined;
         setCoins((list) => [...list, ...born]);
         const ids = new Set(born.map((c) => c.id));
-        const timer = setTimeout(() => setCoins((list) => list.filter((c) => !ids.has(c.id))), 1300);
-        return () => clearTimeout(timer);
+        // Chaque volée se retire seule, même si une autre arrive entre-temps
+        const timer = setTimeout(() => {
+            timers.current = timers.current.filter((h) => h !== timer);
+            setCoins((list) => list.filter((c) => !ids.has(c.id)));
+        }, 1300);
+        timers.current.push(timer);
+        return undefined;
         // Une volée de pièces à chaque changement de Hype
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [hypes]);
@@ -854,7 +862,7 @@ export default function PartyPlay({ state, myId, t, queue, clockOffset, actions,
                     </span>
                 )}
                 {mapMode && <span className="hw-chip"><LcdText text={t('screen.mapBadge')} scale={2} color="#ffd23a" /></span>}
-                <Key size="sm" className="hw-key-icon party-pause-button" onClick={() => setPaused(true)} aria-label={t('screen.pause')} title={t('screen.pause')}>
+                <Key size="sm" className="hw-key-icon party-pause-button" onMouseDown={(event) => event.preventDefault()} onClick={() => setPaused(true)} aria-label={t('screen.pause')} title={t('screen.pause')}>
                     <span aria-hidden="true" className="party-pause-glyph" />
                 </Key>
             </div>

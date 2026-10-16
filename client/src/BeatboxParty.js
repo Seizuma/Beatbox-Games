@@ -140,6 +140,8 @@ function BeatboxPartyGame() {
         const sync = async () => {
             const sample = await partySocket.measureClock();
             if (stopped || !sample) return;
+            // L'horloge de l'appareil a sauté (réveil, mise à l'heure) : on repart de zéro
+            if (clockSamples.current.length && Math.abs(sample.offset - offsetRef.current) > 200) clockSamples.current = [];
             clockSamples.current = [...clockSamples.current, sample].slice(-6);
             const best = clockSamples.current.reduce((a, b) => (b.rtt < a.rtt ? b : a));
             if (Math.abs(best.offset - offsetRef.current) > 4) {

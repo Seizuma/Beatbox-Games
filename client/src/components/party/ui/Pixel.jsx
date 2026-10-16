@@ -7,9 +7,11 @@ import { sfx } from '../partySfx';
 
 /**
  * Menu à curseur ▶. items : [{ id, label, info, price, disabled, onSelect }].
- * keyboard : flèches haut/bas et Entrée/Espace (un seul menu actif à la fois).
+ * keyboard : flèches haut/bas et Entrée/Espace.
+ * exclusive : le menu prend tout le clavier (menu pause) ; les autres écouteurs de la page
+ * ne reçoivent plus rien, sauf Échap.
  */
-export function MenuList({ items, title = null, keyboard = true, className = '', label }) {
+export function MenuList({ items, title = null, keyboard = true, exclusive = false, className = '', label }) {
     const enabled = items.map((it, i) => (it.disabled ? -1 : i)).filter((i) => i >= 0);
     const [current, setCurrent] = useState(enabled.length ? enabled[0] : 0);
     const ref = useRef({ items, current });
@@ -34,6 +36,7 @@ export function MenuList({ items, title = null, keyboard = true, className = '',
                     if (!list[i].disabled) { setCurrent(i); sfx('tick'); return; }
                 }
             };
+            if (exclusive && event.key !== 'Escape') event.stopPropagation();
             if (event.key === 'ArrowDown') { event.preventDefault(); move(1); }
             else if (event.key === 'ArrowUp') { event.preventDefault(); move(-1); }
             else if ((event.key === 'Enter' || event.code === 'Space') && !event.repeat && tag !== 'BUTTON') {
@@ -41,9 +44,15 @@ export function MenuList({ items, title = null, keyboard = true, className = '',
                 if (it && !it.disabled) { event.preventDefault(); sfx('hit'); it.onSelect(); }
             }
         };
-        window.addEventListener('keydown', onKey);
-        return () => window.removeEventListener('keydown', onKey);
-    }, [keyboard]);
+        // Exclusif : écouté en premier (phase de capture) pour arrêter la touche avant les autres
+        const block = (event) => { if (event.key !== 'Escape') event.stopPropagation(); };
+        window.addEventListener('keydown', onKey, exclusive);
+        if (exclusive) window.addEventListener('keyup', block, true);
+        return () => {
+            window.removeEventListener('keydown', onKey, exclusive);
+            if (exclusive) window.removeEventListener('keyup', block, true);
+        };
+    }, [keyboard, exclusive]);
     return (
         <div className={`px-menu ${className}`} role="menu" aria-label={label || title || undefined}>
             {title && <p className="px-menu-title">{title}</p>}
@@ -55,6 +64,8 @@ export function MenuList({ items, title = null, keyboard = true, className = '',
                     className={`px-menu-item ${i === current ? 'is-current' : ''}`}
                     disabled={it.disabled}
                     onMouseEnter={() => !it.disabled && setCurrent(i)}
+                    // Un clic ne laisse pas le focus sur l'entrée : Espace reste au jeu (lancer le dé)
+                    onMouseDown={(event) => event.preventDefault()}
                     onFocus={() => !it.disabled && setCurrent(i)}
                     onClick={() => { sfx('hit'); it.onSelect(); }}
                 >

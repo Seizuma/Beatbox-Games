@@ -552,6 +552,9 @@
 .party-react:focus-visible { border-image-source: var(--frame-sel); color: var(--px-gold); }
 .party-react:active:not(:disabled) { transform: translate(2px, 2px); filter: none; }
 .party-react:disabled { opacity: 0.45; cursor: default; }
+.party-react-glyph { letter-spacing: 0.02em; }
+.party-wheel.is-done,
+.party-event.is-done { border-image-source: var(--frame-sel); }
 .party-react-key { position: absolute; right: -7px; bottom: -9px; font-family: var(--hw-label); font-size: 0.5rem; color: var(--hw-silk-dim); text-shadow: none; }
 @media (hover: none) { .party-react-key { display: none; } }
 .party-react-bubble {

@@ -35,6 +35,8 @@ const BOT_REACTIONS = {
     duel: ['ooh', 'kick'],
 };
 const BOT_REACT_CHANCE = 0.45;
+// Équité en ligne : retard maximal accepté entre l'heure vue par le joueur et l'arrivée de son action
+const MAX_ACTION_LAG = 300;
 // Niveaux des bots (réglés par l'hôte dans le salon, bot par bot)
 //   beginner : routes et objets au hasard, garde rarement de quoi acheter le Micro d'or
 //   normal   : le comportement de base
@@ -241,11 +243,14 @@ class PartyGame {
     // Équité en ligne : l'instant d'une action est celui que le joueur a vu à l'écran (horloge du
     // serveur estimée chez lui, envoyée avec l'action). Il est accepté s'il tombe dans la fenêtre
     // permise par sa latence mesurée (maxLag) ; sinon on le ramène au bord de cette fenêtre.
-    actionTime(claimed, maxLag = 0, notBefore = -Infinity) {
+    // La fenêtre ne dépasse jamais 300 ms ni le tiers d'un tour complet (cycle) : même en
+    // retardant ses réponses aux pings, un joueur ne peut pas choisir sa case.
+    actionTime(claimed, maxLag = 0, notBefore = -Infinity, cycle = Infinity) {
         const now = this.now();
         const at = Number(claimed);
         if (!Number.isFinite(at) || !maxLag) return now;
-        return Math.max(notBefore, Math.min(now, Math.max(at, now - maxLag)));
+        const window = Math.min(maxLag, MAX_ACTION_LAG, cycle / 3);
+        return Math.max(notBefore, Math.min(now, Math.max(at, now - window)));
     }
 
     // `full` : délai laissé à un humain pendant le tour d'un bot (roue du Rappel, vol), jamais raccourci
@@ -744,7 +749,7 @@ class PartyGame {
         // Un bot n'a pas de réflexes à mesurer : la case est tirée au sort
         const index = spinner && spinner.isBot
             ? this.randInt(0, slots.length - 1)
-            : Math.floor((this.actionTime(at, maxLag, spinAt) - spinAt) / period) % slots.length;
+            : Math.floor((this.actionTime(at, maxLag, spinAt, period * slots.length) - spinAt) / period) % slots.length;
         this.wheel.index = index;
         this.wheel.result = slots[index];
         this.finaleEffect = slots[index];
@@ -970,7 +975,7 @@ class PartyGame {
             const dist = this.distanceToStar(player.space, player.hype);
             const aim = this.levelOf(player) === 'pro' && dist && dist <= faces && player.hype >= this.starPrice();
             value = aim ? dist : this.randInt(1, faces);
-        } else value = 1 + (Math.floor((this.actionTime(at, maxLag, spinAt) - spinAt) / period) % faces);
+        } else value = 1 + (Math.floor((this.actionTime(at, maxLag, spinAt, period * faces) - spinAt) / period) % faces);
         this.reveal(player, 'vinyl', value, 0);
         return { ok: true };
     }
@@ -1311,7 +1316,7 @@ class PartyGame {
         const player = this.player(playerId);
         const n = reel.slots.length;
         if (player.isBot) reel.index = this.botReelIndex(player, fs, reel);
-        else reel.index = Math.floor((this.actionTime(at, maxLag, reel.spinAt) - reel.spinAt) / reel.period) % n;
+        else reel.index = Math.floor((this.actionTime(at, maxLag, reel.spinAt, reel.period * n) - reel.spinAt) / reel.period) % n;
         fs.current += 1;
         if (fs.current === 2) {
             // Le dernier rouleau ne propose que les autres joueurs que celui qui donne
