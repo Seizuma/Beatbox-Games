@@ -1,35 +1,34 @@
 import React, { useEffect, useRef } from 'react';
 import { DICE_HIT_Y, FOOT_X, FOOT_Y, MIC_MOUTH, PLAYER_COLORS, beatboxHit, getFrame } from '../characters/pixelRig';
 import { beatIndex, beatPhase, sfx } from '../partySfx';
-import { getWorld, SPACE_COLORS, WORLD_H, WORLD_W } from './world';
-import { drawArrow, drawBadge, drawBurst, drawCoin, drawCrowd, drawGoldMic, drawLoopDie, drawRing, drawShadow, drawWorldLive, lightRing } from './live';
-import { drawAmbient, drawBeam, drawGlows, drawShade, drawSoundWaves } from './fx';
+import { DEVICE, getWorld, spaceRadius } from './world';
+import { focalFor, makeCam, project, renderStage, ringOutline, spaceTop, stageLights } from './stage3d';
+import { drawArrow, drawBurst, drawCoin, drawDie, goldMicSprite } from './live';
+import { drawGlows, drawShade, drawSoundWaves } from './fx';
 import { drawText } from './pixelFont';
+import { E } from './pix';
 
-// Le plateau « Le Setup », avec une caméra de jeu à la Mario Party :
-// - au tour d'un joueur, la caméra zoome sur lui (zoom entier : les pixels restent nets)
-//   et le suit pendant qu'il saute de pad en pad ; un projecteur l'isole du reste ;
-// - les autres joueurs s'effacent (pastille à leur couleur, avec leur numéro de passage) ;
-// - au carrefour, des flèches montrent les routes (cliquables) ;
+// Le plateau : la loopstation géante sur la scène d'une battle, filmée en Mode 7.
+// La caméra se comporte comme celle de Mario Party :
+// - au tour d'un joueur, elle se place derrière lui et le suit de pad en pad ;
+// - sur un long trajet, elle prend de la hauteur puis replonge (mouvement de grue) ;
 // - elle montre le Micro d'or au début de la partie et quand il change de place ;
-// - la vue « Carte » montre tout le plateau et tous les joueurs.
+// - la vue « Carte » montre toute la loopstation d'en haut.
 //
-// Trois canvas superposés : le pixel art (résolution du décor, agrandi sans lissage),
+// Trois canvas superposés : le pixel art (basse résolution, agrandi sans lissage),
 // les lumières (résolution de l'écran, mode « screen ») et l'ombre (vignette, projecteur).
 
 const HOP_T = 0.6;
-const ORDINAL_OFFSETS = [[-15, -4], [15, -4], [-15, 8], [15, 8]];
-// Plusieurs joueurs sur un même pad : en formation, à l'intérieur de l'anneau
-const ORDER_LINE = {
-    2: [[-17, 0], [17, 0]],
-    3: [[-32, 2], [0, -2], [32, 2]],
-    4: [[-46, 2], [-15, -2], [15, 2], [46, -2]],
+// Plusieurs joueurs sur une même case : en ligne, côte à côte (écart en unités du monde)
+const LINES = {
+    1: [[0, 0]],
+    2: [[-15, 0], [15, 0]],
+    3: [[-24, 2], [0, -3], [24, 2]],
+    4: [[-30, 3], [-10, -3], [10, 3], [30, -3]],
 };
-const FORMATIONS = {
-    2: [[-13, 0], [13, 0]],
-    3: [[-14, -5], [14, -5], [0, 6]],
-    4: [[-15, -6], [15, -6], [-15, 6], [15, 6]],
-};
+const ORDER_LINE = [[-6, 0], [38, -2], [82, 0], [126, -2]];
+// Point visé quand personne ne joue, et centre de la vue carte
+const CENTER = { x: DEVICE.x + DEVICE.w / 2, y: DEVICE.y + DEVICE.d * 0.48 };
 
 // Directions des routes proposées au carrefour (pour les boutons et le clavier)
 export function choiceDirections(state) {
@@ -46,8 +45,7 @@ export function choiceDirections(state) {
 
 const DIR_VEC = { right: [1, 0], left: [-1, 0], up: [0, -1], down: [0, 1] };
 
-// Ressort amorti critique (SmoothDamp) : la caméra accélère puis freine en douceur,
-// sans à-coup au départ ni rebond à l'arrivée, quel que soit le nombre d'images par seconde
+// Ressort amorti critique (SmoothDamp) : départ et arrivée en douceur, à toute cadence
 function smoothDamp(current, target, velocity, smoothTime, dt) {
     const omega = 2 / smoothTime;
     const x = omega * dt;
@@ -59,13 +57,37 @@ function smoothDamp(current, target, velocity, smoothTime, dt) {
 
 const ease = (k) => k * k * (3 - 2 * k);
 
-export default function PartyBoard({ state, queue, myId, mapMode = false, onEvent, onChoose, insets = null }) {
+// Vue carte : la plus grande échelle où toute la loopstation tient entre le HUD et la console
+const fitCache = new Map();
+function fitMap(AW, AH, top, bottom) {
+    const key = `${AW}|${AH}|${Math.round(top)}|${Math.round(bottom)}`;
+    if (fitCache.has(key)) return fitCache.get(key);
+    const free = Math.max(AH * 0.4, AH - top - bottom);
+    const fy = (top + free * 0.5) / AH;
+    const { x: DX, y: DY, w: DW, d: DD, h: DH } = DEVICE;
+    const pts = [[DX, DY, DH], [DX + DW, DY, DH], [DX, DY + DD, 0], [DX + DW, DY + DD, 0]];
+    let k = 1.2;
+    for (let i = 0; i < 60; i += 1) {
+        const dist = focalFor(AW, AH) / k;
+        const cam = makeCam({ tx: CENTER.x, ty: CENTER.y, th: DEVICE.h, dist, rise: dist * 0.95, fy, W: AW, H: AH });
+        const ok = pts.every(([x, y, h]) => {
+            const p = project(cam, x, y, h);
+            return p && p.sx >= 2 && p.sx <= AW - 2 && p.sy >= top + 2 && p.sy <= AH - bottom - 2;
+        });
+        if (ok) break;
+        k *= 0.95;
+    }
+    fitCache.set(key, k);
+    return k;
+}
+
+export default function PartyBoard({ state, queue, myId, mapMode = false, onEvent, onChoose, insets = null, clockOffset = 0 }) {
     const wrapRef = useRef(null);
     const pixelRef = useRef(null);
     const glowRef = useRef(null);
     const shadeRef = useRef(null);
-    const props = useRef({ mapMode, onEvent, onChoose, myId, insets });
-    props.current = { mapMode, onEvent, onChoose, myId, insets };
+    const props = useRef({ mapMode, onEvent, onChoose, myId, insets, clockOffset });
+    props.current = { mapMode, onEvent, onChoose, myId, insets, clockOffset };
     const live = useRef({
         state,
         anims: {},
@@ -78,7 +100,7 @@ export default function PartyBoard({ state, queue, myId, mapMode = false, onEven
         rollTotals: {},
         lastSeq: 0,
         prevSpaces: null,
-        cam: { x: WORLD_W / 2, y: WORLD_H / 2, s: 1, vx: 0, vy: 0, vs: 0, ready: false },
+        cam: null,
         focusStarUntil: 0,
         focusStarDelay: 0,
         cheerUntil: 0,
@@ -109,16 +131,16 @@ export default function PartyBoard({ state, queue, myId, mapMode = false, onEven
         const float = (text, color, spaceId, delay = 0, coin = false) => {
             if (spaceId == null) return;
             const sp = spaceOf(spaceId);
-            L.floats.push({ text, color, x: sp.x, y: sp.y - 104, start: now + delay, coin });
+            L.floats.push({ text, color, x: sp.x, y: sp.y, start: now + delay, coin });
         };
-        // Confettis (achat du Micro d'or, Drop) et ondes de choc
+        // Confettis (achat du Micro d'or, Drop), dans le monde : ils retombent sur l'appareil
         const confetti = (spaceId, colors, n = 36, delay = 0) => {
             const sp = spaceOf(spaceId);
             if (!sp) return;
             for (let i = 0; i < n; i += 1) {
-                const a = -Math.PI / 2 + (Math.random() - 0.5) * 2.2;
-                const v = 90 + Math.random() * 140;
-                L.particles.push({ x: sp.x, y: sp.y - 50, vx: Math.cos(a) * v, vy: Math.sin(a) * v, color: colors[i % colors.length], born: now + delay, life: 1400 + Math.random() * 700 });
+                const a = Math.random() * Math.PI * 2;
+                const v = 40 + Math.random() * 90;
+                L.particles.push({ x: sp.x, y: sp.y, h: spaceTop(sp) + 70, vx: Math.cos(a) * v, vy: Math.sin(a) * v * 0.6, vh: 160 + Math.random() * 160, color: colors[i % colors.length], born: now + delay, life: 1500 + Math.random() * 700 });
             }
         };
         // Poses imposées, éventuellement à la suite (Larsen : sursaut puis déception)
@@ -130,8 +152,11 @@ export default function PartyBoard({ state, queue, myId, mapMode = false, onEven
             case 'turn':
                 pose(event.playerId, 'present', 1700);
                 break;
+            case 'spin':
+                sfx('reveal', 0.1);
+                break;
             case 'roll':
-                L.dice = { playerId: event.playerId, value: event.value, at: now };
+                L.dice = { playerId: event.playerId, value: event.value, die: event.die || 'pad', at: now };
                 L.counters[event.playerId] = event.value;
                 L.rollTotals[event.playerId] = event.value;
                 pose(event.playerId, 'diceHit', 1000);
@@ -158,12 +183,12 @@ export default function PartyBoard({ state, queue, myId, mapMode = false, onEven
                 if (event.kind === 'drop') {
                     sfx('drop');
                     L.cheerUntil = now + 2000;
-                    L.rings.push({ spaceId: event.spaceId, at: now, color: '#2EB75E' });
-                    confetti(event.spaceId, ['#2EB75E', '#93E8B2', '#F2F0EA'], 28);
+                    L.rings.push({ spaceId: event.spaceId, at: now, color: '#33e07a' });
+                    confetti(event.spaceId, ['#33e07a', '#9dffc4', '#F2F0EA'], 28);
                 }
                 if (event.kind === 'red') {
                     L.shakeUntil = now + 420;
-                    L.rings.push({ spaceId: event.spaceId, at: now, color: '#E2402F' });
+                    L.rings.push({ spaceId: event.spaceId, at: now, color: '#ff3b30' });
                 }
                 if (event.delta < 0) {
                     pose(event.playerId, 'shock', 700);
@@ -178,7 +203,7 @@ export default function PartyBoard({ state, queue, myId, mapMode = false, onEven
             case 'star':
                 if (event.bought) {
                     float('+1', ['#FFF2B0', '#FFC72C'], player && player.space);
-                    if (player) confetti(player.space, ['#F0AE22', '#E2402F', '#3F7EEA', '#2EB75E', '#F2F0EA'], 60);
+                    if (player) confetti(player.space, ['#ffb21e', '#ff3b30', '#3f8cff', '#33e07a', '#F2F0EA'], 60);
                     pose(event.playerId, 'cheer', 2400);
                     L.cheerUntil = now + 2600;
                     L.focusStarUntil = now + 2800;
@@ -211,6 +236,7 @@ export default function PartyBoard({ state, queue, myId, mapMode = false, onEven
             const a = L.anims[p.id];
             const here = s.board.spaces[p.space];
             let pos = [here.x, here.y];
+            let h = spaceTop(here);
             let lift = 0;
             let moving = false;
             let left = null;
@@ -223,11 +249,11 @@ export default function PartyBoard({ state, queue, myId, mapMode = false, onEven
                     const fromId = hop === 0 ? a.from : a.path[hop - 1];
                     const p0 = s.board.spaces[fromId];
                     const p1 = s.board.spaces[a.path[hop]];
-                    // Élan au départ, freinage à l'atterrissage
                     const ek = ease(k);
                     pos = [p0.x + (p1.x - p0.x) * ek, p0.y + (p1.y - p0.y) * ek];
+                    h = spaceTop(p0) + (spaceTop(p1) - spaceTop(p0)) * ek;
                     const dist = Math.hypot(p1.x - p0.x, p1.y - p0.y);
-                    lift = Math.sin(k * Math.PI) * (12 + dist * 0.14);
+                    lift = Math.sin(k * Math.PI) * (16 + dist * 0.16);
                     if (Math.abs(p1.x - p0.x) > 6) L.facing[p.id] = p1.x > p0.x ? 1 : -1;
                     moving = true;
                     hopK = k;
@@ -236,7 +262,7 @@ export default function PartyBoard({ state, queue, myId, mapMode = false, onEven
             }
             // Arrêt en route (carrefour, Micro d'or) : le compteur reste affiché
             if (!moving && L.counters[p.id] > 0) left = L.counters[p.id];
-            return { p, pos, lift, moving, left, hopK };
+            return { p, pos, h, lift, moving, left, hopK };
         };
 
         const sizeCanvas = (cv, w, h) => {
@@ -246,7 +272,7 @@ export default function PartyBoard({ state, queue, myId, mapMode = false, onEven
 
         const draw = (nowMs) => {
             if (!alive) return;
-            const dt = Math.min(0.5, (nowMs - (L.last || nowMs)) / 1000);
+            const dt = Math.min(0.1, (nowMs - (L.last || nowMs)) / 1000);
             L.last = nowMs;
             if (queue && queue.current.length) {
                 const pending = queue.current.splice(0, queue.current.length);
@@ -254,7 +280,7 @@ export default function PartyBoard({ state, queue, myId, mapMode = false, onEven
             }
             const s = L.state;
             const t = nowMs / 1000;
-            const { mapMode: map, myId: me } = props.current;
+            const { mapMode: map, myId: me, clockOffset: offset } = props.current;
             const wrap = wrapRef.current;
             if (!wrap) { raf = requestAnimationFrame(draw); return; }
             const cw = wrap.clientWidth;
@@ -262,193 +288,198 @@ export default function PartyBoard({ state, queue, myId, mapMode = false, onEven
             const beat = beatPhase(nowMs);
             const kick = Math.max(0, 1 - beat * 3);
             const bi = beatIndex(nowMs);
-            const stageOwner = s.stageOwner && s.players.find((p) => p.id === s.stageOwner);
-            const info = { beat, kick, bi, stageColor: stageOwner ? PLAYER_COLORS[stageOwner.seat] : null, bpm: s.finale ? 112 : 96, cheering: L.cheerUntil > nowMs };
+            const turns = (s.settings && s.settings.turns) || 10;
+            const info = {
+                beat, kick, bi, bpm: s.finale ? 112 : 96,
+                lcd: s.turn > 0 ? { big: String(s.turn).padStart(2, '0'), small: `TURN ${s.turn}/${turns}`, corner: s.finale ? 'FINAL X2' : 'TRK 1-5' } : { big: '00', small: 'READY', corner: 'TRK 1-5' },
+            };
+            const cheering = L.cheerUntil > nowMs;
+
+            // ---------------- Résolution du pixel art ----------------
+            const scale = cw < 640 ? 2 : Math.max(2, Math.min(4, Math.round(ch / 340)));
+            const AW = Math.max(1, Math.ceil(cw / scale));
+            const AH = Math.max(1, Math.ceil(ch / scale));
+            sizeCanvas(pixel, AW, AH);
+            const cssW = `${AW * scale}px`;
+            if (pixel.style.width !== cssW) {
+                pixel.style.width = cssW;
+                pixel.style.height = `${AH * scale}px`;
+            }
 
             const currentId = s.phase === 'turn' ? s.currentPlayerId : null;
             const actors = s.players.filter((p) => p.space != null).map((p) => actorOf(s, p, nowMs));
             const activeActor = actors.find((a) => a.p.id === currentId);
-            const showAll = map || !activeActor;
 
             // ---------------- Caméra ----------------
-            const ins0 = props.current.insets || { top: 0, bottom: 0 };
-            const fit = Math.min(cw / WORLD_W, Math.max(ch * 0.5, ch - (ins0.top || 0) - (ins0.bottom || 0)) / WORLD_H);
-            // Zoom entier : 2 sur téléphone et petit écran, 3 sur un écran d'ordinateur, 4 sur un grand écran
-            const follow = cw < 640 ? 2 : Math.max(2, Math.min(4, Math.floor(Math.min(ch / 280, cw / 520))));
+            const ins = props.current.insets || { top: 0, bottom: 0 };
+            const top = (ins.top || 0) / scale;
+            const bottom = (ins.bottom || 0) / scale;
+            const free = Math.max(AH * 0.4, AH - top - bottom);
+            const followFy = (top + free * 0.7) / AH;
+            const f = focalFor(AW, AH);
+            const mapK = fitMap(AW, AH, top, bottom);
+            // En portrait, on recule un peu pour garder les cases voisines dans le champ
+            const kFollow = Math.min(1, AW / 330);
             const starSpace = s.starSpace != null ? s.board.spaces[s.starSpace] : null;
-            let target = { x: WORLD_W / 2, y: WORLD_H / 2, s: fit };
-            if (map) target = { x: WORLD_W / 2, y: WORLD_H / 2, s: fit };
-            else if (s.step === 'starIntro' && starSpace) target = { x: starSpace.x, y: starSpace.y - 40, s: follow };
-            else if (L.focusStarUntil > nowMs && nowMs > L.focusStarDelay && starSpace) target = { x: starSpace.x, y: starSpace.y - 40, s: follow };
+            let target = { x: CENTER.x, y: CENTER.y, k: mapK * 1.25, pitch: 0.75, fy: (top + free * 0.55) / AH };
+            const follow = (x, y, k = 1) => ({ x, y, k: k * kFollow, pitch: 0.62, fy: followFy });
+            if (map) target = { x: CENTER.x, y: CENTER.y, k: mapK, pitch: 0.95, fy: (top + free * 0.5) / AH };
+            else if (s.step === 'starIntro' && starSpace) target = follow(starSpace.x, starSpace.y, 0.95);
+            else if (L.focusStarUntil > nowMs && nowMs > L.focusStarDelay && starSpace) target = follow(starSpace.x, starSpace.y, 0.95);
             else if (s.step === 'choice' && s.choice) {
                 const j = s.board.spaces[s.choice.at];
-                target = { x: j.x, y: j.y - 24, s: follow };
-            } else if (activeActor) target = { x: activeActor.pos[0], y: activeActor.pos[1] - 44, s: follow };
+                target = follow(j.x, j.y, 0.8);
+            } else if (activeActor) target = follow(activeActor.pos[0], activeActor.pos[1], 1);
             else if (s.phase === 'order') {
                 const start = s.board.spaces[s.board.start];
-                target = { x: start.x, y: start.y - 50, s: Math.max(fit, follow - (cw < 640 ? 0 : 1)) };
+                target = follow(start.x + 60, start.y, 0.8);
             }
-            // Le point suivi s'affiche au milieu de la zone libre, entre les joueurs en haut et la console en bas
-            const ins = props.current.insets;
-            if (ins) target.y += ((ins.bottom || 0) - (ins.top || 0)) / 2 / target.s;
+            if (!L.cam) L.cam = { x: target.x, y: target.y, d: Math.log(f / target.k), p: target.pitch, fy: target.fy, vx: 0, vy: 0, vd: 0, vp: 0, vf: 0 };
             const cam = L.cam;
-            if (!cam.ready) Object.assign(cam, target, { vx: 0, vy: 0, vs: 0, ready: true });
-            // Grand déplacement : la caméra prend de la hauteur pendant le trajet (mouvement de grue),
-            // puis replonge sur la cible
+            // Long trajet : la caméra recule et monte pendant le déplacement (grue)
             const travel = Math.hypot(target.x - cam.x, target.y - cam.y);
-            const crane = 1 + Math.min(0.7, Math.max(0, travel - 120) / 700);
-            const wantLog = Math.log(Math.max(fit, target.s / crane));
-            let logS = Math.log(cam.s);
-            [logS, cam.vs] = smoothDamp(logS, wantLog, cam.vs, 0.55, dt);
-            [cam.x, cam.vx] = smoothDamp(cam.x, target.x, cam.vx, 0.42, dt);
-            [cam.y, cam.vy] = smoothDamp(cam.y, target.y, cam.vy, 0.42, dt);
-            cam.s = Math.exp(logS);
-            // Arrivée : on se cale sur le zoom entier pour des pixels parfaitement nets
-            if (Math.abs(cam.s - target.s) < 0.003 && Math.abs(cam.vs) < 0.01) { cam.s = target.s; cam.vs = 0; }
-            const sc = cam.s;
-            const halfW = cw / 2 / sc;
-            const halfH = ch / 2 / sc;
-            // La vue reste sur le décor ; s'il est plus petit qu'elle (carte), on suit la cible telle quelle
-            const cx = WORLD_W > halfW * 2 ? Math.min(WORLD_W - halfW, Math.max(halfW, cam.x)) : cam.x;
-            const cy = WORLD_H > halfH * 2 ? Math.min(WORLD_H - halfH, Math.max(halfH, cam.y)) : cam.y;
-            const shake = L.shakeUntil > nowMs ? ((L.shakeUntil - nowMs) / 420) * 5 : 0;
-            const viewLeft = cx - halfW + (shake ? Math.sin(nowMs * 0.09) * shake : 0);
-            const viewTop = cy - halfH + (shake ? Math.cos(nowMs * 0.11) * shake * 0.6 : 0);
-            const ox = Math.floor(viewLeft);
-            const oy = Math.floor(viewTop);
-            // Le canvas ne fait que grandir pendant un zoom : le réallouer à chaque image fait saccader
-            const needW = Math.ceil((cw / sc + 2) / 64) * 64;
-            const needH = Math.ceil((ch / sc + 2) / 64) * 64;
-            const vw = needW > pixel.width || needW < pixel.width * 0.5 ? needW : pixel.width;
-            const vh = needH > pixel.height || needH < pixel.height * 0.5 ? needH : pixel.height;
-            sizeCanvas(pixel, vw, vh);
-            // Décalage au sous-pixel de l'écran : le décor glisse en continu, les pixels restent carrés
-            pixel.style.transform = `translate3d(${((ox - viewLeft) * sc).toFixed(3)}px, ${((oy - viewTop) * sc).toFixed(3)}px, 0) scale(${sc.toFixed(5)})`;
-            const smoothPx = sc < 1;
-            if (L.smoothPx !== smoothPx) { pixel.style.imageRendering = smoothPx ? 'auto' : 'pixelated'; L.smoothPx = smoothPx; }
-            L.view = { viewLeft, viewTop, s: sc };
+            const crane = 1 + Math.min(0.9, Math.max(0, travel - 160) / 600);
+            [cam.x, cam.vx] = smoothDamp(cam.x, target.x, cam.vx, 0.45, dt);
+            [cam.y, cam.vy] = smoothDamp(cam.y, target.y, cam.vy, 0.45, dt);
+            [cam.d, cam.vd] = smoothDamp(cam.d, Math.log((f / target.k) * crane), cam.vd, 0.6, dt);
+            [cam.p, cam.vp] = smoothDamp(cam.p, target.pitch + (crane - 1) * 0.35, cam.vp, 0.6, dt);
+            [cam.fy, cam.vf] = smoothDamp(cam.fy, target.fy, cam.vf, 0.5, dt);
+            const dist = Math.exp(cam.d);
+            const shake = L.shakeUntil > nowMs ? ((L.shakeUntil - nowMs) / 420) * 4 : 0;
+            const C3 = makeCam({
+                tx: cam.x, ty: cam.y, th: DEVICE.h, dist, rise: dist * cam.p, fy: cam.fy, W: AW, H: AH,
+                dx: shake ? Math.sin(nowMs * 0.09) * shake * 2 : 0, dy: shake ? Math.cos(nowMs * 0.11) * shake : 0,
+            });
+            L.view = { cam: C3, scale };
 
-            // ---------------- Canvas pixel ----------------
-            px.setTransform(1, 0, 0, 1, -ox, -oy);
-            px.imageSmoothingEnabled = false;
-            px.fillStyle = '#030409';
-            px.fillRect(ox, oy, vw, vh);
-            px.drawImage(world.canvas, 0, 0);
+            // ---------------- Plateau ----------------
+            const flashes = {};
+            L.flashes = L.flashes.filter((fl) => nowMs - fl.at < 500);
+            L.flashes.forEach((fl) => {
+                const age = nowMs - fl.at;
+                if (age >= 0) flashes[fl.spaceId] = Math.max(flashes[fl.spaceId] || 0, 1 - age / 500);
+            });
+            const active = activeActor && !map && !activeActor.moving ? { spaceId: activeActor.p.space, color: PLAYER_COLORS[activeActor.p.seat] } : null;
+            const list = renderStage(px, world, C3, { t, info, board: s.board, active, flashes, cheering });
             const glows = [];
-            drawWorldLive(px, t, info, glows, s.board);
+            stageLights(C3, t, info, glows);
 
-            // Cases : halo de leur LED, éclat quand un joueur passe dessus
-            s.board.spaces.forEach((space) => {
-                const c = SPACE_COLORS[space.type] || SPACE_COLORS.blue;
-                glows.push({ x: space.x, y: space.y + 1, r: 34, color: c.ring, a: 0.1, squash: 0.65 });
-            });
-            L.flashes = L.flashes.filter((f) => nowMs - f.at < 500);
-            L.flashes.forEach((f) => {
-                const age = nowMs - f.at;
-                if (age < 0) return;
-                const fl = world.flashes[f.spaceId];
-                const space = s.board.spaces[f.spaceId];
-                px.globalAlpha = 1 - age / 500;
-                px.drawImage(fl.canvas, fl.ox, fl.oy);
-                px.globalAlpha = 1;
-                glows.push({ x: space.x, y: space.y, r: 40, color: '#fff3dc', a: 0.35 * (1 - age / 500), squash: 0.7 });
-            });
-
-            // Case du joueur actif : anneau à sa couleur
-            if (activeActor && !map && !activeActor.moving) {
-                const space = s.board.spaces[activeActor.p.space];
-                // Son pad prend sa couleur : l'anneau tourne comme une boucle qui joue
-                const head = Math.floor(t * 10) % 16;
-                lightRing(px, space, Array.from({ length: 6 }, (_, k) => head - k), PLAYER_COLORS[activeActor.p.seat], 1);
-            }
-
-            // Acteurs triés de l'arrière vers l'avant : joueurs, ingé son, foule, Micro d'or
-            const drawList = [];
+            // Ingé son qui garde le raccourci
             const gate = s.board.spaces.find((sp) => sp.gate);
-            if (gate) drawList.push({ y: gate.y + 2, draw: () => {
-                drawShadow(px, gate.x + 62, gate.y + 3, 12, 4);
-                px.drawImage(getFrame('inge', 'guard', t, '#000000', { base: false, facing: -1 }), gate.x + 62 - FOOT_X, gate.y + 2 - FOOT_Y);
-            } });
-            drawList.push({ y: 545, draw: () => drawCrowd(px, t, info) });
+            if (gate) list.push({ y: gate.y, draw: () => drawFigure(getFrame('inge', 'guard', t, '#000000', { base: false, facing: 1 }), gate.x - 74, gate.y, DEVICE.h, 0) });
+            // Micro d'or
             if (starSpace) {
-                drawList.push({ y: starSpace.y - 0.5, draw: () => drawGoldMic(px, starSpace.x, starSpace.y - 2, t) });
-                glows.push({ x: starSpace.x, y: starSpace.y - 28, r: 40, color: '#f2c26a', a: 0.22 });
+                list.push({ y: starSpace.y + 1, draw: () => {
+                    const pr = project(C3, starSpace.x, starSpace.y, spaceTop(starSpace));
+                    if (!pr) return;
+                    const img = goldMicSprite(t);
+                    const k = pr.k;
+                    px.drawImage(img, Math.round(pr.sx - 20 * k), Math.round(pr.sy - 58 * k), Math.round(40 * k), Math.round(64 * k));
+                    glows.push({ x: pr.sx, y: pr.sy - 30 * k, r: 40 * k, color: '#f2c26a', a: 0.25 });
+                } });
             }
 
-            const visible = actors.filter((a) => showAll || a.p.id === currentId);
-            const hidden = actors.filter((a) => !showAll && a.p.id !== currentId);
+            // Personnage debout en (x, y) à la hauteur h, soulevé de lift (unités du monde)
+            function drawFigure(frame, x, y, h, lift, alpha = 1) {
+                const ground = project(C3, x, y, h);
+                if (!ground || ground.z < 70) return null;
+                const k = ground.k;
+                ctx3Shadow(ground, lift);
+                const top = project(C3, x, y, h + lift);
+                px.globalAlpha = alpha;
+                px.drawImage(frame, Math.round(top.sx - FOOT_X * k), Math.round(top.sy - FOOT_Y * k), Math.round(64 * k), Math.round(96 * k));
+                px.globalAlpha = 1;
+                return { sx: top.sx, sy: top.sy, k };
+            }
+            function ctx3Shadow(g, lift) {
+                const rx = Math.max(4, (14 - lift * 0.15) * g.k);
+                const ry = (rx * (C3.H - DEVICE.h)) / g.z;
+                px.globalAlpha = 0.5;
+                E(px, g.sx, g.sy + 1, rx, Math.max(1.5, ry), '#050407');
+                px.globalAlpha = 1;
+            }
 
-            // Plusieurs joueurs visibles sur une même case : on les écarte
+            // Plusieurs joueurs sur une même case : côte à côte
             const bySpace = {};
-            visible.forEach((a) => { if (!a.moving) bySpace[a.p.space] = (bySpace[a.p.space] || []).concat(a); });
+            actors.forEach((a) => { if (!a.moving) bySpace[a.p.space] = (bySpace[a.p.space] || []).concat(a); });
             Object.values(bySpace).forEach((group) => {
-                if (group.length < 2) return;
-                // Ordre de passage : tout le monde en ligne sur le départ, chacun sous son dé
-                const spots = s.phase === 'order' ? ORDER_LINE[Math.min(4, group.length)] : FORMATIONS[Math.min(4, group.length)];
+                if (group.length < 2 && s.phase !== 'order') return;
+                const sp = s.board.spaces[group[0].p.space];
+                const wide = sp.big ? 1.6 : 1;
+                const spots = s.phase === 'order' ? ORDER_LINE : LINES[Math.min(4, group.length)];
                 group.sort((a, b) => a.p.seat - b.p.seat).forEach((a, i) => {
                     const [dx, dy] = spots[i % spots.length];
-                    a.pos = [a.pos[0] + dx, a.pos[1] + dy];
+                    a.pos = [a.pos[0] + dx * (s.phase === 'order' ? 1 : wide), a.pos[1] + dy];
+                    if (s.phase === 'order' && i > 0) a.h = DEVICE.h;
                     a.grouped = true;
                 });
             });
 
-            // Joueurs effacés : une pastille à leur couleur, avec leur numéro de passage
-            hidden.forEach(({ p, pos }) => {
-                const [dx, dy] = ORDINAL_OFFSETS[p.seat % 4];
-                const n = s.order.indexOf(p.id) + 1;
-                drawList.push({ y: pos[1] + dy, draw: () => drawBadge(px, Math.round(pos[0] + dx), Math.round(pos[1] + dy - 6), PLAYER_COLORS[p.seat], n > 0 ? n : null) });
-            });
-
-            visible.forEach((a) => {
-                const { p, pos, lift, moving, left, hopK } = a;
+            const overlays = [];
+            actors.forEach((a) => {
+                const { p, pos, h, lift, moving, left, hopK } = a;
                 const override = (L.poses[p.id] || []).filter((o) => o.start <= nowMs && o.until > nowMs).pop();
-                const facing = L.facing[p.id] || (pos[0] > WORLD_W * 0.62 ? -1 : 1);
+                const facing = L.facing[p.id] || (pos[0] > C3.x + 40 ? -1 : 1);
                 let pose = 'idle';
                 let pt = t + p.seat * 0.37;
                 if (moving) { pose = 'hop'; pt = hopK * HOP_T; }
                 else if (override) { pose = override.pose; pt = (nowMs - override.start) / 1000; }
-                else if (p.id === currentId && s.step === 'roll') pose = 'beatbox';
+                else if (p.id === currentId && (s.step === 'roll' || s.step === 'scratch')) pose = 'beatbox';
                 else if (p.id === currentId && s.step === 'choice') pose = 'think';
                 else if (s.phase === 'order') pose = s.orderRolls[p.id] != null ? 'dance' : 'idle';
                 if (pose === 'beatbox' || pose === 'dance') pt = t;
-                drawList.push({ y: pos[1], draw: () => {
+                // Les autres joueurs s'estompent un peu pendant le tour de quelqu'un
+                const dim = 1;
+                list.push({ y: pos[1], draw: () => {
                     const frame = getFrame(p.characterId, pose, pt, PLAYER_COLORS[p.seat], { base: false, facing });
-                    const fx = Math.round(pos[0] - FOOT_X);
-                    const fy = Math.round(pos[1] - FOOT_Y - lift);
-                    drawShadow(px, pos[0], pos[1] + 1, Math.max(6, 13 - lift * 0.2), Math.max(2, 4.5 - lift * 0.08), 0.5);
-                    px.drawImage(frame, fx, fy);
+                    const at = drawFigure(frame, pos[0], pos[1], h, lift, dim);
+                    if (!at) return;
                     if (pose === 'beatbox') {
                         const hit = beatboxHit(t);
-                        a.waves = { x: fx + (facing > 0 ? MIC_MOUTH[0] + 4 : 63 - MIC_MOUTH[0] - 4), y: fy + MIC_MOUTH[1], facing, hit };
+                        const mx = facing > 0 ? MIC_MOUTH[0] + 4 : 63 - MIC_MOUTH[0] - 4;
+                        a.waves = { x: at.sx + (mx - FOOT_X) * at.k, y: at.sy + (MIC_MOUTH[1] - FOOT_Y) * at.k, facing, hit };
                     }
-                    const headY = pos[1] - FOOT_Y + DICE_HIT_Y - lift;
-
-                    // Ordre de passage : chacun frappe son dé, le résultat reste affiché
+                    a.head = { x: at.sx, y: at.sy + (DICE_HIT_Y - FOOT_Y) * at.k - 6, k: at.k };
+                } });
+                overlays.push(() => {
+                    if (!a.head) return;
+                    const { x: hx, y: hy } = a.head;
+                    // Ordre de passage : chacun frappe son pad, le résultat reste affiché
                     if (s.phase === 'order') {
                         const value = s.orderRolls[p.id];
                         const text = value != null ? value : 1 + (Math.floor(t * 14 + p.seat * 3) % 10);
-                        drawLoopDie(px, pos[0], headY + (a.grouped ? 2 : -2), text, { mode: value != null ? 'result' : 'roll', t: t + p.seat * 0.3, size: 0.68 });
+                        drawDie(px, 'pad', hx, hy, text, { mode: value != null ? 'result' : 'roll', t: t + p.seat * 0.3, size: 0.72 });
+                        return;
                     }
-                    // Dé au-dessus de la tête : il tourne, on le frappe, il affiche le résultat
-                    if (p.id === currentId) {
-                        let text = null;
-                        let mode = 'roll';
-                        let bob = 0;
-                        if (s.step === 'roll') { text = 1 + (Math.floor(t * 14) % 10); bob = Math.round(Math.sin(t * 5) * 2); }
-                        if (L.dice && L.dice.playerId === p.id && !moving && (s.step === 'rolled' || s.step === 'roll')) {
-                            const age = nowMs - L.dice.at;
-                            text = age < 340 ? 1 + (Math.floor(t * 30) % 10) : L.dice.value;
-                            if (age >= 340) mode = 'result';
-                            if (age >= 340 && age < 900) drawBurst(px, pos[0], headY - 22, age - 340);
-                        }
-                        if (left != null && left > 0 && (moving || s.step !== 'rolled')) { text = left; mode = 'steps'; }
-                        if (text != null) {
-                            drawLoopDie(px, pos[0], headY - 2 + bob, text, { mode, total: L.rollTotals[p.id] || 10, t, size: mode === 'steps' ? 0.8 : 1 });
-                        }
+                    if (p.id !== currentId) return;
+                    const color = PLAYER_COLORS[p.seat];
+                    const bob = Math.round(Math.sin(t * 5) * 2);
+                    // Vinyle qui tourne : le chiffre suit l'horloge du serveur
+                    if (s.step === 'scratch' && s.roll && s.roll.die === 'vinyl') {
+                        const serverNow = Date.now() + (offset || 0);
+                        const value = 1 + (Math.floor((serverNow - s.roll.spinAt) / s.roll.period) % s.roll.faces);
+                        drawDie(px, 'vinyl', hx, hy + bob, value, { mode: 'roll', t, color });
+                        return;
                     }
-                } });
+                    if (s.step === 'roll') {
+                        drawDie(px, 'pad', hx, hy + bob, 1 + (Math.floor(t * 14) % 10), { mode: 'roll', t });
+                        return;
+                    }
+                    const d = L.dice && L.dice.playerId === p.id ? L.dice : null;
+                    if (d && !moving && s.step === 'rolled') {
+                        const age = nowMs - d.at;
+                        drawDie(px, d.die, hx, hy, d.value, { mode: age < 420 ? 'hit' : 'result', t, color });
+                        if (age < 700) drawBurst(px, hx, hy - 26, age);
+                        return;
+                    }
+                    if (left != null && left > 0) {
+                        const die = (d && d.die) || (s.roll && s.roll.die) || 'pad';
+                        drawDie(px, die, hx, hy, left, { mode: 'steps', t, color, total: L.rollTotals[p.id] || 10, size: 0.8 });
+                    }
+                });
             });
-            drawList.sort((a, b) => a.y - b.y).forEach((d) => d.draw());
+            list.sort((a, b) => a.y - b.y).forEach((d) => d.draw());
+            overlays.forEach((o) => o());
 
             // Flèches du carrefour
             L.arrows = [];
@@ -456,54 +487,59 @@ export default function PartyBoard({ state, queue, myId, mapMode = false, onEven
                 const here = s.board.spaces[s.choice.at];
                 choiceDirections(s).forEach((o) => {
                     const v = DIR_VEC[o.dir];
-                    const pulse = Math.round(Math.sin(t * 7) * 3);
-                    const dist = 66 + pulse;
-                    const ax = here.x + v[0] * dist;
-                    const ay = here.y - 24 + v[1] * (dist - 6);
-                    const color = o.affordable ? (s.choice.playerId === me ? '#F0AE22' : '#F2F0EA') : '#5b5b64';
-                    drawArrow(px, ax, ay, o.dir, color);
-                    
+                    const pulse = Math.sin(t * 7) * 6;
+                    const reach = 92 + pulse;
+                    const pr = project(C3, here.x + v[0] * reach, here.y + v[1] * reach, spaceTop(here) + 24);
+                    if (!pr) return;
+                    const color = o.affordable ? (s.choice.playerId === me ? '#ffb21e' : '#F2F0EA') : '#5b5b64';
+                    drawArrow(px, pr.sx, pr.sy, o.dir, color);
                     if (o.gate) {
-                        const label = `${o.gate}`;
-                        drawCoin(px, ax + 6, ay + 16);
-                        drawText(px, label, ax - 2, ay + 17, o.affordable ? '#F2F0EA' : '#8a8a92');
+                        drawCoin(px, pr.sx + 6, pr.sy + 16);
+                        drawText(px, `${o.gate}`, pr.sx - 2, pr.sy + 17, o.affordable ? '#F2F0EA' : '#8a8a92');
                     }
-                    L.arrows.push({ spaceId: o.spaceId, x: ax, y: ay, affordable: o.affordable });
+                    L.arrows.push({ spaceId: o.spaceId, x: pr.sx, y: pr.sy, affordable: o.affordable });
                 });
             }
 
             // Textes flottants (gains, pertes) avec une pièce de Hype
-            L.floats = L.floats.filter((f) => nowMs - f.start < 1700);
-            L.floats.forEach((f) => {
-                const kf = (nowMs - f.start) / 1700;
+            L.floats = L.floats.filter((fl) => nowMs - fl.start < 1700);
+            L.floats.forEach((fl) => {
+                const kf = (nowMs - fl.start) / 1700;
                 if (kf < 0) return;
-                const y = f.y - Math.min(1, kf * 3) * 16;
+                const pr = project(C3, fl.x, fl.y, DEVICE.h + 130);
+                if (!pr) return;
+                const y = pr.sy - Math.min(1, kf * 3) * 16;
                 px.globalAlpha = kf > 0.8 ? (1 - kf) * 5 : 1;
-                const w = drawText(px, f.text, f.x + (f.coin ? 8 : 0), y, f.color);
-                if (f.coin) drawCoin(px, f.x - w / 2 - 6, y - 1);
+                const w = drawText(px, fl.text, pr.sx + (fl.coin ? 8 : 0), y, fl.color);
+                if (fl.coin) drawCoin(px, pr.sx - w / 2 - 6, y - 1);
                 px.globalAlpha = 1;
             });
 
-            // Confettis : petits carrés qui retombent en tournoyant
+            // Confettis : ils volent et retombent sur la loopstation
             L.particles = L.particles.filter((q) => nowMs - q.born < q.life);
             L.particles.forEach((q) => {
                 const age = (nowMs - q.born) / 1000;
                 if (age < 0) return;
-                const x = q.x + q.vx * age;
-                const y = q.y + q.vy * age + 160 * age * age;
+                const h = Math.max(DEVICE.h + 1, q.h + q.vh * age - 260 * age * age);
+                const pr = project(C3, q.x + q.vx * age, q.y + q.vy * age, h);
+                if (!pr) return;
                 const flip = Math.floor(age * 10 + q.vx) % 2;
+                const sz = Math.max(1, Math.round(2 * pr.k));
                 px.globalAlpha = Math.min(1, (q.life / 1000 - age) * 3);
                 px.fillStyle = q.color;
-                px.fillRect(Math.round(x), Math.round(y), flip ? 3 : 1, flip ? 1 : 3);
+                px.fillRect(Math.round(pr.sx), Math.round(pr.sy), flip ? sz * 2 : sz, flip ? sz : sz * 2);
                 px.globalAlpha = 1;
             });
-            // Ondes de choc au sol (Drop, Larsen)
+            // Ondes de choc sur le pad (Drop, Larsen)
             L.rings = L.rings.filter((r) => nowMs - r.at < 700);
             L.rings.forEach((r) => {
                 const sp = s.board.spaces[r.spaceId];
+                const pr = project(C3, sp.x, sp.y, spaceTop(sp));
+                if (!pr) return;
                 const k = (nowMs - r.at) / 700;
-                drawRing(px, sp.x, sp.y + 1, 34 + k * 70, 21 + k * 44, r.color, 1 - k);
-                glows.push({ x: sp.x, y: sp.y, r: 40 + k * 80, color: r.color, a: 0.25 * (1 - k), squash: 0.6 });
+                const rad = (spaceRadius(sp) + k * 90) * pr.k;
+                ringOutline(px, pr.sx, pr.sy, rad, (rad * (C3.H - spaceTop(sp))) / pr.z, r.color, 1 - k);
+                glows.push({ x: pr.sx, y: pr.sy, r: rad * 1.2, color: r.color, a: 0.25 * (1 - k), squash: 0.5 });
             });
 
             // ---------------- Lumières ----------------
@@ -514,22 +550,19 @@ export default function PartyBoard({ state, queue, myId, mapMode = false, onEven
             sizeCanvas(shadeCv, GW, GH);
             gx.setTransform(1, 0, 0, 1, 0, 0);
             gx.clearRect(0, 0, GW, GH);
-            gx.setTransform(sc * dpr, 0, 0, sc * dpr, -viewLeft * sc * dpr, -viewTop * sc * dpr);
-            drawAmbient(gx, t, info);
-            if (activeActor && !map) drawBeam(gx, activeActor.pos[0], activeActor.pos[1] - activeActor.lift, 46, '#fff4dc', 0.09);
+            gx.setTransform(scale * dpr, 0, 0, scale * dpr, 0, 0);
+            if (activeActor && activeActor.head && !map) {
+                const hd = activeActor.head;
+                glows.push({ beam: true, x: hd.x, y: hd.y - 160 * hd.k, w: 34 * hd.k, len: 230 * hd.k, color: '#fff4dc', a: 0.1 });
+            }
             drawGlows(gx, glows);
-            visible.forEach((a) => { if (a.waves) drawSoundWaves(gx, a.waves.x, a.waves.y, a.waves.facing, a.waves.hit, t); });
+            actors.forEach((a) => { if (a.waves) drawSoundWaves(gx, a.waves.x, a.waves.y, a.waves.facing, a.waves.hit, t); });
 
             // Ombre : vignette, et projecteur sur le joueur actif
             let spot = null;
-            if (activeActor && !map) {
-                const amount = s.step === 'roll' || s.step === 'intro' ? 0.8 : 0.4;
-                spot = {
-                    x: (activeActor.pos[0] - viewLeft) * sc * dpr,
-                    y: (activeActor.pos[1] - 40 - viewTop) * sc * dpr,
-                    r: 150 * sc * dpr,
-                    amount,
-                };
+            if (activeActor && activeActor.head && !map) {
+                const amount = s.step === 'roll' || s.step === 'intro' || s.step === 'scratch' ? 0.8 : 0.4;
+                spot = { x: activeActor.head.x * scale * dpr, y: (activeActor.head.y + 40 * activeActor.head.k) * scale * dpr, r: 150 * activeActor.head.k * scale * dpr, amount };
             }
             drawShade(sx, GW, GH, spot);
 
@@ -549,9 +582,9 @@ export default function PartyBoard({ state, queue, myId, mapMode = false, onEven
         const L = live.current;
         if (!L.view || !L.arrows.length || !props.current.onChoose) return;
         const box = wrapRef.current.getBoundingClientRect();
-        const bx = L.view.viewLeft + (event.clientX - box.left) / L.view.s;
-        const by = L.view.viewTop + (event.clientY - box.top) / L.view.s;
-        const hit = L.arrows.find((a) => Math.abs(a.x - bx) < 22 && Math.abs(a.y - by) < 22);
+        const bx = (event.clientX - box.left) / L.view.scale;
+        const by = (event.clientY - box.top) / L.view.scale;
+        const hit = L.arrows.find((a) => Math.abs(a.x - bx) < 20 && Math.abs(a.y - by) < 20);
         if (hit && hit.affordable) props.current.onChoose(hit.spaceId);
     };
 
@@ -563,3 +596,4 @@ export default function PartyBoard({ state, queue, myId, mapMode = false, onEven
         </div>
     );
 }
+

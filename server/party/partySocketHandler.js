@@ -153,7 +153,11 @@ function handlePartySocketConnection(socket, io) {
     action('party:removeBot', (game, id, p) => game.removeBot(id, String(p.playerId || '')));
     action('party:settings', (game, id, p) => game.updateSettings(id, p));
     action('party:start', (game, id) => game.start(id));
-    action('party:roll', (game, id) => (game.phase === 'order' ? game.rollForOrder(id) : game.rollDice(id)));
+    action('party:roll', (game, id, p) => {
+        if (game.phase === 'order') return game.rollForOrder(id);
+        if (game.step === 'scratch') return game.scratch(id);
+        return game.rollDice(id, String(p.die || 'pad'));
+    });
     action('party:choose', (game, id, p) => game.choose(id, p.spaceId));
     action('party:star', (game, id, p) => game.resolveStar(id, Boolean(p.buy)));
     action('party:ready', (game, id) => game.setReady(id));

@@ -20,6 +20,14 @@ const MAX_PLAYERS = 4;
 const TURN_OPTIONS = [5, 10, 15, 20];
 const MINIGAME_REWARDS = [10, 5, 2, 0];
 const START_HYPE = 10;
+// Les dés : le pad REC/PLAY (1 à 10) est le dé de base ; les deux autres sont spéciaux et se paient en Hype.
+//   block  bloc-boucle « double boucle » : deux boucles superposées, de 2 à 20
+//   vinyl  vinyle « scratch » : il tourne lentement de 1 à 6, le joueur l'arrête quand il veut
+const DICE = {
+    pad: { cost: 0 },
+    block: { cost: 8 },
+    vinyl: { cost: 5, period: 420, faces: 6 },
+};
 
 // Durées en millisecondes (multipliées par timeScale)
 const TIMING = {
@@ -28,6 +36,7 @@ const TIMING = {
     starIntro: 3200,
     turnIntro: 2400,
     roll: 30000,
+    scratch: 8000,
     rollReveal: 1500,
     hop: 340,
     afterMove: 250,
@@ -196,6 +205,7 @@ class PartyGame {
             starPrice: this.board.starPrice,
             stageOwner: this.stageOwner,
             roll: this.roll,
+            dice: { block: DICE.block.cost, vinyl: DICE.vinyl.cost },
             choice: this.choice,
             starOffer: this.starOffer,
             minigame: this.minigame && {
@@ -436,23 +446,55 @@ class PartyGame {
         this.later(token, this.ms(TIMING.turnIntro), () => {
             const rollToken = this.setStep('turn', 'roll', this.ms(TIMING.roll));
             this.publish();
-            this.awaitPlayer(rollToken, player, this.ms(TIMING.roll), () => this.rollDice(player.id));
+            this.awaitPlayer(rollToken, player, this.ms(TIMING.roll), () => this.rollDice(player.id, this.botDie(player)));
         });
     }
 
-    rollDice(playerId) {
+    // Les bots s'offrent parfois un dé spécial quand ils ont de quoi
+    botDie(player) {
+        if (!player.isBot) return 'pad';
+        if (player.hype >= DICE.block.cost + 12 && this.random() < 0.3) return 'block';
+        return 'pad';
+    }
+
+    rollDice(playerId, die = 'pad') {
         if (this.phase !== 'turn' || this.step !== 'roll') return { error: 'not_now' };
         const player = this.current();
         if (!player || player.id !== playerId) return { error: 'not_your_turn' };
-        const value = this.randInt(1, 10);
-        this.roll = { playerId, value };
+        const kind = DICE[die] ? die : 'pad';
+        if (player.hype < DICE[kind].cost) return { error: 'not_enough_hype' };
+        player.hype -= DICE[kind].cost;
+        if (kind === 'vinyl') {
+            // Le vinyle tourne : le joueur le scratche pour l'arrêter
+            this.roll = { playerId, die: kind, spinAt: this.now(), period: DICE.vinyl.period, faces: DICE.vinyl.faces, paid: DICE.vinyl.cost };
+            const token = this.setStep('turn', 'scratch', this.ms(TIMING.scratch));
+            this.publish({ type: 'spin', playerId, die: kind, paid: DICE.vinyl.cost });
+            this.awaitPlayer(token, player, this.ms(TIMING.scratch), () => this.scratch(player.id));
+            return { ok: true };
+        }
+        const value = kind === 'block' ? this.randInt(1, 10) + this.randInt(1, 10) : this.randInt(1, 10);
+        this.reveal(player, kind, value, DICE[kind].cost);
+        return { ok: true };
+    }
+
+    scratch(playerId) {
+        if (this.phase !== 'turn' || this.step !== 'scratch') return { error: 'not_now' };
+        const player = this.current();
+        if (!player || player.id !== playerId || !this.roll) return { error: 'not_your_turn' };
+        const { spinAt, period, faces } = this.roll;
+        const value = 1 + (Math.floor((this.now() - spinAt) / period) % faces);
+        this.reveal(player, 'vinyl', value, 0);
+        return { ok: true };
+    }
+
+    reveal(player, die, value, paid) {
+        this.roll = { playerId: player.id, die, value };
         const token = this.setStep('turn', 'rolled');
-        this.publish({ type: 'roll', playerId, value });
+        this.publish({ type: 'roll', playerId: player.id, value, die, paid });
         this.later(token, this.ms(TIMING.rollReveal), () => {
-            this.move = { playerId, left: value, choice: null };
+            this.move = { playerId: player.id, left: value, choice: null };
             this.continueMove();
         });
-        return { ok: true };
     }
 
     continueMove() {
@@ -716,4 +758,4 @@ class PartyGame {
     }
 }
 
-module.exports = { PartyGame, CHARACTER_IDS, MAX_PLAYERS, TURN_OPTIONS, TIMING };
+module.exports = { PartyGame, CHARACTER_IDS, MAX_PLAYERS, TURN_OPTIONS, TIMING, DICE };

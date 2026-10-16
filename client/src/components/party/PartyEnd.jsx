@@ -5,8 +5,8 @@ import { PLAYER_COLORS } from './characters/pixelRig';
 import { sfx } from './partySfx';
 import { Key, Lcd, LcdText, Panel, PlayerRing } from './ui/Hardware';
 
-// Places sur la scène selon le classement : le vainqueur au micro, au centre
-const SPOTS = [[1040, 413], [946, 421], [1134, 421], [1222, 434]];
+// Places sur les gros pads selon le classement : le vainqueur sur le pad 3, avec le Micro d'or
+const SPOTS = [[978, 1008], [755, 1008], [1245, 1008], [1490, 1008]];
 const POSES = ['cheer', 'dance', 'fist', 'sad'];
 
 // Fin de partie : le vainqueur au micro géant, classement complet, revanche
@@ -29,7 +29,7 @@ export default function PartyEnd({ board, state, myId, t, onRematch, onLeave }) 
         color: PLAYER_COLORS[p.seat],
         x: SPOTS[Math.min(i, 3)][0],
         y: SPOTS[Math.min(i, 3)][1],
-        facing: SPOTS[Math.min(i, 3)][0] > 1040 ? -1 : 1,
+        facing: SPOTS[Math.min(i, 3)][0] > 1000 ? -1 : 1,
     }));
 
     return (
@@ -40,9 +40,9 @@ export default function PartyEnd({ board, state, myId, t, onRematch, onLeave }) 
                     {winner && <h1 className="hw-title hw-pop text-4xl sm:text-6xl">{t('end.winner', { name: winner.name })}</h1>}
                 </div>
                 <div className="party-scene-bezel">
-                    <PartyScene board={board} view={view} actors={actors} stageColor={winner ? PLAYER_COLORS[winner.seat] : null} goldMic={{ x: 863, y: 434 }} cheering>
+                    <PartyScene board={board} view={view} actors={actors} stageColor={winner ? PLAYER_COLORS[winner.seat] : null} goldMic={{ x: 1036, y: 1000 }} cheering>
                         {placed.map(({ p, i }) => (
-                            <span key={p.id} className="party-scene-label" style={{ ...scenePoint(view, SPOTS[Math.min(i, 3)][0], SPOTS[Math.min(i, 3)][1] + 10), '--tag': PLAYER_COLORS[p.seat] }}>
+                            <span key={p.id} className="party-scene-label" style={{ ...scenePoint(view, SPOTS[Math.min(i, 3)][0], SPOTS[Math.min(i, 3)][1] + 70), '--tag': PLAYER_COLORS[p.seat] }}>
                                 {narrow ? i + 1 : `${i + 1}. ${p.name}`}
                             </span>
                         ))}

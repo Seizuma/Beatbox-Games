@@ -1098,6 +1098,35 @@ function makeCanvas(w, h) {
     return Object.assign(document.createElement('canvas'), { width: w, height: h });
 }
 
+// Contour sombre d'un pixel autour de la silhouette : le personnage se détache
+// nettement du plateau, même sur les zones chargées (LED, touches)
+const OUTLINE = [13, 11, 20];
+function outline(data) {
+    const solid = new Uint8Array(W * H);
+    for (let i = 0; i < W * H; i += 1) solid[i] = data[i * 4 + 3] > 0 ? 1 : 0;
+    for (let y = 0; y < H; y += 1) {
+        for (let x = 0; x < W; x += 1) {
+            const i = y * W + x;
+            if (solid[i]) continue;
+            let near = false;
+            for (let dy = -1; dy <= 1 && !near; dy += 1) {
+                const yy = y + dy;
+                if (yy < 0 || yy >= H) continue;
+                for (let dx = -1; dx <= 1; dx += 1) {
+                    const xx = x + dx;
+                    if (xx >= 0 && xx < W && solid[yy * W + xx]) { near = true; break; }
+                }
+            }
+            if (!near) continue;
+            const o = i * 4;
+            data[o] = OUTLINE[0];
+            data[o + 1] = OUTLINE[1];
+            data[o + 2] = OUTLINE[2];
+            data[o + 3] = 255;
+        }
+    }
+}
+
 /**
  * Image (canvas 64 x 96) d'un personnage dans une pose, à l'instant t (secondes).
  * Les images sont calculées à 12 par seconde et gardées en cache.
@@ -1128,6 +1157,7 @@ export function getFrame(id, pose, t, color = PLAYER_COLORS[0], { base: withBase
         img.data[o + 2] = v[2];
         img.data[o + 3] = 255;
     }
+    outline(img.data);
     ctx.putImageData(img, 0, 0);
     if (frameCache.size > MAX_CACHE) frameCache.delete(frameCache.keys().next().value);
     frameCache.set(cacheKey, canvas);

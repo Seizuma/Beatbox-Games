@@ -223,11 +223,31 @@ function Dock({ state, myId, t, secondsLeft, actions, message, mapMode, onToggle
         const rolled = state.orderRolls[myId] != null;
         if (state.step === 'roll' && !rolled) {
             text = t('board.orderRoll');
-            controls = <LoopPad color="amber" onClick={actions.roll} hint={t('screen.rollHint')}>{t('board.roll')}</LoopPad>;
+            controls = <LoopPad color="amber" onClick={() => actions.roll()} hint={t('screen.rollHint')}>{t('board.roll')}</LoopPad>;
         } else if (state.step === 'roll') text = t('board.orderWaiting');
     } else if (mine && state.step === 'roll') {
+        // Le pad REC/PLAY est le dé de base ; bloc-boucle et vinyle sont des dés spéciaux payants
+        const me = state.players.find((p) => p.id === myId);
+        const cost = state.dice || { block: 8, vinyl: 5 };
         text = t('board.yourTurn');
-        controls = <LoopPad color="amber" onClick={actions.roll} hint={t('screen.rollHint')}>{t('board.roll')}</LoopPad>;
+        controls = (
+            <div className="flex flex-wrap items-center justify-center gap-3">
+                <LoopPad color="amber" onClick={() => actions.roll('pad')} hint={t('screen.rollHint')}>{t('board.dicePad')}</LoopPad>
+                <div className="flex flex-col gap-2">
+                    {[['block', 'diceBlock', 'diceBlockInfo', 'green'], ['vinyl', 'diceVinyl', 'diceVinylInfo', 'red']].map(([die, label, info, led]) => (
+                        <Key key={die} size="md" led={led} ledOn={me && me.hype >= cost[die]} disabled={!me || me.hype < cost[die]} className="!justify-start !py-1.5 text-left" onClick={() => actions.roll(die)}>
+                            <span className="flex flex-col gap-0.5">
+                                <span>{t(`board.${label}`)}</span>
+                                <span className="font-sans text-[0.7rem] font-medium normal-case tracking-normal text-[color:var(--hw-silk-dim)]">{t(`board.${info}`, { n: cost[die] })}</span>
+                            </span>
+                        </Key>
+                    ))}
+                </div>
+            </div>
+        );
+    } else if (mine && state.step === 'scratch') {
+        text = t('board.scratchTitle');
+        controls = <LoopPad color="red" spinning onClick={() => actions.roll()} hint={t('screen.rollHint')}>{t('board.scratch')}</LoopPad>;
     } else if (mine && state.step === 'choice' && state.choice) {
         text = t('board.choiceTitle');
         controls = (
@@ -258,6 +278,7 @@ function Dock({ state, myId, t, secondsLeft, actions, message, mapMode, onToggle
         );
     } else {
         if (state.step === 'roll' && current) text = t('board.rolling', { name });
+        if (state.step === 'scratch' && current) text = t('board.scratching', { name });
         if (state.step === 'choice' && current) text = t('board.waitingChoice', { name });
         if (state.step === 'star' && state.starOffer) {
             text = state.starOffer.affordable ? t('board.waitingStar', { name }) : (mine ? t('board.starNoMoney', { price: state.starOffer.price }) : t('events.noMoney', { name }));
@@ -266,8 +287,8 @@ function Dock({ state, myId, t, secondsLeft, actions, message, mapMode, onToggle
         if (!text && current) text = mine ? t('board.yourTurn') : t('board.turnOf', { name });
     }
 
-    const myDecision = mine && ['roll', 'choice', 'star'].includes(state.step);
-    const duration = { roll: 30, choice: 15, star: 15 }[state.step] || 30;
+    const myDecision = mine && ['roll', 'scratch', 'choice', 'star'].includes(state.step);
+    const duration = { roll: 30, scratch: 8, choice: 15, star: 15 }[state.step] || 30;
     const cells = 20;
     const lit = secondsLeft != null ? Math.ceil((Math.min(duration, secondsLeft) / duration) * cells) : 0;
     const choice = mine && state.step === 'choice';
@@ -431,7 +452,7 @@ export default function PartyPlay({ state, myId, t, queue, clockOffset, actions 
             const mine = cur && cur.id === myId;
             if (event.code === 'Space' && !event.repeat && tag !== 'BUTTON') {
                 const orderRoll = s.phase === 'order' && s.step === 'roll' && s.orderRolls[myId] == null;
-                if ((mine && s.step === 'roll') || orderRoll) {
+                if ((mine && (s.step === 'roll' || s.step === 'scratch')) || orderRoll) {
                     event.preventDefault();
                     unlockAudio();
                     actions.roll();
@@ -462,7 +483,7 @@ export default function PartyPlay({ state, myId, t, queue, clockOffset, actions 
 
     return (
         <div ref={screenRef} className={`party-screen ${myTurn ? 'is-my-turn' : ''}`} onPointerDown={unlockAudio}>
-            <PartyBoard state={state} queue={queue} myId={myId} mapMode={mapMode} onEvent={onEvent} onChoose={actions.choose} insets={insets} />
+            <PartyBoard state={state} queue={queue} myId={myId} mapMode={mapMode} onEvent={onEvent} onChoose={actions.choose} insets={insets} clockOffset={clockOffset} />
             <div className="party-screen-top">
                 <span className="hw-chip">
                     <LcdText text={state.turn > 0 ? t('board.turn', { turn: state.turn, total: state.settings.turns }) : t('board.orderTitle')} scale={2} />

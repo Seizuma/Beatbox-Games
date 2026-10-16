@@ -7,8 +7,8 @@ import { Key, Lcd, LcdText, Panel, PlayerRing, Section } from './ui/Hardware';
 import { copyToClipboard } from '../../utils/clipboard';
 
 const MAX = 4;
-// Places sur la scène du micro géant, de gauche à droite
-export const SEATS = [[915, 424], [1004, 416], [1092, 416], [1180, 424]];
+// Places sur les gros pads de piste 2 à 5, de gauche à droite
+export const SEATS = [[755, 1008], [1000, 1008], [1245, 1008], [1490, 1008]];
 
 // Salon : les joueurs montent sur scène, choix du personnage, réglages de l'hôte
 export default function PartyLobby({ board, state, myId, t, language, onCharacter, onAddBot, onRemoveBot, onSettings, onStart }) {
@@ -56,7 +56,7 @@ export default function PartyLobby({ board, state, myId, t, language, onCharacte
                 <div className="party-scene-bezel">
                     <PartyScene board={board} view={view} actors={actors}>
                         {seats.map((p, seat) => (
-                            <span key={seat} className="party-scene-label" style={{ ...scenePoint(view, SEATS[seat][0], SEATS[seat][1] + 10), '--tag': p ? PLAYER_COLORS[seat] : undefined }}>
+                            <span key={seat} className="party-scene-label" style={{ ...scenePoint(view, SEATS[seat][0], SEATS[seat][1] + 70), '--tag': p ? PLAYER_COLORS[seat] : undefined }}>
                                 {p ? p.name : t('lobby.empty')}
                             </span>
                         ))}

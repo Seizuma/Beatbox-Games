@@ -1,15 +1,19 @@
 import React, { useRef, useState } from 'react';
 import { sfx } from '../partySfx';
 import { getWorld } from '../board/world';
+import { project, renderStage } from '../board/stage3d';
+import { sceneCam } from '../board/PartyScene';
 import { OUT, px, setupPixelCanvas, useFrame, useOnce, usePressKeys } from './shared';
 
 // Mic drop : un micro se balance au-dessus de la loopstation (même mouvement que le
 // calcul du serveur) ; on le lâche pour qu'il tombe pile sur le pad de la piste 3.
-// Le décor est celui du plateau, vu de près.
-const VIEW = { x: 559, y: 745, w: 416, h: 260 };
+// Le décor est celui du plateau, vu de près (même caméra Mode 7).
+const VIEW = { w: 416, h: 260, x: 1000, y: 1008, k: 1, pitch: 0.55, fy: 0.72 };
 const CW = VIEW.w;
 const CH = VIEW.h;
-const TARGET = { x: 767 - VIEW.x, y: 965 - VIEW.y };
+const CAM = sceneCam(VIEW);
+const TP = project(CAM, 1000, 1008, 54);
+const TARGET = { x: Math.round(TP.sx), y: Math.round(TP.sy) };
 const RANGE = 166;
 const HANG = 20;
 
@@ -70,12 +74,15 @@ export default function MicDrop({ board, minigame, t, clock, onSubmit }) {
         const ctx = setupPixelCanvas(canvasRef.current, CW, CH);
         if (!ctx) return;
         const elapsed = Math.max(0, clock());
-        if (world) ctx.drawImage(world.canvas, VIEW.x, VIEW.y, CW, CH, 0, 0, CW, CH);
-        else px(ctx, 0, 0, CW, CH, '#0A0F27');
+        if (world) {
+            const t = performance.now() / 1000;
+            const list = renderStage(ctx, world, CAM, { t, info: { lcd: { big: 'MD', small: 'MIC DROP' } }, board });
+            list.sort((a, b) => a.y - b.y).forEach((d) => d.draw());
+        } else px(ctx, 0, 0, CW, CH, '#0A0F27');
         // Le pad cible clignote, avec un anneau de visée
         const pulse = Math.floor(performance.now() / 250) % 2;
-        for (let a = 0; a < Math.PI * 2; a += 0.05) {
-            px(ctx, TARGET.x + Math.cos(a) * (38 + pulse), TARGET.y + 1 + Math.sin(a) * (25 + pulse), 1, 1, '#F0AE22');
+        for (let a = 0; a < Math.PI * 2; a += 0.04) {
+            px(ctx, TARGET.x + Math.cos(a) * (84 + pulse), TARGET.y + 1 + Math.sin(a) * (30 + pulse), 2, 1, '#F0AE22');
         }
         // Câble et micro
         let mx;

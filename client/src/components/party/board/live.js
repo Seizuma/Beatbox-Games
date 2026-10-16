@@ -1,17 +1,10 @@
-// Le décor animé du plateau, redessiné à chaque image dans le canvas pixel :
-// LED du matériel (anneaux des pads qui tournent comme une boucle), écran LCD de la
-// loopstation, vumètres, membranes des enceintes, vapeur du café, fenêtres de la ville,
-// foule miniature. Plus les objets de jeu en pixel art : Micro d'or, dé en anneau de
-// boucle, flèches, pièces de Hype.
+// Objets de jeu en pixel art, dessinés par-dessus le plateau : Micro d'or, les trois dés
+// (pad REC/PLAY de base, bloc-boucle et vinyle spéciaux), flèches, pièces de Hype.
 
 import { drawText, textSprite } from './pixelFont';
-import { LOOP, MIXER_METERS, MONITORS, MUG, PADS, PEDALS, PHONE, RING_SEGMENTS, SPACE_COLORS, STAGE, WINDOW, padShape } from './world';
+import { E, R, RR, ring, line, makeCanvas, hexMix } from './pix';
 
 const OUT = '#100d0c';
-
-// ---------------------------------------------------------------------------
-// Primitives pixel
-// ---------------------------------------------------------------------------
 
 export function prect(ctx, x, y, w, h, color) {
     ctx.fillStyle = color;
@@ -20,29 +13,7 @@ export function prect(ctx, x, y, w, h, color) {
 
 // Ellipse pleine, ligne par ligne (bords nets)
 export function pellipse(ctx, cx, cy, rx, ry, color) {
-    ctx.fillStyle = color;
-    for (let y = Math.floor(cy - ry); y <= Math.ceil(cy + ry); y += 1) {
-        const k = (y + 0.5 - cy) / ry;
-        if (k * k > 1) continue;
-        const half = rx * Math.sqrt(1 - k * k);
-        const x0 = Math.round(cx - half);
-        const x1 = Math.round(cx + half);
-        if (x1 > x0) ctx.fillRect(x0, y, x1 - x0, 1);
-    }
-}
-
-function pring(ctx, cx, cy, rx, ry, color, step = 0.06) {
-    ctx.fillStyle = color;
-    for (let a = 0; a < Math.PI * 2; a += step) ctx.fillRect(Math.round(cx + Math.cos(a) * rx), Math.round(cy + Math.sin(a) * ry), 1, 1);
-}
-
-function prrect(ctx, x, y, w, h, r, color) {
-    ctx.fillStyle = color;
-    for (let j = 0; j < h; j += 1) {
-        const dy = Math.max(r - j - 0.5, j + 0.5 - (h - r), 0);
-        const inset = dy > 0 ? Math.round(r - Math.sqrt(Math.max(0, r * r - dy * dy))) : 0;
-        ctx.fillRect(Math.round(x + inset), Math.round(y + j), Math.round(w - inset * 2), 1);
-    }
+    E(ctx, cx, cy, rx, ry, color);
 }
 
 /** Ombre portée au sol (ellipse sombre et transparente) */
@@ -52,222 +23,8 @@ export function drawShadow(ctx, x, y, rx, ry, alpha = 0.45) {
     ctx.globalAlpha = 1;
 }
 
-const hash = (x, y) => {
-    const s = Math.sin(x * 127.1 + y * 311.7) * 43758.5453;
-    return s - Math.floor(s);
-};
-
 // ---------------------------------------------------------------------------
-// Anneaux de LED des pads
-// ---------------------------------------------------------------------------
-
-/**
- * Allume des segments de l'anneau d'une case. segments : liste d'indices (0 en haut,
- * sens horaire). Pour un pad carré, les segments suivent le cadre.
- */
-export function lightRing(ctx, space, segments, color, alpha = 1) {
-    const g = padShape(space);
-    ctx.globalAlpha = alpha;
-    ctx.fillStyle = color;
-    if (g.square) {
-        const x0 = space.x - g.ringW / 2;
-        const y0 = space.y - g.ringH / 2;
-        segments.forEach((k) => {
-            const i = ((k % RING_SEGMENTS) + RING_SEGMENTS) % RING_SEGMENTS;
-            if (i < 8) ctx.fillRect(Math.round(x0 + (i / 8) * g.ringW) + 1, Math.round(y0), Math.round(g.ringW / 8) - 1, 3);
-            else ctx.fillRect(Math.round(x0 + g.ringW - ((i - 7) / 8) * g.ringW) + 1, Math.round(y0 + g.ringH - 3), Math.round(g.ringW / 8) - 1, 3);
-        });
-    } else {
-        const cx = space.x;
-        const cy = space.y + 1;
-        segments.forEach((k) => {
-            const i = ((k % RING_SEGMENTS) + RING_SEGMENTS) % RING_SEGMENTS;
-            const a0 = -Math.PI / 2 + ((i + 0.18) / RING_SEGMENTS) * Math.PI * 2;
-            const a1 = -Math.PI / 2 + ((i + 0.95) / RING_SEGMENTS) * Math.PI * 2;
-            for (let a = a0; a < a1; a += 0.02) {
-                for (let r = 0.83; r <= 0.99; r += 0.04) ctx.fillRect(Math.floor(cx + Math.cos(a) * g.ringRx * r), Math.floor(cy + Math.sin(a) * g.ringRy * r), 1, 1);
-            }
-        });
-    }
-    ctx.globalAlpha = 1;
-}
-
-// ---------------------------------------------------------------------------
-// Décor animé
-// ---------------------------------------------------------------------------
-
-const CITY_LIGHTS = Array.from({ length: 60 }, (_, i) => ({
-    x: WINDOW.x + 4 + Math.floor(hash(i, 1) * (WINDOW.w - 10)),
-    y: WINDOW.y + WINDOW.h - 6 - Math.floor(hash(i, 2) * 60),
-    color: hash(i, 3) > 0.8 ? '#a9b8d0' : '#e6c27a',
-    period: 6 + hash(i, 4) * 14,
-    phase: hash(i, 5) * 20,
-})).filter((l) => {
-    const rx = l.x - WINDOW.x;
-    const ry = l.y - WINDOW.y;
-    return ry > WINDOW.h - 90 + (rx % 64 < 32 ? 22 : 0) && Math.abs(rx - WINDOW.w / 2) > 5 && Math.abs(ry - WINDOW.h / 2) > 4;
-});
-
-const LCD_ON = '#cfe0de';
-const LCD_DIM = '#2a3536';
-
-/**
- * info : { beat (0..1 dans le temps), kick (0..1), bi (numéro du temps), t,
- *          stageColor (couleur du joueur qui a le micro géant, ou null), bpm }
- * board : le plateau (anneaux des cases). glows : halos demandés à la couche lumière.
- */
-export function drawWorldLive(ctx, t, info, glows = [], board = null) {
-    const { beat, kick, bi } = info;
-
-    // Fenêtres de la ville
-    CITY_LIGHTS.forEach((l) => {
-        if ((t + l.phase) % l.period < l.period * 0.72) prect(ctx, l.x, l.y, 2, 2, l.color);
-    });
-
-    // Enceintes : la membrane pousse sur chaque temps, LED d'alimentation
-    MONITORS.forEach((m) => {
-        const cx = m.x + m.w / 2;
-        const cy = m.y + 73 + 112;
-        if (kick > 0.4) pring(ctx, cx, cy, 36 + kick * 2, 36 + kick * 2, '#3d3d44', 0.03);
-        prect(ctx, cx - 1, m.y + m.h - 34, 3, 2, '#7fd18b');
-    });
-
-    // Loopstation : écran LCD graphique (tempo, pistes, forme d'onde), LED des touches
-    const s = LOOP.screen;
-    ctx.drawImage(textSprite(`BPM ${info.bpm || 96}`, LCD_ON, { font: 'tiny', outline: null, shadow: false }), s.x + 6, s.y + 5);
-    ctx.drawImage(textSprite('MEMORY 01', LCD_ON, { font: 'tiny', outline: null, shadow: false }), s.x + s.w - 44, s.y + 5);
-    prect(ctx, s.x + 4, s.y + 13, s.w - 8, 1, LCD_DIM);
-    for (let k = 0; k < 5; k += 1) {
-        const on = Math.floor(t / 1.6) % 5 === k;
-        const x = s.x + 8 + k * 38;
-        prect(ctx, x, s.y + 18, 30, 26, LCD_DIM);
-        prect(ctx, x + 1, s.y + 19, 28, 24, on ? LCD_ON : '#0d1213');
-        const p = ((t / 6.4) + k * 0.27) % 1;
-        prect(ctx, x + 3, s.y + 38, Math.round(24 * p), 3, on ? '#0d1213' : LCD_ON);
-        ctx.drawImage(textSprite(String(k + 1), on ? '#0d1213' : LCD_ON, { font: 'tiny', outline: null, shadow: false }), x + 13, s.y + 23);
-    }
-    LOOP.inputKeys.forEach((kx, i) => prect(ctx, kx - 3, LOOP.y + 36, 6, 3, i === bi % 4 ? '#e2402f' : '#3a1712'));
-    LOOP.trackKeys.forEach((kx, i) => prect(ctx, kx - 3, LOOP.y + 36, 6, 3, i === 1 ? '#2eb75e' : '#12301d'));
-
-    // Anneaux des cases : un segment plus clair tourne, comme la boucle d'une piste
-    if (board) {
-        board.spaces.forEach((space, i) => {
-            const c = SPACE_COLORS[space.type] || SPACE_COLORS.blue;
-            const head = Math.floor((t * 2.4 + i * 0.37) * RING_SEGMENTS / 4) % RING_SEGMENTS;
-            lightRing(ctx, space, [head], c.light, 0.9);
-        });
-    }
-
-    // Vumètres de la table de mixage
-    MIXER_METERS.forEach(({ x, y, n }, j) => {
-        const level = Math.round((0.35 + kick * 0.55 + Math.sin(t * 9 + j * 1.7) * 0.08) * n);
-        for (let k = 0; k < n; k += 1) {
-            const on = n - k <= level;
-            const color = k < 2 ? '#e2402f' : k < 4 ? '#f0ae22' : '#2eb75e';
-            prect(ctx, x - 2, y + k * 9, 6, 6, on ? color : '#141416');
-        }
-    });
-
-    // Pad controller : rétroéclairage discret des pads joués (blanc chaud)
-    const step = Math.floor(t / 0.3125);
-    PADS.cols.slice(1).forEach((cx, ci) => PADS.rows.forEach((cy, ri) => {
-        const id = ri * 3 + ci;
-        const hitStep = [0, 3, 6, 2, 5, 7, 1, 4, 8][id];
-        const age = ((step - hitStep) % 8 + 8) % 8;
-        if (age > 1) return;
-        ctx.globalAlpha = age === 0 ? 0.55 : 0.25;
-        prrect(ctx, cx - 26, cy - 18, 52, 34, 6, '#e9d7b4');
-        ctx.globalAlpha = 1;
-    }));
-
-    // Pédales : LED d'état
-    PEDALS.forEach((p, i) => {
-        const on = i === 1 ? beat < 0.3 : i !== 3;
-        prect(ctx, p.cx - 2, p.cy - 40, 4, 3, on ? '#e2402f' : '#3a1712');
-    });
-
-    // Retours de scène : petite LED à la couleur du joueur qui a le micro géant
-    if (info.stageColor) {
-        [[STAGE.cx - 150, STAGE.cy - 30], [STAGE.cx + 150, STAGE.cy - 30]].forEach(([x, y]) => prect(ctx, x + 18, y + 10, 4, 2, info.stageColor));
-    }
-
-    // Vapeur du café
-    for (let w = 0; w < 3; w += 1) {
-        for (let i = 0; i < 16; i += 1) {
-            const rise = (i * 4 + (t * 16) % 4);
-            const x = MUG.cx - 13 + w * 13 + Math.sin(i * 0.4 + t * 1.6 + w * 2) * (2 + i * 0.4);
-            const y = MUG.cy - MUG.h - 8 - rise;
-            ctx.globalAlpha = 0.3 * (1 - i / 16);
-            prect(ctx, x, y, 2, 2, '#e8e6e0');
-        }
-    }
-    ctx.globalAlpha = 1;
-
-    // Téléphone : appli d'enregistrement, écran tamisé
-    const px = PHONE.x + 5;
-    const py = PHONE.y + 10;
-    const pw = PHONE.w - 10;
-    prect(ctx, px + 4, py + 6, pw - 8, 2, '#2c2f36');
-    for (let i = 0; i < pw - 8; i += 2) {
-        const v = Math.abs(Math.sin((i + t * 30) * 0.3) * Math.cos((i - t * 11) * 0.09));
-        const h = Math.max(1, Math.round(v * 26 * (0.5 + kick * 0.5)));
-        prect(ctx, px + 4 + i, py + 44 - h / 2, 1, h, '#b9b6ad');
-    }
-    pellipse(ctx, px + pw / 2, py + 82, 7, 7, bi % 2 ? '#e2402f' : '#5a1d16');
-    glows.push({ x: px + pw / 2, y: py + 46, r: 50, color: '#8a8f99', a: 0.12, squash: 1.4 });
-}
-
-// ---------------------------------------------------------------------------
-// Foule miniature, vue de dos, tournée vers le micro géant
-// ---------------------------------------------------------------------------
-
-const FANS = Array.from({ length: 13 }, (_, i) => ({
-    x: 965 + (i % 7) * 44 + (i >= 7 ? 22 : 0) + Math.round((hash(i, 8) - 0.5) * 10),
-    y: i >= 7 ? 562 : 525,
-    shirt: ['#5a4a6e', '#3b5a7a', '#7a3b3b', '#3b6a52', '#7a6238', '#45454f', '#7a4a62'][(i * 3) % 7],
-    hair: ['#2A1A14', '#5B3A26', '#16100D', '#D9DDE8', '#6B3A26', '#1E1512'][(i * 5) % 6],
-    skin: ['#8D5A3B', '#E9B892', '#C68863', '#6B4028', '#F3D2B8'][(i * 2) % 5],
-    phase: hash(i, 9),
-    phone: i % 5 === 2,
-}));
-
-export function drawCrowd(ctx, t, { beat, cheering }) {
-    FANS.forEach((f, i) => {
-        const ph = (beat + f.phase * 0.3) % 1;
-        const jump = cheering ? Math.round(Math.abs(Math.sin(t * 9 + f.phase * 6)) * 6) : ph < 0.22 ? 1 : 0;
-        const x = f.x;
-        const y = f.y - jump;
-        drawShadow(ctx, x + 6, f.y + 1, 9, 3, 0.4);
-        const armsUp = cheering || (i % 3 === 0 && ph < 0.5);
-        prect(ctx, x + 1, y - 10, 4, 10, OUT);
-        prect(ctx, x + 7, y - 10, 4, 10, OUT);
-        prect(ctx, x + 2, y - 10, 2, 9, '#2c2c34');
-        prect(ctx, x + 8, y - 10, 2, 9, '#2c2c34');
-        prect(ctx, x - 1, y - 25, 14, 16, OUT);
-        prect(ctx, x, y - 24, 12, 14, f.shirt);
-        prect(ctx, x + 9, y - 24, 3, 14, '#00000040');
-        prect(ctx, x + 1, y - 35, 10, 11, OUT);
-        prect(ctx, x + 2, y - 34, 8, 9, f.hair);
-        if (armsUp) {
-            prect(ctx, x - 3, y - 36, 4, 14, OUT);
-            prect(ctx, x + 11, y - 36, 4, 14, OUT);
-            prect(ctx, x - 2, y - 35, 2, 12, f.skin);
-            prect(ctx, x + 12, y - 35, 2, 12, f.skin);
-            if (f.phone && !cheering) {
-                prect(ctx, x + 11, y - 43, 5, 8, OUT);
-                prect(ctx, x + 12, y - 42, 3, 6, '#b9b6ad');
-            }
-        } else {
-            prect(ctx, x - 2, y - 24, 3, 11, OUT);
-            prect(ctx, x + 11, y - 24, 3, 11, OUT);
-            prect(ctx, x - 1, y - 23, 2, 9, f.shirt);
-            prect(ctx, x + 12, y - 23, 2, 9, f.shirt);
-        }
-    });
-}
-
-// ---------------------------------------------------------------------------
-// Objets de jeu
+// Micro d'or
 // ---------------------------------------------------------------------------
 
 const GOLD_MIC = [
@@ -328,46 +85,156 @@ export function drawGoldMic(ctx, x, y, t) {
     }
 }
 
-/**
- * Dé en anneau de boucle : un afficheur rond, l'anneau de LED autour et le chiffre au
- * milieu. mode 'roll' : l'anneau tourne et le chiffre défile ; 'result' : anneau
- * plein ; 'steps' : un segment par case qui reste à parcourir.
- * (cx, bottom) = milieu du bas.
- */
-export function drawLoopDie(ctx, cx, bottom, value, { mode = 'roll', total = 10, t = 0, size = 1 } = {}) {
-    const R = Math.round(18 * size);
-    const cy = Math.round(bottom - R - 2);
+let goldFrame = null;
+/** Micro d'or dans un petit canvas (socle en bas au centre), pour le mettre à l'échelle */
+export function goldMicSprite(t) {
+    if (!goldFrame) [goldFrame] = makeCanvas(40, 64);
+    const ctx = goldFrame.getContext('2d');
+    ctx.clearRect(0, 0, 40, 64);
+    drawGoldMic(ctx, 20, 58, t);
+    return goldFrame;
+}
+
+// ---------------------------------------------------------------------------
+// Les dés. (cx, bottom) = milieu du bas. mode : 'roll' (il tourne), 'hit' (frappé),
+// 'result' (résultat), 'steps' (cases restantes)
+// ---------------------------------------------------------------------------
+
+const RED = '#ff3b30';
+const RED_DIM = '#4a1410';
+const GREEN = '#33e07a';
+const GREEN_DIM = '#0f3a22';
+const AMBER = '#ffb21e';
+const AMBER_DIM = '#4a3208';
+
+function bigNumber(ctx, value, x, cy, scale, color = '#ffffff', outline = OUT) {
+    const s = textSprite(String(value), color, { font: 'bold', outline, shadow: Boolean(outline) });
+    ctx.drawImage(s, Math.round(x - (s.width * scale) / 2), Math.round(cy - (s.height * scale) / 2), s.width * scale, s.height * scale);
+}
+
+function sparks(ctx, x, y, r, color) {
+    for (let k = 0; k < 12; k += 1) {
+        const a = (k / 12) * Math.PI * 2;
+        const len = k % 2 ? 4 : 8;
+        for (let s = 0; s < len; s += 1) R(ctx, x + Math.cos(a) * (r + s) - 1, y + Math.sin(a) * (r + s) - 1, 2, 2, k % 2 ? '#ffffff' : color);
+    }
+}
+
+/** Dé de base : le pad REC/PLAY, 10 segments pour 10 valeurs */
+export function drawPadDie(ctx, cx, bottom, value, { mode = 'roll', t = 0, total = 10, size = 1 } = {}) {
+    const r = Math.round(24 * size);
     const x = Math.round(cx);
-    // Boîtier noir mat et lunette
-    pellipse(ctx, x, cy + 2, R + 3, R + 3, OUT);
-    pellipse(ctx, x, cy, R + 3, R + 3, OUT);
-    pellipse(ctx, x, cy, R + 2, R + 2, '#26262b');
-    pellipse(ctx, x, cy - 1, R + 1, R + 1, '#333339');
-    pellipse(ctx, x, cy, R, R, '#121214');
-    // Anneau : 16 segments
-    const N = 16;
-    const color = mode === 'steps' ? '#E2402F' : mode === 'result' ? '#2EB75E' : '#F0AE22';
-    const off = mode === 'steps' ? '#3a1712' : mode === 'result' ? '#123a20' : '#3d2c0a';
-    let lit;
-    if (mode === 'roll') {
-        const head = Math.floor(t * 22) % N;
-        lit = (k) => ((head - k + N) % N) < 5;
-    } else if (mode === 'steps') {
-        const n = Math.round((value / Math.max(1, total)) * N);
-        lit = (k) => k < n;
-    } else lit = () => true;
-    for (let k = 0; k < N; k += 1) {
-        const a0 = -Math.PI / 2 + ((k + 0.15) / N) * Math.PI * 2;
-        const a1 = -Math.PI / 2 + ((k + 0.9) / N) * Math.PI * 2;
-        ctx.fillStyle = lit(k) ? color : off;
-        for (let a = a0; a < a1; a += 0.04) {
-            for (let r = R - 4 * size; r <= R - 1; r += 1) ctx.fillRect(Math.round(x + Math.cos(a) * r - 0.5), Math.round(cy + Math.sin(a) * r - 0.5), 1, 1);
+    const cy = Math.round(bottom - r - 3);
+    E(ctx, x, cy + 3, r + 3, r + 3, OUT);
+    E(ctx, x, cy, r + 3, r + 3, '#0b0b0e');
+    const N = 10;
+    const head = Math.floor(t * 18) % N;
+    const col = mode === 'steps' ? RED : mode === 'roll' ? AMBER : GREEN;
+    const dim = mode === 'steps' ? RED_DIM : mode === 'roll' ? AMBER_DIM : GREEN_DIM;
+    const lit = mode === 'steps' ? Math.max(0, Math.round((value / Math.max(1, total)) * N)) : value;
+    ring(ctx, x, cy, r, r - Math.max(4, Math.round(7 * size)), N, (k) => {
+        if (mode === 'roll') return (head - k + N) % N < 3 ? col : dim;
+        if (mode === 'hit') return '#ffffff';
+        return k < lit ? col : dim;
+    }, 0.22);
+    ring(ctx, x, cy, r - Math.round(9 * size), r - Math.round(11 * size), 1, () => (mode === 'hit' ? '#ffffff' : col));
+    E(ctx, x, cy, r - Math.round(12 * size), r - Math.round(12 * size), '#060608');
+    E(ctx, x - 4 * size, cy - 6 * size, 6 * size, 3 * size, '#1d1d22');
+    if (value != null) bigNumber(ctx, value, x, cy, size >= 0.9 ? 2 : 1, '#ffffff', null);
+    if (mode === 'hit') sparks(ctx, x, cy, r + 6, AMBER);
+}
+
+/** Dé spécial « double boucle » : un bloc à la couleur du joueur, qui éclate */
+export function drawBlockDie(ctx, cx, bottom, value, { mode = 'roll', t = 0, color = AMBER } = {}) {
+    const s = 32;
+    const d = 9;
+    const x = Math.round(cx);
+    const cy = Math.round(bottom - s / 2 - 6);
+    if (mode === 'hit') {
+        for (let k = 0; k < 9; k += 1) {
+            const a = (k / 9) * Math.PI * 2 + 0.3;
+            const rr = 22 + (k % 3) * 5;
+            R(ctx, x + Math.cos(a) * rr - 5, cy + Math.sin(a) * rr - 5, 10, 10, OUT);
+            R(ctx, x + Math.cos(a) * rr - 4, cy + Math.sin(a) * rr - 4, 8, 8, k % 2 ? color : '#1b1b20');
+        }
+        sparks(ctx, x, cy, 30, color);
+        if (value != null) bigNumber(ctx, value, x, cy, 3);
+        return;
+    }
+    if (mode === 'steps') {
+        RR(ctx, x - 17, cy - 13, 34, 28, 8, OUT);
+        RR(ctx, x - 15, cy - 12, 30, 24, 7, color);
+        RR(ctx, x - 13, cy - 11, 26, 6, 4, hexMix(color, '#ffffff', 0.45));
+        R(ctx, x - 3, cy + 12, 6, 3, OUT);
+        R(ctx, x - 2, cy + 12, 4, 2, color);
+        bigNumber(ctx, value, x, cy, 2);
+        return;
+    }
+    const wob = mode === 'roll' ? Math.round(Math.sin(t * 9) * 2) : 0;
+    const x0 = x - s / 2 - d / 2;
+    const y0 = cy - s / 2 + d / 2 + wob;
+    ctx.fillStyle = OUT;
+    ctx.beginPath(); ctx.moveTo(x0 - 1, y0); ctx.lineTo(x0 + d - 1, y0 - d - 1); ctx.lineTo(x0 + s + d + 1, y0 - d - 1); ctx.lineTo(x0 + s + d + 1, y0 + s - d + 1); ctx.lineTo(x0 + s + 1, y0 + s + 1); ctx.lineTo(x0 - 1, y0 + s + 1); ctx.closePath(); ctx.fill();
+    ctx.fillStyle = hexMix(color, '#ffffff', 0.35);
+    ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(x0 + d, y0 - d); ctx.lineTo(x0 + s + d, y0 - d); ctx.lineTo(x0 + s, y0); ctx.closePath(); ctx.fill();
+    ctx.fillStyle = hexMix(color, '#000000', 0.35);
+    ctx.beginPath(); ctx.moveTo(x0 + s, y0); ctx.lineTo(x0 + s + d, y0 - d); ctx.lineTo(x0 + s + d, y0 + s - d); ctx.lineTo(x0 + s, y0 + s); ctx.closePath(); ctx.fill();
+    R(ctx, x0, y0, s, s, color);
+    RR(ctx, x0 + 4, y0 + 4, s - 8, s - 8, 3, '#141418');
+    ring(ctx, x0 + s / 2 + d / 2, y0 - d / 2, 4, 2.6, 1, () => '#ffffff');
+    if (mode === 'result') {
+        for (let k = 0; k < 8; k += 1) {
+            const a = (k / 8) * Math.PI * 2;
+            line(ctx, x + Math.cos(a) * 30, cy + Math.sin(a) * 30, x + Math.cos(a) * 40, cy + Math.sin(a) * 40, color, 2);
         }
     }
-    // Chiffre au milieu, blanc sur l'afficheur
-    const label = textSprite(String(value), '#F2F0EA', { font: 'bold', outline: null, shadow: false });
-    const k = size >= 1 ? 2 : 1;
-    ctx.drawImage(label, Math.round(x - (label.width * k) / 2), Math.round(cy - (label.height * k) / 2), label.width * k, label.height * k);
+    if (value != null) bigNumber(ctx, value, x0 + s / 2, y0 + s / 2, String(value).length > 1 ? 1 : 2, '#ffffff', null);
+}
+
+/** Dé spécial « scratch » : un 45 tours qui tourne, qu'on arrête au bon moment */
+export function drawVinylDie(ctx, cx, bottom, value, { mode = 'roll', t = 0, color = AMBER } = {}) {
+    const x = Math.round(cx);
+    if (mode === 'result' || mode === 'steps') {
+        const r = mode === 'steps' ? 16 : 26;
+        const cy = Math.round(bottom - r - 4);
+        E(ctx, x, cy + 2, r + 1, r + 1, OUT);
+        E(ctx, x, cy, r, r, '#101012');
+        for (let g = r - 3; g > r * 0.45; g -= 3) ring(ctx, x, cy, g, g - 1, 1, () => '#1e1e23');
+        E(ctx, x - r * 0.35, cy - r * 0.45, r * 0.25, r * 0.12, '#3a3a42');
+        E(ctx, x, cy, r * 0.42, r * 0.42, color);
+        if (mode === 'result') for (let k = 0; k < 10; k += 1) {
+            const a = (k / 10) * Math.PI * 2;
+            line(ctx, x + Math.cos(a) * (r + 6), cy + Math.sin(a) * (r + 6), x + Math.cos(a) * (r + 13), cy + Math.sin(a) * (r + 13), color, 2);
+        }
+        bigNumber(ctx, value, x, cy, mode === 'steps' ? 1 : 2);
+        return;
+    }
+    const cy = Math.round(bottom - 16);
+    E(ctx, x, cy + 4, 32, 14, OUT);
+    E(ctx, x, cy + 3, 30, 11, '#050506');
+    E(ctx, x, cy, 31, 12, OUT);
+    E(ctx, x, cy, 30, 11, '#121215');
+    for (let g = 0; g < 4; g += 1) {
+        const rr = 26 - g * 4;
+        for (let a = 0; a < Math.PI * 2; a += 0.12) R(ctx, x + Math.cos(a) * rr, cy + Math.sin(a) * rr * 0.37, 1, 1, '#202026');
+    }
+    E(ctx, x, cy, 11, 4, color);
+    const a = t * 14;
+    if (mode === 'roll') {
+        line(ctx, x + Math.cos(a) * 14, cy + Math.sin(a) * 5, x + Math.cos(a) * 27, cy + Math.sin(a) * 10, '#4a4a55', 2);
+        line(ctx, x - Math.cos(a) * 14, cy - Math.sin(a) * 5, x - Math.cos(a) * 27, cy - Math.sin(a) * 10, '#4a4a55', 2);
+    } else {
+        for (let k = 0; k < 5; k += 1) line(ctx, x - 44 + k * 4, cy - 16 + k * 7, x - 30 + k * 4, cy - 18 + k * 7, '#ffffff', 1);
+        sparks(ctx, x, cy, 32, color);
+    }
+    if (value != null) bigNumber(ctx, value, x, cy - 22, 2);
+}
+
+/** Le bon dé selon son type : 'pad' (base), 'block', 'vinyl' */
+export function drawDie(ctx, die, cx, bottom, value, opts) {
+    if (die === 'block') drawBlockDie(ctx, cx, bottom, value, opts);
+    else if (die === 'vinyl') drawVinylDie(ctx, cx, bottom, value, opts);
+    else drawPadDie(ctx, cx, bottom, value, opts);
 }
 
 /** Éclats autour du dé quand on le frappe (petits traits blancs) */
@@ -431,10 +298,3 @@ export function drawBadge(ctx, x, y, color, n) {
     if (n) drawText(ctx, String(n), x, y - 2, '#F2F0EA', { font: 'tiny', outline: null, shadow: false });
 }
 
-/** Contour d'ellipse (onde de choc au sol) */
-export function drawRing(ctx, x, y, rx, ry, color, alpha = 1) {
-    ctx.globalAlpha = alpha;
-    pring(ctx, x, y, rx, ry, color, 0.02);
-    pring(ctx, x, y, rx + 1, ry + 1, color, 0.02);
-    ctx.globalAlpha = 1;
-}

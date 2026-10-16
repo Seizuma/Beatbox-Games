@@ -39,10 +39,10 @@ export default function PartyHome({ board, t, language, discordName, initialCode
     const actors = useMemo(() => {
         const others = CHARACTER_IDS.filter((id) => id !== character).slice(0, 3);
         return [
-            { id: others[0], pose: 'dance', color: PLAYER_COLORS[1], x: 956, y: 419, facing: 1 },
-            { id: character, pose: 'beatbox', color: PLAYER_COLORS[0], x: 1040, y: 413, facing: 1 },
-            { id: others[1], pose: 'dance', color: PLAYER_COLORS[2], x: 1125, y: 419, facing: -1 },
-            { id: others[2], pose: 'idle', color: PLAYER_COLORS[3], x: 1209, y: 432, facing: -1 },
+            { id: others[2], pose: 'idle', color: PLAYER_COLORS[3], x: 755, y: 1008, facing: 1 },
+            { id: others[0], pose: 'dance', color: PLAYER_COLORS[1], x: 877, y: 1008, h: 98, facing: 1 },
+            { id: character, pose: 'beatbox', color: PLAYER_COLORS[0], x: 1000, y: 1008, facing: 1 },
+            { id: others[1], pose: 'dance', color: PLAYER_COLORS[2], x: 1122, y: 1008, h: 98, facing: -1 },
         ];
     }, [character]);
 

@@ -123,7 +123,7 @@ function BeatboxPartyGame() {
     }, [showError]);
 
     const actions = useMemo(() => ({
-        roll: () => act('party:roll'),
+        roll: (die) => act('party:roll', die ? { die } : {}),
         choose: (spaceId) => act('party:choose', { spaceId }),
         star: (buy) => act('party:star', { buy }),
         ready: () => act('party:ready'),
