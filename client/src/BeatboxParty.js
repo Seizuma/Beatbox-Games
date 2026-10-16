@@ -50,6 +50,9 @@ function BeatboxPartyGame() {
     // Réactions beatbox reçues (une bulle par joueur, effacée après quelques secondes)
     const [reactions, setReactions] = useState([]);
     const queue = useRef([]);
+    // Décalage d'horloge avec le serveur : estimé à chaque état reçu, puis mesuré façon NTP
+    const offsetRef = useRef(0);
+    const clockSamples = useRef([]);
     const noticeTimer = useRef(null);
 
     const showError = useCallback((code) => {
@@ -61,7 +64,10 @@ function BeatboxPartyGame() {
     const receive = useCallback((snapshot) => {
         queue.current.push(snapshot);
         if (queue.current.length > 200) queue.current.splice(0, queue.current.length - 200);
-        setClockOffset(snapshot.serverNow - Date.now());
+        if (!clockSamples.current.length) {
+            offsetRef.current = snapshot.serverNow - Date.now();
+            setClockOffset(offsetRef.current);
+        }
         setState(snapshot);
     }, []);
 
@@ -125,6 +131,30 @@ function BeatboxPartyGame() {
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
+    // Horloge synchronisée sur le serveur (toutes les 20 s en partie) : le vinyle, les roues et
+    // les mini-jeux s'affichent à la même heure que celle qui servira à juger l'action
+    const inRoomNow = Boolean(state && myId);
+    useEffect(() => {
+        if (!inRoomNow || !connected) return undefined;
+        let stopped = false;
+        const sync = async () => {
+            const sample = await partySocket.measureClock();
+            if (stopped || !sample) return;
+            clockSamples.current = [...clockSamples.current, sample].slice(-6);
+            const best = clockSamples.current.reduce((a, b) => (b.rtt < a.rtt ? b : a));
+            if (Math.abs(best.offset - offsetRef.current) > 4) {
+                offsetRef.current = best.offset;
+                setClockOffset(best.offset);
+            }
+        };
+        sync();
+        const timer = setInterval(sync, 20000);
+        return () => { stopped = true; clearInterval(timer); };
+    }, [inRoomNow, connected]);
+
+    // Heure du serveur au moment du geste du joueur (vinyle, roue, rouleaux)
+    const stamp = () => Date.now() + offsetRef.current;
+
     // Toutes les actions : un aller-retour avec le serveur, une erreur affichée si besoin
     const act = useCallback(async (event, payload) => {
         unlockAudio();
@@ -134,9 +164,9 @@ function BeatboxPartyGame() {
     }, [showError]);
 
     const actions = useMemo(() => ({
-        roll: (die) => act('party:roll', die ? { die } : {}),
-        wheel: () => act('party:wheel'),
-        reel: () => act('party:reel'),
+        roll: (die) => act('party:roll', die ? { die, at: stamp() } : { at: stamp() }),
+        wheel: () => act('party:wheel', { at: stamp() }),
+        reel: () => act('party:reel', { at: stamp() }),
         item: (item) => act('party:item', { item }),
         buy: (item) => act('party:buy', { item }),
         thief: (choice) => act('party:thief', { choice }),

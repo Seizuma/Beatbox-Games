@@ -41,4 +41,26 @@ partySocket.request = (event, payload = {}) => new Promise((resolve) => {
     });
 });
 
+// Le serveur mesure la latence de chaque joueur : on accuse réception de ses pings
+partySocket.on('party:ping', (ack) => { if (typeof ack === 'function') ack(); });
+
+// Synchronisation d'horloge façon NTP : quelques allers-retours, on garde celui au plus court
+// trajet (le moins bruité). Renvoie { offset, rtt } (heure du serveur = Date.now() + offset).
+partySocket.measureClock = async (samples = 4) => {
+    let best = null;
+    for (let i = 0; i < samples; i += 1) {
+        const t0 = Date.now();
+        // eslint-disable-next-line no-await-in-loop
+        const response = await partySocket.request('party:time', {});
+        const t1 = Date.now();
+        if (response && response.ok && Number.isFinite(response.now)) {
+            const rtt = t1 - t0;
+            if (!best || rtt < best.rtt) best = { rtt, offset: Math.round(response.now + rtt / 2 - t1) };
+        }
+        // eslint-disable-next-line no-await-in-loop
+        if (i < samples - 1) await new Promise((resolve) => setTimeout(resolve, 150));
+    }
+    return best;
+};
+
 export default partySocket;

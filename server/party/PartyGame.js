@@ -229,6 +229,16 @@ class PartyGame {
         return cur && cur.isBot ? BOT_FAST_PACE : 1;
     }
 
+    // Équité en ligne : l'instant d'une action est celui que le joueur a vu à l'écran (horloge du
+    // serveur estimée chez lui, envoyée avec l'action). Il est accepté s'il tombe dans la fenêtre
+    // permise par sa latence mesurée (maxLag) ; sinon on le ramène au bord de cette fenêtre.
+    actionTime(claimed, maxLag = 0, notBefore = -Infinity) {
+        const now = this.now();
+        const at = Number(claimed);
+        if (!Number.isFinite(at) || !maxLag) return now;
+        return Math.max(notBefore, Math.min(now, Math.max(at, now - maxLag)));
+    }
+
     // `full` : délai laissé à un humain pendant le tour d'un bot (roue du Rappel, vol), jamais raccourci
     ms(value, full = false) {
         return Math.max(1, Math.round(value * this.timeScale * (full ? 1 : this.pace())));
@@ -702,7 +712,7 @@ class PartyGame {
         this.awaitPlayer(token, player, this.ms(TIMING.wheel, true), () => this.stopWheel(player.id));
     }
 
-    stopWheel(playerId) {
+    stopWheel(playerId, at = null, maxLag = 0) {
         if (this.phase !== 'turn' || this.step !== 'wheel' || !this.wheel) return { error: 'not_now' };
         if (this.wheel.playerId !== playerId) return { error: 'not_your_turn' };
         const { spinAt, period, slots } = this.wheel;
@@ -710,7 +720,7 @@ class PartyGame {
         // Un bot n'a pas de réflexes à mesurer : la case est tirée au sort
         const index = spinner && spinner.isBot
             ? this.randInt(0, slots.length - 1)
-            : Math.floor((this.now() - spinAt) / period) % slots.length;
+            : Math.floor((this.actionTime(at, maxLag, spinAt) - spinAt) / period) % slots.length;
         this.wheel.index = index;
         this.wheel.result = slots[index];
         this.finaleEffect = slots[index];
@@ -907,14 +917,14 @@ class PartyGame {
         return { ok: true };
     }
 
-    scratch(playerId) {
+    scratch(playerId, at = null, maxLag = 0) {
         if (this.phase !== 'turn' || this.step !== 'scratch') return { error: 'not_now' };
         const player = this.current();
         if (!player || player.id !== playerId || !this.roll) return { error: 'not_your_turn' };
         const { spinAt, period, faces } = this.roll;
         const value = player.isBot
             ? this.randInt(1, faces)
-            : 1 + (Math.floor((this.now() - spinAt) / period) % faces);
+            : 1 + (Math.floor((this.actionTime(at, maxLag, spinAt) - spinAt) / period) % faces);
         this.reveal(player, 'vinyl', value, 0);
         return { ok: true };
     }
@@ -1218,13 +1228,13 @@ class PartyGame {
         this.awaitPlayer(token, player, this.ms(TIMING.reel), () => this.stopReel(player.id));
     }
 
-    stopReel(playerId) {
+    stopReel(playerId, at = null, maxLag = 0) {
         const fs = this.freestyle;
         if (this.phase !== 'turn' || this.step !== 'freestyle' || !fs || fs.playerId !== playerId) return { error: 'not_now' };
         const reel = fs.reels[fs.current];
         const player = this.player(playerId);
         const n = reel.slots.length;
-        reel.index = player.isBot ? this.randInt(0, n - 1) : Math.floor((this.now() - reel.spinAt) / reel.period) % n;
+        reel.index = player.isBot ? this.randInt(0, n - 1) : Math.floor((this.actionTime(at, maxLag, reel.spinAt) - reel.spinAt) / reel.period) % n;
         fs.current += 1;
         if (fs.current === 2) {
             // Le dernier rouleau ne propose que les autres joueurs que celui qui donne
@@ -1572,12 +1582,17 @@ class PartyGame {
         return { ok: true };
     }
 
-    submitMinigame(playerId, raw) {
+    submitMinigame(playerId, raw, maxLag = 0) {
         if (this.phase !== 'minigame' || this.step !== 'play') return { error: 'not_now' };
         const mg = this.minigame;
-        if (!this.player(playerId) || !mg.participants.includes(playerId)) return { error: 'invalid' };
+        const player = this.player(playerId);
+        if (!player || !mg.participants.includes(playerId)) return { error: 'invalid' };
         if (mg.raw[playerId] !== undefined) return { error: 'already_sent' };
-        mg.raw[playerId] = raw && typeof raw === 'object' ? raw : null;
+        let value = raw && typeof raw === 'object' ? raw : null;
+        // Résultat mesuré chez le joueur, confronté à l'heure d'arrivée et à sa latence
+        const def = MINIGAMES[mg.id];
+        if (value && def.verify && !player.isBot) value = def.verify(mg.params, value, { elapsed: (this.now() - mg.startsAt) / mg.scale, maxLag: maxLag / mg.scale });
+        mg.raw[playerId] = value;
         this.publish();
         // Fin anticipée quand tout le monde a rendu (sauf pour les mini-jeux en direct, qui suivent leur minuterie)
         const everyone = mg.participants.every((id) => {

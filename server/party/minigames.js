@@ -68,6 +68,15 @@ const MINIGAMES = {
             if (r() < 0.06) return { falseStart: true };
             return { reaction: Math.round(230 + r() * 330) };
         },
+        // Le temps de réaction est mesuré chez le joueur (équitable quelle que soit la latence).
+        // Le serveur vérifie qu'il colle à l'heure d'arrivée : une réponse arrivée avant le
+        // signal est un faux départ, et un temps annoncé trop court est ramené au minimum possible.
+        verify(params, raw, { elapsed, maxLag }) {
+            if (raw.falseStart || !isNumber(raw.reaction)) return raw;
+            if (elapsed < params.signalAt - 50) return { falseStart: true };
+            const least = elapsed - params.signalAt - Math.max(150, maxLag);
+            return raw.reaction < least ? { reaction: Math.round(least), adjusted: true } : raw;
+        },
         display(params, raw) {
             if (!raw) return { kind: 'none' };
             if (raw.falseStart) return { kind: 'falseStart' };

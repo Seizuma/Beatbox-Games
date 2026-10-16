@@ -67,8 +67,33 @@ const reply = (callback, payload) => {
     if (typeof callback === 'function') callback(payload);
 };
 
+// Latence d'un joueur, mesurée par le serveur (ping avec accusé de réception toutes les 8 s).
+// Elle fixe la fenêtre dans laquelle l'heure d'une action envoyée par le joueur est crue.
+const PING_EVERY = 8000;
+const DEFAULT_LAG = 400;
+function maxLagOf(socket) {
+    const list = (socket.data && socket.data.rtts) || [];
+    if (!list.length) return DEFAULT_LAG;
+    const sorted = [...list].sort((a, b) => a - b);
+    const median = sorted[Math.floor(sorted.length / 2)];
+    return Math.min(900, Math.max(150, Math.round(median * 0.9 + 120)));
+}
+
 function handlePartySocketConnection(socket, io) {
     ioRef = io;
+    // Mesure de la latence tant que le joueur est dans une salle
+    const ping = () => {
+        if (!socket.connected || !socket.data.party) return;
+        const sent = Date.now();
+        socket.timeout(4000).emit('party:ping', (error) => {
+            if (error) return;
+            const list = socket.data.rtts || (socket.data.rtts = []);
+            list.push(Date.now() - sent);
+            if (list.length > 7) list.shift();
+        });
+    };
+    const pinger = setInterval(ping, PING_EVERY);
+    if (pinger.unref) pinger.unref();
     if (!sweeper) {
         sweeper = setInterval(sweep, 60 * 1000);
         if (sweeper.unref) sweeper.unref();
@@ -92,6 +117,7 @@ function handlePartySocketConnection(socket, io) {
         socket.data.party = { code: game.code, playerId: player.id };
         socket.join(roomName(game.code));
         reply(callback, { ok: true, code: game.code, playerId: player.id, key: player.key, state: game.snapshot() });
+        setTimeout(ping, 300);
     };
 
     socket.on('party:create', (payload = {}, callback) => {
@@ -124,6 +150,9 @@ function handlePartySocketConnection(socket, io) {
         if (result.error) return reply(callback, { ok: false, error: result.error });
         return enter(game, result.player, callback);
     });
+
+    // Heure du serveur, pour la synchronisation d'horloge du client (façon NTP)
+    socket.on('party:time', (payload, callback) => reply(callback, { ok: true, now: Date.now() }));
 
     // Plan du plateau, pour les scènes de l'accueil (avant d'entrer dans une salle)
     socket.on('party:board', (payload = {}, callback) => {
@@ -160,16 +189,17 @@ function handlePartySocketConnection(socket, io) {
     action('party:removeBot', (game, id, p) => game.removeBot(id, String(p.playerId || '')));
     action('party:settings', (game, id, p) => game.updateSettings(id, p));
     action('party:start', (game, id) => game.start(id));
+    // Actions de précision : l'heure vue par le joueur (p.at) compte, dans la limite de sa latence
     action('party:roll', (game, id, p) => {
         if (game.phase === 'order') return game.rollForOrder(id);
-        if (game.step === 'scratch') return game.scratch(id);
-        if (game.step === 'wheel') return game.stopWheel(id);
-        if (game.step === 'freestyle') return game.stopReel(id);
+        if (game.step === 'scratch') return game.scratch(id, p.at, maxLagOf(socket));
+        if (game.step === 'wheel') return game.stopWheel(id, p.at, maxLagOf(socket));
+        if (game.step === 'freestyle') return game.stopReel(id, p.at, maxLagOf(socket));
         if (game.step === 'steal') return game.mash(id);
         return game.rollDice(id);
     });
-    action('party:wheel', (game, id) => game.stopWheel(id));
-    action('party:reel', (game, id) => game.stopReel(id));
+    action('party:wheel', (game, id, p) => game.stopWheel(id, p.at, maxLagOf(socket)));
+    action('party:reel', (game, id, p) => game.stopReel(id, p.at, maxLagOf(socket)));
     action('party:item', (game, id, p) => game.useItem(id, String(p.item || '')));
     action('party:buy', (game, id, p) => game.buyItem(id, p.item ? String(p.item) : null));
     action('party:thief', (game, id, p) => game.chooseThief(id, String(p.choice || 'none')));
@@ -178,7 +208,7 @@ function handlePartySocketConnection(socket, io) {
     action('party:choose', (game, id, p) => game.choose(id, p.spaceId));
     action('party:star', (game, id, p) => game.resolveStar(id, Boolean(p.buy)));
     action('party:ready', (game, id) => game.setReady(id));
-    action('party:mgResult', (game, id, p) => game.submitMinigame(id, p.raw));
+    action('party:mgResult', (game, id, p) => game.submitMinigame(id, p.raw, maxLagOf(socket)));
     action('party:mgInput', (game, id, p) => game.minigameInput(id, p.data));
     action('party:rematch', (game, id) => game.rematch(id));
 
@@ -191,9 +221,10 @@ function handlePartySocketConnection(socket, io) {
     });
 
     socket.on('disconnect', () => {
+        clearInterval(pinger);
         const { game, playerId } = context();
         if (game) game.disconnect(playerId);
     });
 }
 
-module.exports = { handlePartySocketConnection, games };
+module.exports = { handlePartySocketConnection, games, maxLagOf };
