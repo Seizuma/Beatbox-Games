@@ -295,7 +295,8 @@ const MINIGAMES = {
         bot(params, r, playerId, mg, ctx) {
             if (playerId === ctx.solo) return { done: true };
             const pattern = (mg.live && mg.live.pattern) || [0, 0, 0, 0];
-            if (r() < 0.62) return { answer: pattern.slice() };
+            const skill = (ctx.skill && ctx.skill[playerId]) || 1;
+            if (r() < clamp(0.62 * skill, 0.3, 0.9)) return { answer: pattern.slice() };
             const answer = pattern.slice();
             answer[Math.floor(r() * answer.length)] = Math.floor(r() * 4);
             return { answer };
@@ -420,7 +421,7 @@ const MINIGAMES = {
         botPlan(mg, ctx, random) {
             const plan = [];
             ctx.bots.forEach((pid) => {
-                const rate = (pid === ctx.solo ? 6.5 : 5.5) + random() * 2.5;
+                const rate = ((pid === ctx.solo ? 6.5 : 5.5) + random() * 2.5) * ((ctx.skill && ctx.skill[pid]) || 1);
                 for (let t = 250; t <= mg.params.duration; t += 250) plan.push({ at: t, playerId: pid, data: { taps: Math.round((rate * t) / 1000) } });
             });
             return plan;
@@ -468,9 +469,10 @@ const MINIGAMES = {
             if (!raw || !Array.isArray(raw.offsets)) return 0;
             return beatAccuracy(raw.offsets, params.hits);
         },
-        bot(params, r) {
-            const skill = 25 + r() * 70;
-            return { offsets: Array.from({ length: params.hits }, () => (r() < 0.08 ? null : Math.round((r() - 0.5) * 2 * skill))) };
+        bot(params, r, playerId, mg, ctx) {
+            const level = (ctx && ctx.skill && ctx.skill[playerId]) || 1;
+            const skill = (25 + r() * 70) / level;
+            return { offsets: Array.from({ length: params.hits }, () => (r() < 0.08 / level ? null : Math.round((r() - 0.5) * 2 * skill))) };
         },
         result(mg, ctx) {
             const sum = (ids) => ids.reduce((s, id) => s + this.score(mg.params, mg.raw[id]), 0);
@@ -519,7 +521,8 @@ const MINIGAMES = {
             const side = ctx.teams.a.includes(playerId) ? 'a' : 'b';
             const mate = ctx.teams[side].find((id) => id !== playerId);
             const mateLevel = mate != null ? mg.live.pours[mate] : null;
-            const target = (mateLevel != null ? 1 - mateLevel : 0.5) * (0.82 + random() * 0.24);
+            const skill = (ctx.skill && ctx.skill[playerId]) || 1;
+            const target = (mateLevel != null ? 1 - mateLevel : 0.5) * (0.94 + (random() - 0.5) * (0.24 / skill));
             const p = mg.params.players[playerId];
             return Math.round(p.fillMs * Math.pow(clamp(target, 0, 2) / 0.5, 1 / p.curve));
         },
@@ -592,7 +595,7 @@ const MINIGAMES = {
                 // Les bots ont un son « favori » par manche : deux bots tombent souvent d'accord
                 const favorite = Math.floor(rng(mg.seed + i * 7919)() * 4);
                 ctx.bots.forEach((pid) => {
-                    const pick = random() < 0.55 ? favorite : Math.floor(random() * 4);
+                    const pick = random() < clamp(0.55 * ((ctx.skill && ctx.skill[pid]) || 1), 0.3, 0.85) ? favorite : Math.floor(random() * 4);
                     plan.push({ at: r.startAt + 500 + Math.round(random() * (mg.params.pickMs - 1000)), playerId: pid, data: { round: i, pick } });
                 });
             });

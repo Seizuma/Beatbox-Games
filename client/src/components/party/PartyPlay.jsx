@@ -159,9 +159,10 @@ function PlayerCard({ player, rank, leader, active, isMe, t, compact, orderRoll,
                     {orderRoll != null && <span className="party-card-stat is-gold">D{orderRoll}</span>}
                 </p>
                 {reaction && <span key={reaction.key} className="party-react-bubble" aria-hidden="true">{t(`react.bubble.${reaction.id}`)}</span>}
-                {!compact && (player.lastColor || (player.items && player.items.length > 0) || offline) && (
+                {!compact && (player.lastColor || (player.items && player.items.length > 0) || offline || (player.isBot && player.botLevel !== 'normal')) && (
                     <p className="party-card-tags">
                         {player.lastColor && <span className="party-lastcolor" style={{ '--lc': LAST_COLORS[player.lastColor] }} title={t(`screen.lastColor.${player.lastColor}`)} />}
+                        {player.isBot && player.botLevel && player.botLevel !== 'normal' && <span className="party-card-level">{t(`lobby.botLevel.${player.botLevel}`)}</span>}
                         {(player.items || []).map((it, i) => <ItemIcon key={i} item={it} size={14} />)}
                         {offline && <span className="party-card-offline">{t('lobby.offline')}</span>}
                     </p>

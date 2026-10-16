@@ -35,6 +35,15 @@ const BOT_REACTIONS = {
     duel: ['ooh', 'kick'],
 };
 const BOT_REACT_CHANCE = 0.45;
+// Niveaux des bots (réglés par l'hôte dans le salon, bot par bot)
+//   beginner : routes et objets au hasard, garde rarement de quoi acheter le Micro d'or
+//   normal   : le comportement de base
+//   pro      : vise le Micro d'or (route, vinyle, objets), économise, joue mieux les mini-jeux
+const BOT_LEVELS = ['beginner', 'normal', 'pro'];
+// Mini-jeux : multiplicateur d'adresse (mini-jeux d'équipe) ; chacun pour soi, probabilité
+// de jouer deux essais et de garder le meilleur (pro) ou le moins bon (débutant)
+const BOT_SKILL = { beginner: 0.85, normal: 1, pro: 1.15 };
+const BOT_SECOND_TRY = { beginner: 0.5, normal: 0, pro: 0.5 };
 // Barème des mini-jeux : seul le podium rapporte vraiment, pour que chacun joue la gagne
 //   ffa   10 au 1er, 3 au 2e
 //   solo  le solo d'un un-contre-trois qui gagne
@@ -407,6 +416,7 @@ class PartyGame {
                 name: p.name,
                 characterId: p.characterId,
                 isBot: p.isBot,
+                botLevel: p.isBot ? p.botLevel || 'normal' : null,
                 connected: p.connected,
                 hype: p.hype,
                 stars: p.stars,
@@ -492,6 +502,7 @@ class PartyGame {
             name: sanitizeName(name) || (isBot ? 'Bot' : 'Joueur'),
             characterId: character,
             isBot,
+            botLevel: isBot ? 'normal' : null,
             connected: !isBot,
             socketId,
             discordId,
@@ -605,6 +616,19 @@ class PartyGame {
         if (!bot || !bot.isBot || this.phase !== 'lobby') return { error: 'invalid' };
         this.removePlayer(botId);
         return { ok: true };
+    }
+
+    setBotLevel(requesterId, botId, level) {
+        if (requesterId !== this.hostId) return { error: 'not_host' };
+        const bot = this.player(botId);
+        if (!bot || !bot.isBot || this.phase !== 'lobby' || !BOT_LEVELS.includes(level)) return { error: 'invalid' };
+        bot.botLevel = level;
+        this.publish({ type: 'settings' });
+        return { ok: true };
+    }
+
+    levelOf(player) {
+        return player && player.isBot ? player.botLevel || 'normal' : 'normal';
     }
 
     updateSettings(requesterId, settings = {}) {
@@ -784,12 +808,18 @@ class PartyGame {
     botItem(player) {
         const bag = player.items || [];
         if (!bag.length) return null;
+        const level = this.levelOf(player);
+        // Débutant : un objet au hasard, de temps en temps
+        if (level === 'beginner') {
+            const usable = bag.filter((it) => it !== 'mic' || player.hype >= this.starPrice());
+            return usable.length && this.random() < 0.3 ? usable[this.randInt(0, usable.length - 1)] : null;
+        }
         const dist = this.distanceToStar(player.space, player.hype);
         const canBuy = player.hype >= this.starPrice();
         if (bag.includes('mic') && canBuy && dist > 6) return 'mic';
         if (bag.includes('pipe')) {
             const closer = this.players.find((p) => p.id !== player.id && this.distanceToStar(p.space) < dist - 4);
-            if (closer && this.random() < 0.7) return 'pipe';
+            if (closer && (level === 'pro' || this.random() < 0.7)) return 'pipe';
         }
         if (bag.includes('block') && canBuy && dist > 10 && dist <= 20) return 'block';
         if (bag.includes('vinyl') && canBuy && dist <= 6) return 'vinyl';
@@ -887,11 +917,23 @@ class PartyGame {
     }
 
     botShop(player) {
-        // Garde de quoi acheter le Micro d'or avec le micro sans fil ; sinon un objet au hasard parmi ceux qu'il peut payer
+        const level = this.levelOf(player);
         const wish = Object.keys(ITEMS).filter((id) => !player.items.includes(id));
-        const affordable = wish.filter((id) => ITEMS[id].price <= player.hype - (id === 'mic' ? this.starPrice() : 6));
-        if (!affordable.length || this.random() < 0.25) return null;
+        // Débutant : achète au hasard ce qu'il peut payer, sans penser au Micro d'or
+        if (level === 'beginner') {
+            const any = wish.filter((id) => ITEMS[id].price <= player.hype);
+            return any.length && this.random() < 0.6 ? any[this.randInt(0, any.length - 1)] : null;
+        }
+        // Normal : garde de quoi acheter le Micro d'or avec le micro sans fil ; sinon un objet au hasard
+        // Pro : garde toujours de quoi acheter le Micro d'or, et préfère les objets qui y mènent
+        const reserve = level === 'pro' ? this.starPrice() : 6;
+        const affordable = wish.filter((id) => ITEMS[id].price <= player.hype - (id === 'mic' ? this.starPrice() : reserve));
+        if (!affordable.length || (level === 'normal' && this.random() < 0.25)) return null;
         if (affordable.includes('mic')) return 'mic';
+        if (level === 'pro') {
+            const useful = ['pipe', 'vinyl', 'block'].filter((id) => affordable.includes(id));
+            return useful.length ? useful[0] : null;
+        }
         return affordable[this.randInt(0, affordable.length - 1)];
     }
 
@@ -922,9 +964,13 @@ class PartyGame {
         const player = this.current();
         if (!player || player.id !== playerId || !this.roll) return { error: 'not_your_turn' };
         const { spinAt, period, faces } = this.roll;
-        const value = player.isBot
-            ? this.randInt(1, faces)
-            : 1 + (Math.floor((this.actionTime(at, maxLag, spinAt) - spinAt) / period) % faces);
+        let value;
+        if (player.isBot) {
+            // Le pro arrête le vinyle sur la distance du Micro d'or quand il est à portée
+            const dist = this.distanceToStar(player.space, player.hype);
+            const aim = this.levelOf(player) === 'pro' && dist && dist <= faces && player.hype >= this.starPrice();
+            value = aim ? dist : this.randInt(1, faces);
+        } else value = 1 + (Math.floor((this.actionTime(at, maxLag, spinAt) - spinAt) / period) % faces);
         this.reveal(player, 'vinyl', value, 0);
         return { ok: true };
     }
@@ -1008,11 +1054,27 @@ class PartyGame {
         const token = this.setStep('turn', 'choice', this.ms(TIMING.choice));
         this.publish({ type: 'choice', playerId: player.id });
         this.awaitPlayer(token, player, this.ms(TIMING.choice), () => {
-            const affordable = options.filter((o) => o.affordable);
-            let pick = options[0];
-            if (player.isBot && affordable.length > 1 && this.random() < 0.55) pick = affordable[affordable.length - 1];
+            const pick = player.isBot ? this.botRoute(player, options) : options[0];
             this.choose(player.id, pick.spaceId);
         });
+    }
+
+    // Carrefour : le pro prend la route du Micro d'or (sans payer le raccourci s'il lui faut
+    // cette Hype pour l'acheter), le normal le fait souvent, le débutant choisit au hasard
+    botRoute(player, options) {
+        const affordable = options.filter((o) => o.affordable);
+        if (affordable.length < 2) return affordable[0] || options[0];
+        const level = this.levelOf(player);
+        if (level === 'beginner') return affordable[this.randInt(0, affordable.length - 1)];
+        if (level === 'normal' && this.random() < 0.45) return this.random() < 0.55 ? affordable[affordable.length - 1] : affordable[0];
+        const scored = affordable.map((o) => {
+            const d = this.distanceToStar(o.spaceId, player.hype - o.gate);
+            let cost = (d == null ? 99 : d + 1);
+            // Payer le raccourci et ne plus pouvoir acheter le Micro d'or : à éviter
+            if (o.gate && player.hype - o.gate < this.starPrice()) cost += 6;
+            return { o, cost };
+        }).sort((a, b) => a.cost - b.cost);
+        return scored[0].o;
     }
 
     choose(playerId, spaceId) {
@@ -1220,6 +1282,20 @@ class PartyGame {
         this.awaitReel(token, player);
     }
 
+    // Rouleaux du Freestyle : le pro a la main sûre une fois sur deux (un autre donne, lui reçoit)
+    botReelIndex(player, fs, reel) {
+        const n = reel.slots.length;
+        const level = this.levelOf(player);
+        const sure = level === 'pro' ? 0.5 : level === 'normal' ? 0.15 : 0;
+        if (this.random() >= sure) return this.randInt(0, n - 1);
+        if (fs.current === 0) {
+            const richest = reel.slots.filter((id) => id !== player.id).sort((a, b) => this.player(b).hype - this.player(a).hype)[0];
+            return Math.max(0, reel.slots.indexOf(richest));
+        }
+        if (fs.current === 2 && reel.slots.includes(player.id)) return reel.slots.indexOf(player.id);
+        return this.randInt(0, n - 1);
+    }
+
     awaitReel(token, player) {
         if (player.isBot) {
             this.later(token, this.ms(this.randInt(900, 1700)), () => this.stopReel(player.id));
@@ -1234,7 +1310,8 @@ class PartyGame {
         const reel = fs.reels[fs.current];
         const player = this.player(playerId);
         const n = reel.slots.length;
-        reel.index = player.isBot ? this.randInt(0, n - 1) : Math.floor((this.actionTime(at, maxLag, reel.spinAt) - reel.spinAt) / reel.period) % n;
+        if (player.isBot) reel.index = this.botReelIndex(player, fs, reel);
+        else reel.index = Math.floor((this.actionTime(at, maxLag, reel.spinAt) - reel.spinAt) / reel.period) % n;
         fs.current += 1;
         if (fs.current === 2) {
             // Le dernier rouleau ne propose que les autres joueurs que celui qui donne
@@ -1340,7 +1417,11 @@ class PartyGame {
 
     botThief(player) {
         const opts = this.thiefOptions(player);
-        if (opts[1].ok && this.random() < 0.8) return 'mic';
+        const level = this.levelOf(player);
+        if (level === 'beginner') return this.random() < 0.3 && opts[0].ok ? 'hype' : 'none';
+        if (opts[1].ok && (level === 'pro' || this.random() < 0.8)) return 'mic';
+        // Le pro ne vole de la Hype que s'il garde de quoi acheter le Micro d'or
+        if (level === 'pro') return opts[0].ok && player.hype - opts[0].cost >= this.starPrice() ? 'hype' : 'none';
         if (opts[0].ok && player.hype >= 12 && this.random() < 0.6) return 'hype';
         return 'none';
     }
@@ -1404,7 +1485,8 @@ class PartyGame {
             victim.stars -= taken;
             thief.stars += taken;
         } else {
-            const presses = victim.isBot ? this.randInt(8, 28) : th.presses;
+            const mashRange = { beginner: [4, 16], normal: [8, 28], pro: [18, 30] }[this.levelOf(victim)];
+            const presses = victim.isBot ? this.randInt(mashRange[0], mashRange[1]) : th.presses;
             const saved = Math.min(0.6, presses * 0.02);
             taken = -this.addHype(victim, -Math.round(th.amount * (1 - saved)));
             this.addHype(thief, taken);
@@ -1516,7 +1598,9 @@ class PartyGame {
     }
 
     minigameCtx(mg) {
-        return { kind: mg.kind, teams: mg.teams, solo: mg.solo, participants: mg.participants, bots: mg.participants.filter((id) => (this.player(id) || {}).isBot) };
+        const bots = mg.participants.filter((id) => (this.player(id) || {}).isBot);
+        const skill = Object.fromEntries(bots.map((id) => [id, BOT_SKILL[this.levelOf(this.player(id))] || 1]));
+        return { kind: mg.kind, teams: mg.teams, solo: mg.solo, participants: mg.participants, bots, skill };
     }
 
     playMinigame() {
@@ -1554,11 +1638,26 @@ class PartyGame {
             const from = def.botRawFrom ? def.botRawFrom(mg.params) : 0;
             const at = countdown + Math.round((from + this.random() * Math.max(200, span - from)) * scale);
             this.later(token, at, () => {
-                const raw = def.bot(mg.params, this.random, botId, mg, ctx);
+                const raw = this.botMinigameRaw(def, mg, ctx, botId);
                 if (raw) this.submitMinigame(botId, raw);
             });
         });
         this.later(token, mg.endsAt - this.now() + grace, () => this.finishMinigame());
+    }
+
+    // Résultat d'un bot à un mini-jeu chacun pour soi : une fois sur deux, le pro garde le
+    // meilleur de 2 essais et le débutant le moins bon (les mini-jeux d'équipe utilisent ctx.skill)
+    botMinigameRaw(def, mg, ctx, botId) {
+        const level = this.levelOf(this.player(botId));
+        const runs = this.random() < (BOT_SECOND_TRY[level] || 0) ? 2 : 1;
+        if (runs === 1 || mg.teams || !def.score) return def.bot(mg.params, this.random, botId, mg, ctx);
+        let best = null;
+        for (let i = 0; i < runs; i += 1) {
+            const raw = def.bot(mg.params, this.random, botId, mg, ctx);
+            const score = def.score(mg.params, raw, botId);
+            if (!best || (level === 'pro' ? score > best.score : score < best.score)) best = { raw, score };
+        }
+        return best.raw;
     }
 
     // Action pendant un mini-jeu en direct (motif, choix secret, frappes…)

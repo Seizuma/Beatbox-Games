@@ -238,6 +238,7 @@ function BeatboxPartyGame() {
                 onCharacter={(characterId) => act('party:character', { characterId })}
                 onAddBot={() => act('party:addBot')}
                 onRemoveBot={(playerId) => act('party:removeBot', { playerId })}
+                onBotLevel={(playerId, level) => act('party:botLevel', { playerId, level })}
                 onSettings={(settings) => act('party:settings', settings)}
                 onStart={() => act('party:start')}
             />

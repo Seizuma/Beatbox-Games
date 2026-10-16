@@ -483,6 +483,7 @@
 .party-card.is-compact .party-card-stats { gap: 0.35rem; font-size: 0.72rem; }
 .party-card-tags { display: flex; align-items: center; gap: 0.25rem; margin-top: 0.15rem; }
 .party-card-me { margin-left: 0.3rem; font-family: var(--hw-label); font-size: 0.6rem; color: var(--px-gold); }
+.party-card-level { font-family: var(--hw-label); font-size: 0.55rem; padding: 0 0.25rem; background: var(--px-mid); color: var(--hw-silk); text-transform: uppercase; }
 .party-card-offline { font-family: var(--hw-label); font-size: 0.6rem; color: var(--hw-red); text-transform: uppercase; }
 .party-card-stat.is-down { color: var(--hw-red); }
 .party-card-stat.is-gold { color: var(--px-gold); }

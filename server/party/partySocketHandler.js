@@ -187,6 +187,7 @@ function handlePartySocketConnection(socket, io) {
     action('party:character', (game, id, p) => game.setCharacter(id, String(p.characterId || '')));
     action('party:addBot', (game, id) => game.addBot(id));
     action('party:removeBot', (game, id, p) => game.removeBot(id, String(p.playerId || '')));
+    action('party:botLevel', (game, id, p) => game.setBotLevel(id, String(p.playerId || ''), String(p.level || '')));
     action('party:settings', (game, id, p) => game.updateSettings(id, p));
     action('party:start', (game, id) => game.start(id));
     // Actions de précision : l'heure vue par le joueur (p.at) compte, dans la limite de sa latence

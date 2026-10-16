@@ -12,7 +12,10 @@ const MAX = 4;
 export const SEATS = [[755, 1008], [1000, 1008], [1245, 1008], [1490, 1008]];
 
 // Salon : les joueurs montent sur scène, choix du personnage, réglages de l'hôte
-export default function PartyLobby({ board, state, myId, t, language, onCharacter, onAddBot, onRemoveBot, onSettings, onStart }) {
+const BOT_LEVELS = ['beginner', 'normal', 'pro'];
+const nextLevel = (level) => BOT_LEVELS[(BOT_LEVELS.indexOf(level || 'normal') + 1) % BOT_LEVELS.length];
+
+export default function PartyLobby({ board, state, myId, t, language, onCharacter, onAddBot, onRemoveBot, onBotLevel, onSettings, onStart }) {
     const [copied, setCopied] = useState(false);
     const [palette, setPaletteState] = useState(getPalette);
     const togglePalette = () => {
@@ -54,7 +57,7 @@ export default function PartyLobby({ board, state, myId, t, language, onCharacte
         const parts = [];
         if (p.id === myId) parts.push(t('lobby.you'));
         if (p.id === state.hostId) parts.push(t('lobby.host'));
-        if (p.isBot) parts.push(t('lobby.bot'));
+        if (p.isBot) parts.push(`${t('lobby.bot')} ${t(`lobby.botLevel.${p.botLevel || 'normal'}`)}`);
         if (!p.isBot && !p.connected) parts.push(t('lobby.offline'));
         return parts.join(' · ');
     };
@@ -93,7 +96,19 @@ export default function PartyLobby({ board, state, myId, t, language, onCharacte
                             <p className="party-seat-name">{p ? p.name : t('lobby.empty')}</p>
                             <p className={`party-seat-state ${p && (p.isBot || p.connected) ? 'is-ready' : ''}`}>{p ? seatState(p) : '\u00a0'}</p>
                             {isHost && !p && <Key size="sm" onClick={onAddBot}>{t('lobby.addBot')}</Key>}
-                            {isHost && p && p.isBot && <Key size="sm" onClick={() => onRemoveBot(p.id)}>{t('lobby.removeBot')}</Key>}
+                            {isHost && p && p.isBot && (
+                                <div className="flex flex-wrap justify-center gap-1.5">
+                                    <Key
+                                        size="sm"
+                                        onClick={() => onBotLevel(p.id, nextLevel(p.botLevel))}
+                                        aria-label={`${t('lobby.botLevelTitle')} : ${t(`lobby.botLevel.${p.botLevel || 'normal'}`)}`}
+                                        title={t('lobby.botLevelInfo')}
+                                    >
+                                        {t(`lobby.botLevel.${p.botLevel || 'normal'}`)} ▸
+                                    </Key>
+                                    <Key size="sm" onClick={() => onRemoveBot(p.id)}>{t('lobby.removeBot')}</Key>
+                                </div>
+                            )}
                         </div>
                     ))}
                 </div>
