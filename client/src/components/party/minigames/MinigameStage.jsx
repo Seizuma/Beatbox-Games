@@ -16,6 +16,7 @@ import Tug from './Tug';
 import Loop2 from './Loop2';
 import Bottle2 from './Bottle2';
 import Vibe from './Vibe';
+import Practice from './Practice';
 
 const GAMES = { degaine: Degaine, gorgee: Gorgee, micdrop: MicDrop, cale: Cale, roulement: Roulement, echo: Echo, crowd: Crowd, ledrop: LeDrop, tug: Tug, loop2: Loop2, bottle2: Bottle2, vibe: Vibe };
 const TEAM_COLOR = { blue: '#3F7EEA', red: '#E2402F' };
@@ -139,6 +140,12 @@ export default function MinigameStage({ state, myId, t, clockOffset, onReady, on
                         <Section title={t('minigame.controls')}>
                             <p className="hw-text">{t(`minigame.${mg.id}.control`)}</p>
                         </Section>
+                        {playing && (
+                            <Section title={t('practice.title')}>
+                                <p className="hw-text mb-2 text-sm text-[color:var(--hw-silk-dim)]">{t('practice.hint')}</p>
+                                <Practice id={mg.id} t={t} />
+                            </Section>
+                        )}
                     </div>
                     <div className="flex flex-col items-center justify-center gap-3">
                         <TeamsBanner mg={mg} players={state.players} myId={myId} t={t} />

@@ -9,6 +9,7 @@ import { getPalette, setPalette } from './board/world';
 import { isMusicOn, jingle, setMusicFinale, setMusicOn, sfx, startMusic, stopMusic, unlockAudio } from './partySfx';
 import { CoinIcon, ItemIcon, MicIcon } from './PartyIcons';
 import EventPanels, { dialogOpen, useEventKeys } from './EventPanels';
+import { CoachTip, setTipsEnabled, tipsEnabled, useCoach } from './Coach';
 
 // L'écran de jeu, dans la famille « Pixel arcade » (planches 06-B à 14-B) :
 // - le plateau occupe tout l'écran, avec sa caméra ;
@@ -501,7 +502,7 @@ function useReactionSounds(reactions) {
 // Menu pause (07-B)
 // ---------------------------------------------------------------------------
 
-function PauseMenu({ t, onClose, mapMode, onMap, musicOn, onMusic, botFast, isHost, onBots }) {
+function PauseMenu({ t, onClose, mapMode, onMap, musicOn, onMusic, botFast, isHost, onBots, tipsOn, onTips }) {
     const [palette, setPaletteState] = useState(getPalette);
     const onOff = (on) => (on ? t('screen.on') : t('screen.off'));
     return (
@@ -513,6 +514,7 @@ function PauseMenu({ t, onClose, mapMode, onMap, musicOn, onMusic, botFast, isHo
                         { id: 'resume', label: t('screen.resume'), onSelect: onClose },
                         { id: 'map', label: mapMode ? t('screen.mapBack') : t('screen.map'), onSelect: () => { onMap(); onClose(); } },
                         { id: 'music', label: t('screen.music'), price: onOff(musicOn), onSelect: onMusic },
+                        { id: 'tips', label: t('screen.tips'), price: onOff(tipsOn), onSelect: onTips },
                         { id: 'bots', label: t('screen.botFast'), info: isHost ? t('lobby.botSpeedInfo') : t('screen.hostOnly'), price: onOff(botFast), disabled: !isHost, onSelect: onBots },
                         {
                             id: 'palette',
@@ -658,6 +660,8 @@ export default function PartyPlay({ state, myId, t, queue, clockOffset, actions,
     const dialog = dialogOpen(state, myId);
     useEventKeys(stateRef, myId, actions);
     useReactionSounds(reactions);
+    const [tipsOn, setTipsOn] = useState(tipsEnabled);
+    const [tip, dismissTip] = useCoach(state, myId, tipsOn);
     useEffect(() => { if (state.step !== 'roll') setBagOpen(false); }, [state.step]);
 
     const show = useCallback((next, ms = 2200) => {
@@ -728,7 +732,7 @@ export default function PartyPlay({ state, myId, t, queue, clockOffset, actions,
             const hud = root.querySelector('.party-hud');
             const top = hud ? hud.getBoundingClientRect().bottom - box.top : 0;
             let bottom = 24;
-            root.querySelectorAll('.party-actions, .party-dialog').forEach((el) => {
+            root.querySelectorAll('.party-actions, .party-dialog-layer .party-dialog').forEach((el) => {
                 const r = el.getBoundingClientRect();
                 if (r.height > 8) bottom = Math.max(bottom, box.bottom - r.top);
             });
@@ -736,7 +740,7 @@ export default function PartyPlay({ state, myId, t, queue, clockOffset, actions,
         };
         const observer = new ResizeObserver(measure);
         observer.observe(root);
-        root.querySelectorAll('.party-hud, .party-actions, .party-dialog').forEach((el) => observer.observe(el));
+        root.querySelectorAll('.party-hud, .party-actions, .party-dialog-layer .party-dialog').forEach((el) => observer.observe(el));
         measure();
         return () => observer.disconnect();
     }, [state.phase, compact, state.step, dialog]);
@@ -817,6 +821,8 @@ export default function PartyPlay({ state, myId, t, queue, clockOffset, actions,
             botFast={botFast}
             isHost={state.hostId === myId}
             onBots={() => actions.settings({ botSpeed: botFast ? 'normal' : 'fast' })}
+            tipsOn={tipsOn}
+            onTips={() => { setTipsEnabled(!tipsOn); setTipsOn(!tipsOn); }}
         />
     );
 
@@ -852,6 +858,7 @@ export default function PartyPlay({ state, myId, t, queue, clockOffset, actions,
                 </Key>
             </div>
             {coins.map((c) => <Coin key={c.id} coin={c} />)}
+            {!dialog && <CoachTip tip={tip} t={t} top={chipTop + 46} onClose={dismissTip} />}
             <Ribbon banner={banner} compact={compact} />
             <FinaleWheel state={state} t={t} clockOffset={clockOffset} />
             <EventPanels state={state} myId={myId} t={t} clockOffset={clockOffset} actions={actions} />
