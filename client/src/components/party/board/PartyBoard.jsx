@@ -46,6 +46,19 @@ export function choiceDirections(state) {
 
 const DIR_VEC = { right: [1, 0], left: [-1, 0], up: [0, -1], down: [0, 1] };
 
+// Ressort amorti critique (SmoothDamp) : la caméra accélère puis freine en douceur,
+// sans à-coup au départ ni rebond à l'arrivée, quel que soit le nombre d'images par seconde
+function smoothDamp(current, target, velocity, smoothTime, dt) {
+    const omega = 2 / smoothTime;
+    const x = omega * dt;
+    const decay = 1 / (1 + x + 0.48 * x * x + 0.235 * x * x * x);
+    const change = current - target;
+    const temp = (velocity + omega * change) * dt;
+    return [target + (change + temp) * decay, (velocity - omega * temp) * decay];
+}
+
+const ease = (k) => k * k * (3 - 2 * k);
+
 export default function PartyBoard({ state, queue, myId, mapMode = false, onEvent, onChoose, insets = null }) {
     const wrapRef = useRef(null);
     const pixelRef = useRef(null);
@@ -65,7 +78,7 @@ export default function PartyBoard({ state, queue, myId, mapMode = false, onEven
         rollTotals: {},
         lastSeq: 0,
         prevSpaces: null,
-        cam: { x: WORLD_W / 2, y: WORLD_H / 2, s: 1, ready: false },
+        cam: { x: WORLD_W / 2, y: WORLD_H / 2, s: 1, vx: 0, vy: 0, vs: 0, ready: false },
         focusStarUntil: 0,
         focusStarDelay: 0,
         cheerUntil: 0,
@@ -210,7 +223,9 @@ export default function PartyBoard({ state, queue, myId, mapMode = false, onEven
                     const fromId = hop === 0 ? a.from : a.path[hop - 1];
                     const p0 = s.board.spaces[fromId];
                     const p1 = s.board.spaces[a.path[hop]];
-                    pos = [p0.x + (p1.x - p0.x) * k, p0.y + (p1.y - p0.y) * k];
+                    // Élan au départ, freinage à l'atterrissage
+                    const ek = ease(k);
+                    pos = [p0.x + (p1.x - p0.x) * ek, p0.y + (p1.y - p0.y) * ek];
                     const dist = Math.hypot(p1.x - p0.x, p1.y - p0.y);
                     lift = Math.sin(k * Math.PI) * (12 + dist * 0.14);
                     if (Math.abs(p1.x - p0.x) > 6) L.facing[p.id] = p1.x > p0.x ? 1 : -1;
@@ -268,7 +283,7 @@ export default function PartyBoard({ state, queue, myId, mapMode = false, onEven
             else if (s.step === 'choice' && s.choice) {
                 const j = s.board.spaces[s.choice.at];
                 target = { x: j.x, y: j.y - 24, s: follow };
-            } else if (activeActor) target = { x: activeActor.pos[0], y: activeActor.pos[1] - 44 - activeActor.lift * 0.3, s: follow };
+            } else if (activeActor) target = { x: activeActor.pos[0], y: activeActor.pos[1] - 44, s: follow };
             else if (s.phase === 'order') {
                 const start = s.board.spaces[s.board.start];
                 target = { x: start.x, y: start.y - 50, s: Math.max(fit, follow - (cw < 640 ? 0 : 1)) };
@@ -277,12 +292,19 @@ export default function PartyBoard({ state, queue, myId, mapMode = false, onEven
             const ins = props.current.insets;
             if (ins) target.y += ((ins.bottom || 0) - (ins.top || 0)) / 2 / target.s;
             const cam = L.cam;
-            if (!cam.ready) Object.assign(cam, target, { ready: true });
-            const k = 1 - Math.exp(-dt * 3.4);
-            cam.s = Math.exp(Math.log(cam.s) + (Math.log(target.s) - Math.log(cam.s)) * k);
-            if (Math.abs(cam.s - target.s) < 0.004) cam.s = target.s;
-            cam.x += (target.x - cam.x) * k;
-            cam.y += (target.y - cam.y) * k;
+            if (!cam.ready) Object.assign(cam, target, { vx: 0, vy: 0, vs: 0, ready: true });
+            // Grand déplacement : la caméra prend de la hauteur pendant le trajet (mouvement de grue),
+            // puis replonge sur la cible
+            const travel = Math.hypot(target.x - cam.x, target.y - cam.y);
+            const crane = 1 + Math.min(0.7, Math.max(0, travel - 120) / 700);
+            const wantLog = Math.log(Math.max(fit, target.s / crane));
+            let logS = Math.log(cam.s);
+            [logS, cam.vs] = smoothDamp(logS, wantLog, cam.vs, 0.55, dt);
+            [cam.x, cam.vx] = smoothDamp(cam.x, target.x, cam.vx, 0.42, dt);
+            [cam.y, cam.vy] = smoothDamp(cam.y, target.y, cam.vy, 0.42, dt);
+            cam.s = Math.exp(logS);
+            // Arrivée : on se cale sur le zoom entier pour des pixels parfaitement nets
+            if (Math.abs(cam.s - target.s) < 0.003 && Math.abs(cam.vs) < 0.01) { cam.s = target.s; cam.vs = 0; }
             const sc = cam.s;
             const halfW = cw / 2 / sc;
             const halfH = ch / 2 / sc;
@@ -294,11 +316,16 @@ export default function PartyBoard({ state, queue, myId, mapMode = false, onEven
             const viewTop = cy - halfH + (shake ? Math.cos(nowMs * 0.11) * shake * 0.6 : 0);
             const ox = Math.floor(viewLeft);
             const oy = Math.floor(viewTop);
-            const vw = Math.ceil((cw / sc + 2) / 16) * 16;
-            const vh = Math.ceil((ch / sc + 2) / 16) * 16;
+            // Le canvas ne fait que grandir pendant un zoom : le réallouer à chaque image fait saccader
+            const needW = Math.ceil((cw / sc + 2) / 64) * 64;
+            const needH = Math.ceil((ch / sc + 2) / 64) * 64;
+            const vw = needW > pixel.width || needW < pixel.width * 0.5 ? needW : pixel.width;
+            const vh = needH > pixel.height || needH < pixel.height * 0.5 ? needH : pixel.height;
             sizeCanvas(pixel, vw, vh);
-            pixel.style.transform = `translate(${((ox - viewLeft) * sc).toFixed(2)}px, ${((oy - viewTop) * sc).toFixed(2)}px) scale(${sc.toFixed(4)})`;
-            pixel.style.imageRendering = sc < 1.6 ? 'auto' : 'pixelated';
+            // Décalage au sous-pixel de l'écran : le décor glisse en continu, les pixels restent carrés
+            pixel.style.transform = `translate3d(${((ox - viewLeft) * sc).toFixed(3)}px, ${((oy - viewTop) * sc).toFixed(3)}px, 0) scale(${sc.toFixed(5)})`;
+            const smoothPx = sc < 1;
+            if (L.smoothPx !== smoothPx) { pixel.style.imageRendering = smoothPx ? 'auto' : 'pixelated'; L.smoothPx = smoothPx; }
             L.view = { viewLeft, viewTop, s: sc };
 
             // ---------------- Canvas pixel ----------------
