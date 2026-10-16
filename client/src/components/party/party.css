@@ -803,6 +803,84 @@
     min-height: 8rem;
 }
 
+/* Mini-jeux : pads de son, pistes du Drop, corde, équipes */
+.party-sound-pads { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 0.6rem; }
+.party-sound-pad {
+    position: relative;
+    aspect-ratio: 1;
+    border-radius: 50%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 0.15rem;
+    background: radial-gradient(circle at 42% 35%, #3a3a41 0%, #24242a 55%, #18181c 100%);
+    box-shadow: 0 0 0 4px #0a0a0b, 0 0 0 6px #2a2a2f, 0 8px 18px rgba(0, 0, 0, 0.5);
+    color: var(--hw-silk);
+    touch-action: manipulation;
+    user-select: none;
+    -webkit-user-select: none;
+    transition: transform 0.05s;
+}
+.party-sound-pad-ring {
+    position: absolute;
+    inset: 6%;
+    border-radius: 50%;
+    background: repeating-conic-gradient(color-mix(in srgb, var(--c) 45%, #111) 0 18deg, #0e0e10 18deg 22.5deg);
+    -webkit-mask: radial-gradient(circle, transparent 74%, #000 75%);
+    mask: radial-gradient(circle, transparent 74%, #000 75%);
+}
+.party-sound-pad.is-lit .party-sound-pad-ring,
+.party-sound-pad.is-picked .party-sound-pad-ring { background: repeating-conic-gradient(var(--c) 0 18deg, #0e0e10 18deg 22.5deg); }
+.party-sound-pad.is-lit { box-shadow: 0 0 0 4px #0a0a0b, 0 0 0 6px var(--c), 0 0 28px color-mix(in srgb, var(--c) 60%, transparent); }
+.party-sound-pad:active:not(:disabled) { transform: translateY(2px); }
+.party-sound-pad:disabled { cursor: default; }
+.party-sound-pad:disabled:not(.is-lit):not(.is-picked) { opacity: 0.55; }
+.party-sound-pad-label { position: relative; font-family: var(--hw-label); font-weight: 800; font-size: clamp(1rem, 4vw, 1.5rem); color: var(--c); text-transform: uppercase; }
+.party-sound-pad-key { position: relative; font-family: var(--hw-label); font-weight: 700; font-size: 0.65rem; letter-spacing: 0.12em; color: var(--hw-silk-dim); }
+.party-sound-pads.is-compact { gap: 0.4rem; }
+
+.party-track {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.35rem;
+    padding: 0.6rem 0.2rem;
+    min-height: 7rem;
+    border-radius: 10px;
+    background: linear-gradient(180deg, #26262b 0%, #18181b 100%);
+    box-shadow: inset 0 0 0 2px #2c2c31, 0 6px 14px rgba(0, 0, 0, 0.45);
+    color: var(--hw-silk);
+    touch-action: manipulation;
+}
+.party-track.is-chosen { box-shadow: inset 0 0 0 3px var(--hw-amber), 0 6px 14px rgba(0, 0, 0, 0.45); }
+.party-track.is-dropped { background: linear-gradient(180deg, #5a1712 0%, #2a0a08 100%); }
+.party-track-num { font-family: var(--hw-label); font-weight: 800; font-size: 1.6rem; }
+.party-track-drop { font-family: var(--hw-label); font-weight: 800; color: #ff6a5a; letter-spacing: 0.1em; }
+
+.party-rope { position: relative; flex: 1; height: 2.4rem; }
+.party-rope-line { position: absolute; left: 0; right: 0; top: 50%; height: 6px; margin-top: -3px; border-radius: 3px; background: repeating-linear-gradient(90deg, #c8a46a 0 8px, #8a6a3a 8px 12px); }
+.party-rope-center { position: absolute; left: 50%; top: 0; bottom: 0; width: 2px; background: rgba(242, 240, 234, 0.4); }
+.party-rope-mark { position: absolute; top: 50%; width: 1.1rem; height: 1.6rem; margin: -0.8rem 0 0 -0.55rem; border-radius: 3px; background: var(--hw-red); box-shadow: 0 0 0 2px #0a0a0b; transition: left 0.18s linear; }
+
+.party-teams { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 0.8rem; }
+.party-teams-vs { font-size: 2.4rem; color: var(--hw-silk-dim); }
+.party-team {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.6rem;
+    padding: 0.8rem 1rem 0.9rem;
+    border-radius: 12px;
+    border-top: 4px solid var(--team);
+    background: linear-gradient(180deg, color-mix(in srgb, var(--team) 18%, #1c1c20) 0%, #17171a 100%);
+}
+.party-vibe-team { display: flex; flex-direction: column; align-items: center; gap: 0.4rem; padding: 0.6rem; border-radius: 10px; background: #1b1b1f; }
+.party-vibe-team.is-mine { box-shadow: inset 0 0 0 2px var(--hw-amber); }
+.party-lastcolor { width: 0.7rem; height: 0.7rem; border-radius: 2px; background: var(--lc); box-shadow: 0 0 0 1px #0a0a0b; flex-shrink: 0; }
+.party-event.is-duel { --ev: #f08a24; }
+
 /* Toasts */
 .hw-toast {
     position: fixed;

@@ -78,11 +78,11 @@ function buildSetup() {
         size: { w: 2000, h: 1800 },
         device: { x: DEVICE.x, y: DEVICE.y, w: Math.round(1100 * DEVICE.scale), d: Math.round(580 * DEVICE.scale) },
         start: 0,
-        starPrice: 15,
+        starPrice: 20,
         // Cases où le Micro d'or peut apparaître (jamais sur un lieu de passage)
         starSpots: [2, 8, 14, 17, 20, 23],
         // La loge du voleur de flow, au bord de la scène, à côté de la case 24
-        thief: { spaceId: 24, hypeCost: 5, micCost: 35, x: at(-58, 292)[0], y: at(-58, 292)[1] },
+        thief: { spaceId: 24, hypeCost: 5, micCost: 45, x: at(-58, 292)[0], y: at(-58, 292)[1] },
         // Le stand de merch, de l'autre côté, à côté de la case 12
         shop: { spaceId: 12, x: at(1158, 292)[0], y: at(1158, 292)[1] },
         defaultTurns: 10,

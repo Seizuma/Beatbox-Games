@@ -172,6 +172,7 @@ function handlePartySocketConnection(socket, io) {
     action('party:star', (game, id, p) => game.resolveStar(id, Boolean(p.buy)));
     action('party:ready', (game, id) => game.setReady(id));
     action('party:mgResult', (game, id, p) => game.submitMinigame(id, p.raw));
+    action('party:mgInput', (game, id, p) => game.minigameInput(id, p.data));
     action('party:rematch', (game, id) => game.rematch(id));
 
     socket.on('disconnect', () => {

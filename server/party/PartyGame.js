@@ -12,13 +12,23 @@
 
 const crypto = require('crypto');
 const { getBoard } = require('./boards');
-const { MINIGAMES, MINIGAME_IDS } = require('./minigames');
+const { MINIGAMES, minigamesFor } = require('./minigames');
 
 const CHARACTER_IDS = ['nova', 'grizz', 'kick', 'lila', 'robox', 'mamie', 'flex', 'mimi'];
 const BOT_NAMES = ['Bot Tempo', 'Bot Snare', 'Bot Kick', 'Bot Loop', 'Bot Hi-Hat', 'Bot Bass'];
 const MAX_PLAYERS = 4;
 const TURN_OPTIONS = [5, 10, 15, 20];
-const MINIGAME_REWARDS = [10, 5, 2, 0];
+// Barème des mini-jeux : seul le podium rapporte vraiment, pour que chacun joue la gagne
+//   ffa   10 au 1er, 3 au 2e
+//   solo  le solo d'un un-contre-trois qui gagne
+//   crowd chaque joueur de la foule qui gagne
+//   pair  chaque joueur de l'équipe gagnante d'un deux-contre-deux
+const REWARDS = { ffa: [10, 3, 0, 0], solo: 15, crowd: 5, pair: 8 };
+// Mini-jeux récents écartés du tirage, par type (comme Mario Party 4 : 8 pour les jeux à 4)
+const RECENT_EXCLUDED = { ffa: 8, '1v3': 3, '2v2': 3, duel: 3 };
+const DUEL_STAKE = 10;
+// Case bleue : +4 (au lieu de 3) pour que le plateau pèse autant que les mini-jeux
+const BLUE_GAIN = 4;
 const START_HYPE = 10;
 // Les dés : le pad REC/PLAY (1 à 10) est le dé de base ; les deux autres sont des objets (ITEMS).
 //   block  bloc-boucle « double boucle » : deux boucles superposées, de 2 à 20
@@ -118,6 +128,7 @@ const TIMING = {
     reel: 9000,
     freestyleShow: 3400,
     battleIntro: 3400,
+    duelIntro: 3000,
     battleShow: 0,
     shop: 15000,
     item: 1800,
@@ -178,7 +189,8 @@ class PartyGame {
         this.choice = null;
         this.starOffer = null;
         this.minigame = null;
-        this.minigameBag = [];
+        this.recentMinigames = {};
+        this.duel = null;
         this.finalRanking = null;
         this.tiebreak = null;
         this.wheel = null;
@@ -347,6 +359,7 @@ class PartyGame {
                 space: p.space,
                 ready: p.ready,
                 items: p.items,
+                lastColor: p.lastColor || null,
                 minigameWins: p.stats.minigameWins,
             })),
             starSpace: this.starSpace,
@@ -364,6 +377,7 @@ class PartyGame {
                 reels: this.freestyle.reels.map((r) => ({ slots: r.slots, spinAt: r.spinAt, period: r.period, index: r.index })),
             },
             battle: this.battle,
+            duel: this.duel,
             shop: this.shop,
             traps: this.traps,
             itemUsed: this.itemUsed,
@@ -383,6 +397,13 @@ class PartyGame {
                 results: this.minigame.results,
                 context: this.minigame.context,
                 pot: this.minigame.pot,
+                kind: this.minigame.kind,
+                teams: this.minigame.teams,
+                solo: this.minigame.solo,
+                colors: this.minigame.colors,
+                participants: this.minigame.participants,
+                live: this.minigame.live,
+                outcome: this.minigame.outcome,
             },
             finalRanking: this.finalRanking,
             tiebreak: this.tiebreak || null,
@@ -996,7 +1017,9 @@ class PartyGame {
         // Gros pad de piste : le joueur y enregistre sa boucle (les autres lui laissent un pourboire en passant)
         const recorded = space.track ? space.track : null;
         if (recorded) this.trackOwners[recorded] = player.id;
-        if (type === 'blue' || type === 'start') delta = 3 * mult;
+        // Couleur retenue pour le mini-jeu (vert : tirée au sort au moment du mini-jeu)
+        player.lastColor = type === 'blue' || type === 'start' ? 'blue' : type === 'red' ? 'red' : 'green';
+        if (type === 'blue' || type === 'start') delta = BLUE_GAIN * mult;
         if (type === 'red') {
             delta = -3 * mult;
             player.stats.redLandings += 1;
@@ -1019,6 +1042,8 @@ class PartyGame {
         if (type === 'cut') return this.later(token, this.ms(900), () => this.spinCut(player));
         if (type === 'freestyle') return this.later(token, this.ms(900), () => this.startFreestyle(player));
         if (type === 'battle') return this.later(token, this.ms(900), () => this.startBattle(player));
+        const rival = this.duelTarget(player);
+        if (rival) return this.later(token, this.ms(1200), () => this.startDuel(player, rival));
         return this.later(token, this.ms(TIMING.land), () => this.nextPlayer());
     }
 
@@ -1350,21 +1375,68 @@ class PartyGame {
     // Mini-jeux
     // -----------------------------------------------------------------------
 
-    pickMinigame() {
-        if (!this.minigameBag.length) {
-            this.minigameBag = [...MINIGAME_IDS].sort(() => this.random() - 0.5);
-        }
-        return this.minigameBag.shift();
+    // Type du mini-jeu de fin de manche, d'après la couleur de la dernière case de chacun
+    // (comme Mario Party : 4 identiques = chacun pour soi, 3 + 1 = un contre trois, 2 + 2)
+    roundTeams() {
+        this.players.forEach((p) => {
+            if (p.lastColor !== 'blue' && p.lastColor !== 'red') p.lastColor = this.random() < 0.5 ? 'blue' : 'red';
+        });
+        const blue = this.players.filter((p) => p.lastColor === 'blue').map((p) => p.id);
+        const red = this.players.filter((p) => p.lastColor === 'red').map((p) => p.id);
+        if (this.players.length < 4 || !blue.length || !red.length) return { kind: 'ffa', teams: null, solo: null };
+        if (blue.length === 2) return { kind: '2v2', teams: { a: blue, b: red }, solo: null, colors: { a: 'blue', b: 'red' } };
+        const soloSide = blue.length === 1 ? blue : red;
+        const crowd = blue.length === 1 ? red : blue;
+        return { kind: '1v3', teams: { a: crowd, b: soloSide }, solo: soloSide[0], colors: { a: blue.length === 1 ? 'red' : 'blue', b: blue.length === 1 ? 'blue' : 'red' } };
     }
 
-    startMinigame({ context = 'round', pot = 0 } = {}) {
-        const id = this.pickMinigame();
+    // Tirage d'un mini-jeu du bon type, en écartant ceux joués récemment
+    pickMinigame(kind) {
+        const pool = minigamesFor(kind);
+        const recent = this.recentMinigames[kind] || [];
+        const keep = Math.min(RECENT_EXCLUDED[kind] || 2, pool.length - 1);
+        const exclude = recent.slice(-keep);
+        const options = pool.filter((id) => !exclude.includes(id));
+        const id = options[this.randInt(0, options.length - 1)];
+        this.recentMinigames[kind] = [...recent, id].slice(-8);
+        return id;
+    }
+
+    // Tests : PARTY_FORCE_MG=crowd,ledrop,… impose les mini-jeux de fin de manche, dans l'ordre
+    forcedSetup() {
+        const list = String(process.env.PARTY_FORCE_MG || '').split(',').filter((id) => MINIGAMES[id]);
+        if (!list.length || process.env.NODE_ENV === 'production') return null;
+        const id = list[(this.turn - 1) % list.length];
+        const kind = MINIGAMES[id].kinds[0];
+        const ids = [...this.players].sort((a, b) => a.seat - b.seat).map((p) => p.id);
+        if (kind === '1v3') {
+            const solo = ids[(this.turn - 1) % ids.length];
+            return { id, setup: { kind, teams: { a: ids.filter((x) => x !== solo), b: [solo] }, solo, colors: { a: 'red', b: 'blue' } } };
+        }
+        if (kind === '2v2') return { id, setup: { kind, teams: { a: [ids[0], ids[2]], b: [ids[1], ids[3]] }, solo: null, colors: { a: 'blue', b: 'red' } } };
+        return { id, setup: { kind, teams: null, solo: null } };
+    }
+
+    startMinigame({ context = 'round', pot = 0, players = null } = {}) {
+        let setup;
+        const forced = context === 'round' ? this.forcedSetup() : null;
+        if (forced) setup = forced.setup;
+        else if (context === 'battle') setup = { kind: 'ffa', teams: null, solo: null };
+        else if (context === 'duel') setup = { kind: 'duel', teams: null, solo: null };
+        else setup = this.roundTeams();
+        const participants = players || this.players.map((p) => p.id);
+        const id = forced ? forced.id : this.pickMinigame(setup.kind === 'duel' ? 'duel' : setup.kind);
         const seed = this.randInt(1, 2 ** 31 - 1);
-        const params = MINIGAMES[id].setup(seed, this.players.map((p) => p.id));
-        this.minigame = { id, seed, params, raw: {}, results: null, startsAt: null, endsAt: null, context, pot };
-        this.players.forEach((p) => { p.ready = p.isBot; });
+        const ctx = { kind: setup.kind, teams: setup.teams, solo: setup.solo, participants };
+        const params = MINIGAMES[id].setup(seed, participants, ctx);
+        this.minigame = {
+            id, seed, params, raw: {}, results: null, startsAt: null, endsAt: null, context, pot,
+            kind: setup.kind, teams: setup.teams, solo: setup.solo, colors: setup.colors || null, participants,
+            live: {}, secret: {}, outcome: null,
+        };
+        this.players.forEach((p) => { p.ready = p.isBot || !participants.includes(p.id); });
         const token = this.setStep('minigame', 'intro', this.ms(TIMING.mgIntro));
-        this.publish({ type: 'minigame', id });
+        this.publish({ type: 'minigame', id, kind: setup.kind, context });
         this.later(token, this.ms(TIMING.mgIntro), () => this.playMinigame());
     }
 
@@ -1378,30 +1450,85 @@ class PartyGame {
         return { ok: true };
     }
 
+    minigameCtx(mg) {
+        return { kind: mg.kind, teams: mg.teams, solo: mg.solo, participants: mg.participants, bots: mg.participants.filter((id) => (this.player(id) || {}).isBot) };
+    }
+
     playMinigame() {
         if (this.phase !== 'minigame' || this.step !== 'intro') return;
         const mg = this.minigame;
         const def = MINIGAMES[mg.id];
-        mg.startsAt = this.now() + this.ms(TIMING.mgCountdown);
+        const ctx = this.minigameCtx(mg);
+        const scale = this.minigameScale;
+        const countdown = this.ms(TIMING.mgCountdown);
+        mg.startsAt = this.now() + countdown;
         // La durée du jeu n'est jamais accélérée : le client affiche les mêmes repères (signal, tempo)
-        mg.endsAt = mg.startsAt + Math.round(mg.params.duration * this.minigameScale);
+        mg.endsAt = mg.startsAt + Math.round(mg.params.duration * scale);
         const token = this.setStep('minigame', 'play', mg.endsAt - this.now() + this.ms(TIMING.mgGrace));
+        if (def.init) def.init(mg, ctx);
         this.publish({ type: 'minigameStart', id: mg.id });
-        // Les bots jouent ; les joueurs absents ne rendent rien
-        this.players.filter((p) => p.isBot).forEach((bot) => {
-            const at = this.ms(TIMING.mgCountdown) + Math.round(this.random() * mg.params.duration * 0.9 * this.minigameScale);
-            this.later(token, at, () => this.submitMinigame(bot.id, def.bot(mg.params, this.random, bot.id)));
+        if (def.live) {
+            // Étapes à heure fixe (dévoilements), actions des bots en direct
+            (def.timeline ? def.timeline(mg.params) : []).forEach((step) => {
+                this.later(token, countdown + Math.round(step.at * scale), () => {
+                    if (def.onTime(mg, step.id, ctx, this.random)) this.publish();
+                });
+            });
+            (def.botPlan ? def.botPlan(mg, ctx, this.random) : []).forEach((action) => {
+                this.later(token, countdown + Math.round(action.at * scale), () => {
+                    if (action.ifAlive && mg.live.alive && !mg.live.alive.includes(action.playerId)) return;
+                    if (action.bottle) this.minigameInput(action.playerId, { holdMs: def.botPour(mg, ctx, action.playerId, this.random) }, true);
+                    else this.minigameInput(action.playerId, action.data, true);
+                });
+            });
+        }
+        // Les bots rendent leur résultat ; les joueurs absents ne rendent rien
+        ctx.bots.forEach((botId) => {
+            const span = mg.params.duration * 0.9;
+            const from = def.botRawFrom ? def.botRawFrom(mg.params) : 0;
+            const at = countdown + Math.round((from + this.random() * Math.max(200, span - from)) * scale);
+            this.later(token, at, () => {
+                const raw = def.bot(mg.params, this.random, botId, mg, ctx);
+                if (raw) this.submitMinigame(botId, raw);
+            });
         });
         this.later(token, mg.endsAt - this.now() + this.ms(TIMING.mgGrace), () => this.finishMinigame());
+    }
+
+    // Action pendant un mini-jeu en direct (motif, choix secret, frappes…)
+    minigameInput(playerId, data, fromBot = false) {
+        if (this.phase !== 'minigame' || this.step !== 'play') return { error: 'not_now' };
+        const mg = this.minigame;
+        const def = MINIGAMES[mg.id];
+        if (!def.live || !mg.participants.includes(playerId)) return { error: 'invalid' };
+        const elapsed = (this.now() - mg.startsAt) / this.minigameScale;
+        if (elapsed < -50 || elapsed > mg.params.duration + 200) return { error: 'not_now' };
+        if (!fromBot && (this.player(playerId) || {}).isBot) return { error: 'invalid' };
+        const ok = def.input(mg, playerId, data && typeof data === 'object' ? data : {}, this.minigameCtx(mg), elapsed);
+        if (!ok) return { error: 'invalid' };
+        // Publication groupée pour les actions très fréquentes (frappes)
+        if (def.throttle) {
+            if (!this.mgPublishPending) {
+                this.mgPublishPending = true;
+                this.schedule(() => { this.mgPublishPending = false; if (this.minigame === mg) this.publish(); }, def.throttle);
+            }
+        } else this.publish();
+        return { ok: true };
     }
 
     submitMinigame(playerId, raw) {
         if (this.phase !== 'minigame' || this.step !== 'play') return { error: 'not_now' };
         const mg = this.minigame;
-        if (!this.player(playerId) || mg.raw[playerId] !== undefined) return { error: 'already_sent' };
+        if (!this.player(playerId) || !mg.participants.includes(playerId)) return { error: 'invalid' };
+        if (mg.raw[playerId] !== undefined) return { error: 'already_sent' };
         mg.raw[playerId] = raw && typeof raw === 'object' ? raw : null;
         this.publish();
-        if (this.players.every((p) => mg.raw[p.id] !== undefined || (!p.isBot && !p.connected))) {
+        // Fin anticipée quand tout le monde a rendu (sauf pour les mini-jeux en direct, qui suivent leur minuterie)
+        const everyone = mg.participants.every((id) => {
+            const p = this.player(id);
+            return mg.raw[id] !== undefined || !p || (!p.isBot && !p.connected);
+        });
+        if (everyone && !MINIGAMES[mg.id].live) {
             const token = this.token;
             this.later(token, this.ms(600), () => this.finishMinigame());
         }
@@ -1412,37 +1539,79 @@ class PartyGame {
         if (this.phase !== 'minigame' || this.step !== 'play') return;
         const mg = this.minigame;
         const def = MINIGAMES[mg.id];
-        const scored = this.players.map((p) => ({
-            player: p,
-            score: def.score(mg.params, mg.raw[p.id], p.id),
-            display: def.display(mg.params, mg.raw[p.id], p.id),
-        })).sort((a, b) => b.score - a.score);
-        // Classement avec ex aequo : même score, même rang, même gain
-        let rank = 0;
-        const ranked = scored.map((entry, index) => {
-            if (index === 0 || entry.score !== scored[index - 1].score) rank = index;
-            return { entry, rank: rank + 1, played: entry.score > -1e8 };
-        });
-        const battle = mg.context === 'battle' ? this.battlePayout(ranked.map((r) => ({ playerId: r.entry.player.id, rank: r.rank, played: r.played })), mg.pot) : null;
-        mg.results = ranked.map(({ entry, rank: place, played }) => {
-            const reward = battle ? battle[entry.player.id] || 0 : played ? MINIGAME_REWARDS[place - 1] : 0;
-            this.addHype(entry.player, reward);
-            if (place === 1 && played) entry.player.stats.minigameWins += 1;
-            return { playerId: entry.player.id, rank: place, reward, display: entry.display };
-        });
+        const ctx = this.minigameCtx(mg);
+        const players = mg.participants.map((id) => this.player(id)).filter(Boolean);
+        if (mg.teams && def.result) {
+            // Équipes : le camp au plus grand score gagne, l'égalité ne rapporte rien
+            const res = def.result(mg, ctx);
+            const winner = res.a > res.b ? 'a' : res.b > res.a ? 'b' : null;
+            mg.outcome = { winner, a: res.a, b: res.b };
+            mg.results = players.map((p) => {
+                const side = mg.teams.a.includes(p.id) ? 'a' : 'b';
+                const won = winner === side;
+                let reward = 0;
+                if (won) reward = mg.kind === '1v3' ? (side === 'b' ? REWARDS.solo : REWARDS.crowd) : REWARDS.pair;
+                this.addHype(p, reward);
+                if (won) p.stats.minigameWins += 1;
+                return { playerId: p.id, rank: won ? 1 : 2, reward, display: (res.display || {})[p.id] || { kind: 'none' }, side };
+            }).sort((a, b) => a.rank - b.rank);
+        } else {
+            const scored = players.map((p) => ({
+                player: p,
+                score: def.score(mg.params, mg.raw[p.id], p.id),
+                display: def.display(mg.params, mg.raw[p.id], p.id),
+            })).sort((a, b) => b.score - a.score);
+            // Classement avec ex aequo : même score, même rang, même gain
+            let rank = 0;
+            const ranked = scored.map((entry, index) => {
+                if (index === 0 || entry.score !== scored[index - 1].score) rank = index;
+                return { entry, rank: rank + 1, played: entry.score > -1e8 };
+            });
+            const battle = mg.context === 'battle' ? this.battlePayout(ranked.map((r) => ({ playerId: r.entry.player.id, rank: r.rank, played: r.played })), mg.pot) : null;
+            // Duel : le gagnant prend la mise du perdant
+            const duel = mg.context === 'duel' && ranked.length === 2 && ranked[0].rank !== ranked[1].rank && ranked[0].played ? ranked : null;
+            const duelAmount = duel ? -this.addHype(duel[1].entry.player, -mg.pot) : 0;
+            mg.results = ranked.map(({ entry, rank: place, played }) => {
+                let reward = 0;
+                if (battle) reward = battle[entry.player.id] || 0;
+                else if (mg.context === 'duel') reward = duel && place === 1 ? duelAmount : duel ? -duelAmount : 0;
+                else reward = played ? REWARDS.ffa[place - 1] || 0 : 0;
+                if (reward > 0) this.addHype(entry.player, reward);
+                if (place === 1 && played) entry.player.stats.minigameWins += 1;
+                return { playerId: entry.player.id, rank: place, reward, display: entry.display };
+            });
+        }
         const token = this.setStep('minigame', 'results', this.ms(TIMING.mgResults));
-        this.publish({ type: 'minigameResults', id: mg.id, context: mg.context });
+        this.publish({ type: 'minigameResults', id: mg.id, context: mg.context, kind: mg.kind });
         this.later(token, this.ms(TIMING.mgResults), () => {
             this.minigame = null;
-            // Battle : retour au plateau, au joueur suivant
-            if (mg.context === 'battle') {
+            // Battle ou duel : retour au plateau, au joueur suivant
+            if (mg.context === 'battle' || mg.context === 'duel') {
                 this.battle = null;
+                this.duel = null;
                 this.nextPlayer();
                 return;
             }
             if (this.turn >= this.settings.turns) this.endGame();
             else this.beginTurn(this.turn + 1);
         });
+    }
+
+    // Duel (dans les 5 derniers tours) : s'arrêter sur la case d'un autre joueur lance un duel
+    duelTarget(player) {
+        if (this.turn <= this.settings.turns - 5 || player.space === this.board.start) return null;
+        const others = this.players.filter((p) => p.id !== player.id && p.space === player.space);
+        if (!others.length) return null;
+        const target = others[this.randInt(0, others.length - 1)];
+        return Math.min(DUEL_STAKE, player.hype, target.hype) > 0 ? target : null;
+    }
+
+    startDuel(player, target) {
+        const stake = Math.min(DUEL_STAKE, player.hype, target.hype);
+        this.duel = { playerId: player.id, targetId: target.id, stake };
+        const token = this.setStep('turn', 'duel', this.ms(TIMING.duelIntro));
+        this.publish({ type: 'duel', playerId: player.id, targetId: target.id, stake });
+        this.later(token, this.ms(TIMING.duelIntro), () => this.startMinigame({ context: 'duel', pot: stake, players: [player.id, target.id] }));
     }
 
     // -----------------------------------------------------------------------

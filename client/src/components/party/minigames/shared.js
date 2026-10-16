@@ -75,3 +75,41 @@ export function useOnce() {
     }, []);
     return [done, mark];
 }
+
+// Les quatre sons des pads de beatbox (mini-jeux de mémoire et de choix)
+export const SOUNDS = [
+    { id: 'kick', key: 'D', color: '#F0AE22', label: 'B' },
+    { id: 'snare', key: 'F', color: '#E2402F', label: 'Pf' },
+    { id: 'hat', key: 'J', color: '#3F7EEA', label: 'Ts' },
+    { id: 'bass', key: 'K', color: '#2EB75E', label: 'Boum' },
+];
+
+// Touches D F J K (et 1 2 3 4) pour les quatre pads
+export function usePadKeys(onPad, enabled = true) {
+    const ref = useRef(onPad);
+    ref.current = onPad;
+    useEffect(() => {
+        if (!enabled) return undefined;
+        const down = (event) => {
+            if (event.repeat) return;
+            const k = event.key.toUpperCase();
+            const index = SOUNDS.findIndex((s) => s.key === k);
+            const digit = ['1', '2', '3', '4'].indexOf(event.key);
+            const i = index >= 0 ? index : digit;
+            if (i < 0) return;
+            event.preventDefault();
+            ref.current(i);
+        };
+        window.addEventListener('keydown', down);
+        return () => window.removeEventListener('keydown', down);
+    }, [enabled]);
+}
+
+// Équipe et rôle du joueur dans un mini-jeu (un contre trois, deux contre deux)
+export function roleOf(minigame, myId) {
+    const teams = minigame.teams;
+    if (!teams) return { side: null, solo: false, mate: null };
+    const side = teams.a.includes(myId) ? 'a' : teams.b.includes(myId) ? 'b' : null;
+    const mate = side && minigame.kind === '2v2' ? teams[side].find((id) => id !== myId) : null;
+    return { side, solo: minigame.solo === myId, mate };
+}

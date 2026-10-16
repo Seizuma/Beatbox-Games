@@ -30,6 +30,7 @@ export function describeEvent(event, players, t) {
             return t(`events.${event.kind}`, { name: name(event.playerId), n: event.delta });
         case 'chose': return event.paid ? t('events.gate', { name: name(event.playerId), n: event.paid }) : '';
         case 'wheel': return t('events.wheel', { name: name(event.playerId), effect: t(`board.finaleEffect.${event.result}`) });
+        case 'duel': return t('events2.duelLine', { name: name(event.playerId), other: name(event.targetId), n: event.stake });
         case 'useItem': return t('events2.useItem', { name: name(event.playerId), item: t(`items.${event.item}.name`) });
         case 'buy': return t('events2.bought', { name: name(event.playerId), item: t(`items.${event.item}.name`) });
         case 'shopOpen': return t('events2.shopVisit', { name: name(event.playerId) });
@@ -109,6 +110,9 @@ function useSecondsLeft(deadline, clockOffset) {
 // Joueurs dans les coins
 // ---------------------------------------------------------------------------
 
+// Couleur de la dernière case (comme les panneaux de Mario Party) : elle annonce les équipes du mini-jeu
+const LAST_COLORS = { blue: '#3F7EEA', red: '#E2402F', green: '#2EB75E' };
+
 function PlayerCard({ player, rank, active, isMe, t, compact, orderRoll }) {
     const [hype, hypeFlash] = useRollingNumber(player.hype);
     const [stars, starFlash] = useRollingNumber(player.stars);
@@ -119,6 +123,9 @@ function PlayerCard({ player, rank, active, isMe, t, compact, orderRoll }) {
             <PlayerRing player={player} color={color} size={compact ? 46 : 54} active={active} pose={active ? 'beatbox' : 'idle'} dim={offline} className={compact ? 'self-center' : ''} />
             <div className="min-w-0 flex-1">
                 <div className={`flex items-center gap-1.5 ${compact ? 'justify-center' : ''}`}>
+                    {player.lastColor && (
+                        <span className="party-lastcolor" style={{ '--lc': LAST_COLORS[player.lastColor] }} title={t(`screen.lastColor.${player.lastColor}`)} aria-label={t(`screen.lastColor.${player.lastColor}`)} />
+                    )}
                     <span className="hw-strip-rank">{t(`screen.rank.${rank}`)}</span>
                     {!compact && <span className="hw-strip-name">{player.name}</span>}
                     {isMe && !compact && <span className="hw-label !text-[0.62rem] !text-[color:var(--hw-amber)]">{t('lobby.you')}</span>}
@@ -583,7 +590,7 @@ export default function PartyPlay({ state, myId, t, queue, clockOffset, actions 
         return (
             <div className="mx-auto flex w-full max-w-5xl flex-col gap-5 px-4 py-4 sm:px-6">
                 <Hud state={state} myId={myId} t={t} compact inline />
-                <MinigameStage state={state} myId={myId} t={t} clockOffset={clockOffset} onReady={actions.ready} onSubmit={actions.submit} />
+                <MinigameStage state={state} myId={myId} t={t} clockOffset={clockOffset} onReady={actions.ready} onSubmit={actions.submit} onInput={actions.mgInput} />
             </div>
         );
     }

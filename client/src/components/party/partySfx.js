@@ -73,6 +73,10 @@ const DRUMS = {
     kick: (c, o, at) => tone(c, o, at, { from: 150, to: 45, dur: 0.22, type: 'sine', gain: 0.7 }),
     snare: (c, o, at) => { hiss(c, o, at, { dur: 0.16, gain: 0.35, freq: 1800, type: 'bandpass', q: 0.7 }); tone(c, o, at, { from: 220, to: 160, dur: 0.08, type: 'triangle', gain: 0.2 }); },
     hat: (c, o, at) => hiss(c, o, at, { dur: 0.05, gain: 0.18, freq: 7000 }),
+    // Basse « boum » chantée : grave et long
+    bass: (c, o, at) => { tone(c, o, at, { from: 98, to: 62, dur: 0.38, type: 'sine', gain: 0.6 }); tone(c, o, at, { from: 196, to: 124, dur: 0.18, type: 'triangle', gain: 0.12 }); },
+    // Scratch : bruit filtré qui monte puis redescend
+    scratch: (c, o, at) => { hiss(c, o, at, { dur: 0.12, gain: 0.28, freq: 1400, type: 'bandpass', q: 3 }); hiss(c, o, at + 0.12, { dur: 0.12, gain: 0.22, freq: 900, type: 'bandpass', q: 3 }); },
 };
 
 const note = (n) => 440 * 2 ** ((n - 69) / 12);

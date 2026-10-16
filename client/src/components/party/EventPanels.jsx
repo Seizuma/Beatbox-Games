@@ -284,9 +284,29 @@ function ShopPanel({ state, myId, t, actions }) {
     );
 }
 
+// ---------------------------------------------------------------------------
+// Duel : deux joueurs sur la même case, dans les 5 derniers tours
+// ---------------------------------------------------------------------------
+
+function DuelPanel({ state, t }) {
+    const d = state.duel;
+    if (!d || state.step !== 'duel') return null;
+    return (
+        <Panel kind="duel" title={t('events2.duelTitle')}>
+            <span className="flex items-center gap-3">
+                <Who player={playerOf(state, d.playerId)} size={44} pose="fist" />
+                <span className="hw-title text-3xl">VS</span>
+                <Who player={playerOf(state, d.targetId)} size={44} pose="fist" />
+            </span>
+            <p className="hw-title hw-pop party-event-big flex items-center gap-2"><CoinIcon size={24} />{t('events2.duelStake', { n: d.stake })}</p>
+        </Panel>
+    );
+}
+
 export default function EventPanels(props) {
     return (
         <>
+            <DuelPanel {...props} />
             <ShopPanel {...props} />
             <SamplePanel {...props} />
             <CutPanel {...props} />

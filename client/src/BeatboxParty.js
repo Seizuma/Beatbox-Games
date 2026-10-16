@@ -135,6 +135,8 @@ function BeatboxPartyGame() {
         star: (buy) => act('party:star', { buy }),
         ready: () => act('party:ready'),
         submit: (raw) => act('party:mgResult', { raw }),
+        // Actions en direct d'un mini-jeu : pas d'accusé de réception (trop fréquentes)
+        mgInput: (data) => partySocket.emit('party:mgInput', { data }),
     }), [act]);
 
     const create = async (payload) => {
